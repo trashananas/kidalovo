@@ -11,15 +11,84 @@ import { useUser, useFirestore } from '@/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
-// This helper function finds URLs, wraps them in <a> tags, and replaces heart codes.
-const renderTextWithLinks = (text: string) => {
-  // Regex to find URLs (http, https, www)
-  const urlRegex = /((?:https?:\/\/|www\.)[^\s]+)/g;
+const Spoiler = ({ children }: { children: React.ReactNode }) => {
+  const [isVisible, setIsVisible] = useState(false);
 
-  // Split the text by URLs first
-  return text.split(urlRegex).map((part, index) => {
-    // If the part is a URL, wrap it in an anchor tag
-    if (part.match(urlRegex)) {
+  return (
+    <span
+      className={cn(
+        'inline-block rounded px-1 cursor-pointer transition-colors',
+        isVisible
+          ? 'bg-transparent'
+          : 'bg-muted-foreground/30 hover:bg-muted-foreground/20'
+      )}
+      onClick={(e) => {
+        e.stopPropagation();
+        setIsVisible(!isVisible);
+      }}
+    >
+      <span className={cn(isVisible ? 'opacity-100' : 'opacity-0')}>
+        {children}
+      </span>
+    </span>
+  );
+};
+
+const renderFormattedText = (text: string): React.ReactNode[] => {
+  // Regex for markdown, URL autolinking, and hearts.
+  const regex = new RegExp(
+    '(\\[[^\\]]*?\\]\\([^\\)]*?\\))' + // [text](url)
+    '|(\\*\\*.*?\\*\\*)' + // **bold**
+    '|(__.*?__)' + // __underline__
+    '|(~~.*?~~)' + // ~~strikethrough~~
+    '|(_.*?_)' + // _italic_
+    '|(\\|\\|.*?\\|\\|)' + // ||spoiler||
+    '|((?:https?://|www\\.)[^\\s]+)' + // autolink
+    '|(\\s<3\\s)', // <3 heart
+    'g'
+  );
+
+  const parts = text.split(regex).filter(Boolean);
+
+  return parts.map((part, index) => {
+    // Custom Link: [text](url)
+    let match = part.match(/^\[(.*)\]\((.*)\)$/);
+    if (match) {
+      return (
+        <a
+          key={index}
+          href={match[2]}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-500 hover:underline dark:text-blue-400"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {match[1]}
+        </a>
+      );
+    }
+    // Bold: **text**
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={index}>{part.slice(2, -2)}</strong>;
+    }
+    // Underline: __text__
+    if (part.startsWith('__') && part.endsWith('__')) {
+      return <u key={index}>{part.slice(2, -2)}</u>;
+    }
+    // Strikethrough: ~~text~~
+    if (part.startsWith('~~') && part.endsWith('~~')) {
+      return <s key={index}>{part.slice(2, -2)}</s>;
+    }
+    // Italic: _text_
+    if (part.startsWith('_') && part.endsWith('_')) {
+      return <em key={index}>{part.slice(1, -1)}</em>;
+    }
+    // Spoiler: ||text||
+    if (part.startsWith('||') && part.endsWith('||')) {
+      return <Spoiler key={index}>{part.slice(2, -2)}</Spoiler>;
+    }
+    // Autolink
+    if (part.match(/^(https?:\/\/|www\.)/)) {
       const url = part.startsWith('www.') ? `http://${part}` : part;
       return (
         <a
@@ -28,29 +97,20 @@ const renderTextWithLinks = (text: string) => {
           target="_blank"
           rel="noopener noreferrer"
           className="text-blue-500 hover:underline dark:text-blue-400"
-          onClick={(e) => {
-            // Prevent card drag or other parent events when clicking a link
-            e.stopPropagation();
-          }}
+          onClick={(e) => e.stopPropagation()}
         >
           {part}
         </a>
       );
     }
-
-    // For text parts, split by the heart pattern
-    const heartRegex = /(\s+<3\s+)/g;
-    return part.split(heartRegex).map((subPart, subIndex) => {
-      if (subPart.match(heartRegex)) {
-        // Replace the heart code (including spaces) with a heart emoji surrounded by single spaces
-        return <span key={subIndex}> ❤️ </span>;
-      }
-      // Otherwise, return the text part as is
-      return subPart;
-    });
+    // Heart: <3
+    if (part.match(/\s<3\s/)) {
+      return <span key={index}> ❤️ </span>;
+    }
+    // Plain text
+    return part;
   });
 };
-
 
 export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   const { user } = useUser();
@@ -104,7 +164,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
       setPosition(message.position);
     }
   }, [message.position, isDragging]);
-  
+
   // Effect for syncing size from props
   useEffect(() => {
     if (!isResizing) {
@@ -288,7 +348,16 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
       window.removeEventListener('pointerup', handlePointerUpGlobal);
       window.removeEventListener('pointercancel', handlePointerUpGlobal);
     };
-  }, [isResizing, firestore, isOwner, message.id, roomId, size, toast, message.size]);
+  }, [
+    isResizing,
+    firestore,
+    isOwner,
+    message.id,
+    roomId,
+    size,
+    toast,
+    message.size,
+  ]);
 
   const handleCopy = () => {
     navigator.clipboard
@@ -304,7 +373,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
         });
       });
   };
-  
+
   return (
     <Card
       ref={cardRef}
@@ -350,7 +419,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
                 </div>
               ) : (
                 <p className="text-sm text-foreground whitespace-pre-wrap break-words">
-                  {renderTextWithLinks(message.text)}
+                  {renderFormattedText(message.text)}
                 </p>
               )
             ) : (
