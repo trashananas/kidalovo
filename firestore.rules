@@ -81,7 +81,8 @@ service cloud.firestore {
       match /messages/{messageId} {
         allow read, list: if isRoomMember(roomId);
         allow create: if isRoomMember(roomId) && isMessageCreator();
-        allow update, delete: if isMessageOwner() && isExistingDoc();
+        allow update: if isMessageOwner() && isExistingDoc();
+        allow delete: if false;
       }
     }
   }

@@ -4,23 +4,12 @@ import type { Message } from '@/types';
 import { Card, CardContent } from './ui/card';
 import { cn, getErrorMessage } from '@/lib/utils';
 import { useState, useEffect, useRef } from 'react';
-import { GripVertical, Copy, Trash2 } from 'lucide-react';
+import { GripVertical, Copy } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Button } from './ui/button';
 
 type MessageCardProps = {
   message: Message;
@@ -71,7 +60,6 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   const [isResizing, setIsResizing] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [timeAgo, setTimeAgo] = useState('');
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   const cardRef = useRef<HTMLDivElement>(null);
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -314,129 +302,80 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
       });
   };
   
-  const handleDelete = async () => {
-    if (!firestore || !isOwner) return;
-
-    try {
-      const messageDocRef = doc(firestore, 'rooms', roomId, 'messages', message.id);
-      await deleteDoc(messageDocRef);
-      toast({ title: 'Сообщение удалено' });
-    } catch (error) {
-       toast({
-        title: 'Ошибка удаления',
-        description: getErrorMessage(error),
-        variant: 'destructive',
-      });
-    } finally {
-        setIsDeleteDialogOpen(false);
-    }
-  };
-
   return (
-    <>
-      <Card
-        ref={cardRef}
-        data-message-card="true"
-        className={cn(
-          'absolute rounded-lg shadow-lg transition-shadow duration-300 flex flex-col',
-          isOwner && 'cursor-grab',
-          isDragging && 'cursor-grabbing shadow-2xl z-20 scale-105',
-          isResizing && 'z-20'
-        )}
-        style={{
-          left: `${position.x}px`,
-          top: `${position.y}px`,
-          width: `${size.width}px`,
-          height: `${size.height}px`,
-          touchAction: 'none',
-        }}
-        onPointerMove={handleCardPointerMove}
-        onPointerUp={handleCardPointerUp}
-        onPointerCancel={handleCardPointerUp}
-      >
-        <CardContent className="relative p-4 flex flex-col gap-2 flex-grow overflow-y-auto">
-          <div className="flex items-start gap-2">
-            {isOwner && (
-              <div className="flex flex-col items-center">
-                <div
-                  className="p-1 text-muted-foreground/50 hover:text-muted-foreground touch-none cursor-pointer"
-                  onPointerDown={handleGripPointerDown}
-                  onPointerMove={handleGripPointerMove}
-                  onPointerUp={handleGripPointerUp}
-                  onPointerCancel={handleGripPointerUp}
-                >
-                  <GripVertical className="h-5 w-5" />
-                </div>
-                <div
-                  className="p-1 text-muted-foreground/50 hover:text-destructive cursor-pointer"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsDeleteDialogOpen(true);
-                  }}
-                  title="Удалить сообщение"
-                >
-                  <Trash2 className="h-5 w-5" />
-                </div>
-              </div>
-            )}
-
-            {!isOwner && !isCollapsed && <div className="w-5 shrink-0"></div>}
-
-            <div className="flex-1 min-w-0">
-              {!isCollapsed ? (
-                <p className="text-sm text-foreground whitespace-pre-wrap break-words">
-                  {renderTextWithLinks(message.text)}
-                </p>
-              ) : (
-                <div className="h-full flex items-center justify-center text-xs text-muted-foreground italic">
-                  Сообщение свёрнуто...
-                </div>
-              )}
+    <Card
+      ref={cardRef}
+      data-message-card="true"
+      className={cn(
+        'absolute rounded-lg shadow-lg transition-shadow duration-300 flex flex-col',
+        isOwner && 'cursor-grab',
+        isDragging && 'cursor-grabbing shadow-2xl z-20 scale-105',
+        isResizing && 'z-20'
+      )}
+      style={{
+        left: `${position.x}px`,
+        top: `${position.y}px`,
+        width: `${size.width}px`,
+        height: `${size.height}px`,
+        touchAction: 'none',
+      }}
+      onPointerMove={handleCardPointerMove}
+      onPointerUp={handleCardPointerUp}
+      onPointerCancel={handleCardPointerUp}
+    >
+      <CardContent className="relative p-4 flex flex-col gap-2 flex-grow overflow-y-auto">
+        <div className="flex items-start gap-2">
+          {isOwner && (
+            <div
+              className="p-1 text-muted-foreground/50 hover:text-muted-foreground touch-none cursor-pointer"
+              onPointerDown={handleGripPointerDown}
+              onPointerMove={handleGripPointerMove}
+              onPointerUp={handleGripPointerUp}
+              onPointerCancel={handleGripPointerUp}
+            >
+              <GripVertical className="h-5 w-5" />
             </div>
+          )}
 
-            {!isCollapsed && (
-              <div
-                className="py-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer"
-                onClick={handleCopy}
-                title="Скопировать текст"
-              >
-                <Copy className="h-5 w-5" />
+          {!isOwner && !isCollapsed && <div className="w-5 shrink-0"></div>}
+
+          <div className="flex-1 min-w-0">
+            {!isCollapsed ? (
+              <p className="text-sm text-foreground whitespace-pre-wrap break-words">
+                {renderTextWithLinks(message.text)}
+              </p>
+            ) : (
+              <div className="h-full flex items-center justify-center text-xs text-muted-foreground italic">
+                Сообщение свёрнуто...
               </div>
             )}
           </div>
 
-          {!isCollapsed && timeAgo && (
-            <div className="mt-auto text-xs text-muted-foreground pt-1 border-t">
-              <span>{timeAgo}</span>
+          {!isCollapsed && (
+            <div
+              className="py-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer"
+              onClick={handleCopy}
+              title="Скопировать текст"
+            >
+              <Copy className="h-5 w-5" />
             </div>
           )}
-        </CardContent>
+        </div>
 
-        {isOwner && (
-          <div
-            data-resize-handle="true"
-            className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize bg-primary/20 hover:bg-primary/50 transition-colors rounded-br-lg"
-            onPointerDown={handleResizePointerDown}
-          />
+        {!isCollapsed && timeAgo && (
+          <div className="mt-auto text-xs text-muted-foreground pt-1 border-t">
+            <span>{timeAgo}</span>
+          </div>
         )}
-      </Card>
+      </CardContent>
 
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Вы уверены?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Это действие необратимо. Сообщение будет удалено навсегда.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setIsDeleteDialogOpen(false)}>Отмена</AlertDialogCancel>
-            <AlertDialogAction asChild>
-              <Button onClick={handleDelete} variant="destructive">Удалить</Button>
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+      {isOwner && (
+        <div
+          data-resize-handle="true"
+          className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize bg-primary/20 hover:bg-primary/50 transition-colors rounded-br-lg"
+          onPointerDown={handleResizePointerDown}
+        />
+      )}
+    </Card>
   );
 }
