@@ -40,27 +40,19 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   const isOwner = user?.uid === message.userId;
 
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout | undefined;
-    
-    const update = () => {
-      if (message.createdAt) {
-        setTimeAgo(formatDistanceToNow(message.createdAt.toDate(), { addSuffix: true, locale: ru }));
-      } else {
-        setTimeAgo('только что');
-      }
-    };
-    
-    update();
-    // No need to run interval on server
-    if (typeof window !== 'undefined') {
-      timeoutId = setInterval(update, 60000);
+    if (!message.createdAt) {
+      setTimeAgo('только что');
+      return;
     }
     
-    return () => {
-      if (timeoutId) {
-        clearInterval(timeoutId);
-      }
+    const update = () => {
+      setTimeAgo(formatDistanceToNow(message.createdAt.toDate(), { addSuffix: true, locale: ru }));
     };
+
+    update();
+    const intervalId = setInterval(update, 60000);
+    
+    return () => clearInterval(intervalId);
   }, [message.createdAt]);
 
   useEffect(() => {
@@ -259,48 +251,49 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
       onPointerUp={handleCardPointerUp}
       onPointerCancel={handleCardPointerUp}
     >
-      <CardContent className="relative p-4 flex gap-2 items-start flex-grow min-h-0">
-        {isOwner && (
-          <div
-            className="py-1 text-muted-foreground/50 hover:text-muted-foreground touch-none cursor-pointer"
-            onPointerDown={handleGripPointerDown}
-            onPointerMove={handleGripPointerMove}
-            onPointerUp={handleGripPointerUp}
-            onPointerCancel={handleGripPointerUp}
-          >
-            <GripVertical className="h-5 w-5" />
-          </div>
-        )}
-        
-        {!isOwner && !isCollapsed && <div className='w-5 shrink-0'></div>}
+      <CardContent className="relative p-4 flex-grow overflow-y-auto">
+        <div className="flex items-start gap-2">
+            {isOwner && (
+              <div
+                className="py-1 text-muted-foreground/50 hover:text-muted-foreground touch-none cursor-pointer"
+                onPointerDown={handleGripPointerDown}
+                onPointerMove={handleGripPointerMove}
+                onPointerUp={handleGripPointerUp}
+                onPointerCancel={handleGripPointerUp}
+              >
+                <GripVertical className="h-5 w-5" />
+              </div>
+            )}
+            
+            {!isOwner && !isCollapsed && <div className='w-5 shrink-0'></div>}
 
-        <div className="flex-1 flex flex-col min-h-0">
-            {!isCollapsed ? (
-              <>
-                <div className="flex-grow overflow-y-auto pr-2">
+            <div className="flex-1 min-w-0">
+                {!isCollapsed ? (
                     <p className="text-sm text-foreground whitespace-pre-wrap break-words">{message.text}</p>
-                </div>
-                <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground pt-1 border-t shrink-0">
-                    <span>
-                      {timeAgo ? timeAgo : <>&nbsp;</>}
-                    </span>
-                </div>
-              </>
-            ) : (
-                <div className="flex-1 text-xs text-muted-foreground italic self-center flex items-center justify-center">
-                    Сообщение свёрнуто...
-                </div>
+                ) : (
+                    <div className="h-full flex items-center justify-center text-xs text-muted-foreground italic">
+                        Сообщение свёрнуто...
+                    </div>
+                )}
+            </div>
+
+            {!isCollapsed && (
+              <div
+                className="py-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer"
+                onClick={handleCopy}
+                title="Скопировать текст"
+              >
+                <Copy className="h-5 w-5" />
+              </div>
             )}
         </div>
-
+        
         {!isCollapsed && (
-          <div
-            className="py-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer"
-            onClick={handleCopy}
-            title="Скопировать текст"
-          >
-            <Copy className="h-5 w-5" />
-          </div>
+            <div className="mt-2 text-xs text-muted-foreground pt-1 border-t">
+                <span>
+                  {timeAgo ? timeAgo : <>&nbsp;</>}
+                </span>
+            </div>
         )}
       </CardContent>
 
