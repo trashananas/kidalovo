@@ -4,20 +4,60 @@ import type { Message } from '@/types';
 import { Card, CardContent } from './ui/card';
 import { cn, getErrorMessage } from '@/lib/utils';
 import { useState, useEffect, useRef } from 'react';
-import { GripVertical, Copy } from 'lucide-react';
+import { GripVertical, Copy, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import {
-  useUser,
-  useFirestore,
-} from '@/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { useUser, useFirestore } from '@/firebase';
+import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Button } from './ui/button';
 
 type MessageCardProps = {
   message: Message;
   roomId: string;
   panOffset: { x: number; y: number };
+};
+
+// This helper function finds URLs in a string and wraps them in <a> tags.
+const renderTextWithLinks = (text: string) => {
+  // Regex to find URLs (http, https, www)
+  const urlRegex = /((?:https?:\/\/|www\.)[^\s]+)/g;
+  
+  // Split the text by the URL regex to get an array of text and URLs
+  return text.split(urlRegex).map((part, index) => {
+    // If the part is a URL, wrap it in an anchor tag
+    if (part.match(urlRegex)) {
+      // Prepend http:// if URL starts with www.
+      const url = part.startsWith('www.') ? `http://${part}` : part;
+      return (
+        <a
+          key={index}
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-500 hover:underline dark:text-blue-400"
+          onClick={(e) => {
+            // Prevent card drag or other parent events when clicking a link
+            e.stopPropagation();
+          }}
+        >
+          {part}
+        </a>
+      );
+    }
+    // Otherwise, return the text part as is
+    return part;
+  });
 };
 
 export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
@@ -31,43 +71,60 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   const [isResizing, setIsResizing] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [timeAgo, setTimeAgo] = useState('');
-  
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
   const cardRef = useRef<HTMLDivElement>(null);
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
-  const resizeStartRef = useRef<{ x: number; y: number; width: number; height: number; } | null>(null);
+  const resizeStartRef = useRef<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
   const dragOffset = useRef({ x: 0, y: 0 });
 
   const isOwner = user?.uid === message.userId;
 
+  // Effect for updating the 'time ago' string
   useEffect(() => {
     if (!message.createdAt) {
       setTimeAgo('только что');
       return;
     }
-    
+
     const update = () => {
-      setTimeAgo(formatDistanceToNow(message.createdAt.toDate(), { addSuffix: true, locale: ru }));
+      setTimeAgo(
+        formatDistanceToNow(message.createdAt.toDate(), {
+          addSuffix: true,
+          locale: ru,
+        })
+      );
     };
 
     update();
     const intervalId = setInterval(update, 60000);
-    
+
     return () => clearInterval(intervalId);
   }, [message.createdAt]);
 
+  // Effect for syncing position from props
   useEffect(() => {
     if (!isDragging) {
       setPosition(message.position);
     }
+  }, [message.position, isDragging]);
+  
+  // Effect for syncing size from props
+  useEffect(() => {
     if (!isResizing) {
       setSize(message.size || { width: 256, height: 128 });
     }
-  }, [message.position, message.size, isDragging, isResizing]);
+  }, [message.size, isResizing]);
 
   const handleGripPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isOwner) return;
     e.stopPropagation();
-    e.preventDefault(); 
+    e.preventDefault();
     dragStartRef.current = { x: e.clientX, y: e.clientY };
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
   };
@@ -82,7 +139,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
     if (dx > 5 || dy > 5) {
       if (!cardRef.current) return;
       (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-      
+
       const rect = cardRef.current.getBoundingClientRect();
       dragOffset.current = {
         x: e.clientX - rect.left,
@@ -91,18 +148,18 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
 
       setIsDragging(true);
       cardRef.current.setPointerCapture(e.pointerId);
-      
+
       dragStartRef.current = null;
     }
   };
-  
+
   const handleGripPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isOwner) return;
     e.stopPropagation();
     (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-    
+
     if (dragStartRef.current) {
-        setIsCollapsed(p => !p);
+      setIsCollapsed((p) => !p);
     }
     dragStartRef.current = null;
   };
@@ -112,30 +169,41 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
     e.preventDefault();
     const board = document.getElementById('board');
     if (!board) return;
-    
+
     const boardRect = board.getBoundingClientRect();
 
-    const newWorldX = e.clientX - boardRect.left - panOffset.x - dragOffset.current.x;
-    const newWorldY = e.clientY - boardRect.top - panOffset.y - dragOffset.current.y;
-    
+    const newWorldX =
+      e.clientX - boardRect.left - panOffset.x - dragOffset.current.x;
+    const newWorldY =
+      e.clientY - boardRect.top - panOffset.y - dragOffset.current.y;
+
     setPosition({ x: newWorldX, y: newWorldY });
   };
 
   const handleCardPointerUp = async (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDragging || !isOwner || !firestore) {
-      if(isDragging) {
+      if (isDragging) {
         setIsDragging(false);
         cardRef.current?.releasePointerCapture(e.pointerId);
       }
       return;
     }
-  
+
     cardRef.current?.releasePointerCapture(e.pointerId);
-  
+
     try {
-      if (position.x !== message.position.x || position.y !== message.position.y) {
-        const messageDocRef = doc(firestore, 'rooms', roomId, 'messages', message.id);
-        await updateDoc(messageDocRef, { 'position': position });
+      if (
+        position.x !== message.position.x ||
+        position.y !== message.position.y
+      ) {
+        const messageDocRef = doc(
+          firestore,
+          'rooms',
+          roomId,
+          'messages',
+          message.id
+        );
+        await updateDoc(messageDocRef, { position: position });
       }
     } catch (error) {
       toast({
@@ -153,13 +221,13 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
     if (!isOwner) return;
     e.stopPropagation();
     e.preventDefault();
-    
+
     setIsResizing(true);
     resizeStartRef.current = {
-        x: e.clientX,
-        y: e.clientY,
-        width: cardRef.current?.offsetWidth || size.width,
-        height: cardRef.current?.offsetHeight || size.height
+      x: e.clientX,
+      y: e.clientY,
+      width: cardRef.current?.offsetWidth || size.width,
+      height: cardRef.current?.offsetHeight || size.height,
     };
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
   };
@@ -179,7 +247,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
 
     const handlePointerUpGlobal = async () => {
       if (!isResizing) return;
-      
+
       if (!isOwner || !firestore) {
         setIsResizing(false);
         resizeStartRef.current = null;
@@ -187,22 +255,31 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
       }
 
       const originalSize = message.size || { width: 256, height: 128 };
-      if (size.width === originalSize.width && size.height === originalSize.height) {
-          setIsResizing(false);
-          resizeStartRef.current = null;
-          return;
+      if (
+        size.width === originalSize.width &&
+        size.height === originalSize.height
+      ) {
+        setIsResizing(false);
+        resizeStartRef.current = null;
+        return;
       }
 
       try {
-          const messageDocRef = doc(firestore, 'rooms', roomId, 'messages', message.id);
-          await updateDoc(messageDocRef, { 'size': size });
+        const messageDocRef = doc(
+          firestore,
+          'rooms',
+          roomId,
+          'messages',
+          message.id
+        );
+        await updateDoc(messageDocRef, { size: size });
       } catch (error) {
-          toast({
-              title: 'Ошибка',
-              description: `Не удалось обновить размер: ${getErrorMessage(error)}`,
-              variant: 'destructive',
-          });
-          setSize(message.size || { width: 256, height: 128 });
+        toast({
+          title: 'Ошибка',
+          description: `Не удалось обновить размер: ${getErrorMessage(error)}`,
+          variant: 'destructive',
+        });
+        setSize(message.size || { width: 256, height: 128 });
       } finally {
         setIsResizing(false);
         resizeStartRef.current = null;
@@ -210,71 +287,111 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
     };
 
     if (isResizing) {
-        window.addEventListener('pointermove', handlePointerMoveGlobal);
-        window.addEventListener('pointerup', handlePointerUpGlobal);
-        window.addEventListener('pointercancel', handlePointerUpGlobal);
+      window.addEventListener('pointermove', handlePointerMoveGlobal);
+      window.addEventListener('pointerup', handlePointerUpGlobal);
+      window.addEventListener('pointercancel', handlePointerUpGlobal);
     }
 
     return () => {
-        window.removeEventListener('pointermove', handlePointerMoveGlobal);
-        window.removeEventListener('pointerup', handlePointerUpGlobal);
-        window.removeEventListener('pointercancel', handlePointerUpGlobal);
+      window.removeEventListener('pointermove', handlePointerMoveGlobal);
+      window.removeEventListener('pointerup', handlePointerUpGlobal);
+      window.removeEventListener('pointercancel', handlePointerUpGlobal);
     };
   }, [isResizing, firestore, isOwner, message.id, roomId, size, toast, message.size]);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(message.text).then(() => {
-      toast({ title: 'Скопировано' });
-    }).catch(err => {
-      toast({ title: 'Ошибка', description: 'Не удалось скопировать текст.', variant: 'destructive' });
-    });
+    navigator.clipboard
+      .writeText(message.text)
+      .then(() => {
+        toast({ title: 'Скопировано' });
+      })
+      .catch((err) => {
+        toast({
+          title: 'Ошибка',
+          description: 'Не удалось скопировать текст.',
+          variant: 'destructive',
+        });
+      });
+  };
+  
+  const handleDelete = async () => {
+    if (!firestore || !isOwner) return;
+
+    try {
+      const messageDocRef = doc(firestore, 'rooms', roomId, 'messages', message.id);
+      await deleteDoc(messageDocRef);
+      toast({ title: 'Сообщение удалено' });
+    } catch (error) {
+       toast({
+        title: 'Ошибка удаления',
+        description: getErrorMessage(error),
+        variant: 'destructive',
+      });
+    } finally {
+        setIsDeleteDialogOpen(false);
+    }
   };
 
   return (
-    <Card
-      ref={cardRef}
-      data-message-card="true"
-      className={cn(
-        'absolute rounded-lg shadow-lg transition-shadow duration-300 flex flex-col',
-        isOwner && 'cursor-grab',
-        isDragging && 'cursor-grabbing shadow-2xl z-20 scale-105',
-        isResizing && 'z-20',
-      )}
-      style={{
-        left: `${position.x}px`,
-        top: `${position.y}px`,
-        width: `${size.width}px`,
-        height: `${size.height}px`,
-        touchAction: 'none',
-      }}
-      onPointerMove={handleCardPointerMove}
-      onPointerUp={handleCardPointerUp}
-      onPointerCancel={handleCardPointerUp}
-    >
-      <CardContent className="relative p-4 flex-grow overflow-y-auto">
-        <div className="flex items-start gap-2">
+    <>
+      <Card
+        ref={cardRef}
+        data-message-card="true"
+        className={cn(
+          'absolute rounded-lg shadow-lg transition-shadow duration-300 flex flex-col',
+          isOwner && 'cursor-grab',
+          isDragging && 'cursor-grabbing shadow-2xl z-20 scale-105',
+          isResizing && 'z-20'
+        )}
+        style={{
+          left: `${position.x}px`,
+          top: `${position.y}px`,
+          width: `${size.width}px`,
+          height: `${size.height}px`,
+          touchAction: 'none',
+        }}
+        onPointerMove={handleCardPointerMove}
+        onPointerUp={handleCardPointerUp}
+        onPointerCancel={handleCardPointerUp}
+      >
+        <CardContent className="relative p-4 flex flex-col gap-2 flex-grow overflow-y-auto">
+          <div className="flex items-start gap-2">
             {isOwner && (
-              <div
-                className="py-1 text-muted-foreground/50 hover:text-muted-foreground touch-none cursor-pointer"
-                onPointerDown={handleGripPointerDown}
-                onPointerMove={handleGripPointerMove}
-                onPointerUp={handleGripPointerUp}
-                onPointerCancel={handleGripPointerUp}
-              >
-                <GripVertical className="h-5 w-5" />
+              <div className="flex flex-col items-center">
+                <div
+                  className="p-1 text-muted-foreground/50 hover:text-muted-foreground touch-none cursor-pointer"
+                  onPointerDown={handleGripPointerDown}
+                  onPointerMove={handleGripPointerMove}
+                  onPointerUp={handleGripPointerUp}
+                  onPointerCancel={handleGripPointerUp}
+                >
+                  <GripVertical className="h-5 w-5" />
+                </div>
+                <div
+                  className="p-1 text-muted-foreground/50 hover:text-destructive cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsDeleteDialogOpen(true);
+                  }}
+                  title="Удалить сообщение"
+                >
+                  <Trash2 className="h-5 w-5" />
+                </div>
               </div>
             )}
-            
-            {!isOwner && !isCollapsed && <div className='w-5 shrink-0'></div>}
+
+            {!isOwner && !isCollapsed && <div className="w-5 shrink-0"></div>}
 
             <div className="flex-1 min-w-0">
-                {!isCollapsed ? (
-                    <p className="text-sm text-foreground whitespace-pre-wrap break-words">{message.text}</p>
-                ) : (
-                    <div className="h-full flex items-center justify-center text-xs text-muted-foreground italic">
-                        Сообщение свёрнуто...
-                    </div>
-                )}
+              {!isCollapsed ? (
+                <p className="text-sm text-foreground whitespace-pre-wrap break-words">
+                  {renderTextWithLinks(message.text)}
+                </p>
+              ) : (
+                <div className="h-full flex items-center justify-center text-xs text-muted-foreground italic">
+                  Сообщение свёрнуто...
+                </div>
+              )}
             </div>
 
             {!isCollapsed && (
@@ -286,24 +403,40 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
                 <Copy className="h-5 w-5" />
               </div>
             )}
-        </div>
-        
-        {!isCollapsed && (
-            <div className="mt-2 text-xs text-muted-foreground pt-1 border-t">
-                <span>
-                  {timeAgo ? timeAgo : <>&nbsp;</>}
-                </span>
-            </div>
-        )}
-      </CardContent>
+          </div>
 
-       {isOwner && (
-        <div
-          data-resize-handle="true"
-          className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize bg-primary/20 hover:bg-primary/50 transition-colors rounded-br-lg"
-          onPointerDown={handleResizePointerDown}
-        />
-      )}
-    </Card>
+          {!isCollapsed && timeAgo && (
+            <div className="mt-auto text-xs text-muted-foreground pt-1 border-t">
+              <span>{timeAgo}</span>
+            </div>
+          )}
+        </CardContent>
+
+        {isOwner && (
+          <div
+            data-resize-handle="true"
+            className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize bg-primary/20 hover:bg-primary/50 transition-colors rounded-br-lg"
+            onPointerDown={handleResizePointerDown}
+          />
+        )}
+      </Card>
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Вы уверены?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Это действие необратимо. Сообщение будет удалено навсегда.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setIsDeleteDialogOpen(false)}>Отмена</AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <Button onClick={handleDelete} variant="destructive">Удалить</Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
