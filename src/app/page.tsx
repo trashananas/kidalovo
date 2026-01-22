@@ -88,7 +88,7 @@ export default function Home() {
   const joinRoomSchema = z.object({
     code: z
       .string()
-      .length(4, 'Код должен состоять из 4 букв')
+      .length(6, 'Код должен состоять из 6 букв')
       .regex(/^[A-Z]+$/, 'Код должен состоять из заглавных латинских букв'),
   });
 
@@ -180,9 +180,9 @@ export default function Home() {
               <Input
                 ref={joinCodeRef}
                 name="code"
-                placeholder="ABCD"
-                className="w-32 text-center text-lg font-semibold tracking-widest uppercase"
-                maxLength={4}
+                placeholder="ABCDEF"
+                className="w-40 text-center text-lg font-semibold tracking-widest uppercase"
+                maxLength={6}
                 onChange={(e) => {
                   e.target.value = e.target.value
                     .toUpperCase()
