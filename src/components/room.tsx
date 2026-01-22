@@ -25,7 +25,7 @@ export function Room({ roomId }: RoomProps) {
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
-    if (target.closest('.absolute')) {
+    if (target.closest('[data-message-card="true"]')) {
       return;
     }
     setIsPanning(true);

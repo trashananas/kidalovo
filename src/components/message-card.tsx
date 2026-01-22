@@ -24,9 +24,12 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   const { toast } = useToast();
   const [position, setPosition] = useState(message.position);
   const [isDragging, setIsDragging] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const offset = useRef({ x: 0, y: 0 });
   const cardRef = useRef<HTMLDivElement>(null);
   const [isPending, startTransition] = useTransition();
+
+  const dragStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const isOwner = user?.uid === message.userId;
 
@@ -35,18 +38,47 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
       setPosition(message.position);
     }
   }, [message.position, isDragging]);
-  
-  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+
+  const handleGripPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isOwner) return;
+    e.stopPropagation();
     e.preventDefault();
-    if (!cardRef.current) return;
-    const rect = cardRef.current.getBoundingClientRect();
-    offset.current = {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-    };
-    setIsDragging(true);
-    cardRef.current.setPointerCapture(e.pointerId);
+    dragStartRef.current = { x: e.clientX, y: e.clientY };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const handleGripPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isOwner || !dragStartRef.current || isDragging) return;
+    e.stopPropagation();
+
+    const dx = Math.abs(e.clientX - dragStartRef.current.x);
+    const dy = Math.abs(e.clientY - dragStartRef.current.y);
+
+    if (dx > 5 || dy > 5) {
+      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+      
+      if (!cardRef.current) return;
+      const rect = cardRef.current.getBoundingClientRect();
+      offset.current = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      };
+      setIsDragging(true);
+      cardRef.current.setPointerCapture(e.pointerId);
+      
+      dragStartRef.current = null;
+    }
+  };
+  
+  const handleGripPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isOwner) return;
+    e.stopPropagation();
+    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    
+    if (dragStartRef.current) {
+        setIsCollapsed(p => !p);
+    }
+    dragStartRef.current = null;
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -65,7 +97,6 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
 
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDragging || !isOwner || !firestore) return;
-    e.preventDefault();
     setIsDragging(false);
     cardRef.current?.releasePointerCapture(e.pointerId);
     
@@ -91,6 +122,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   return (
     <Card
       ref={cardRef}
+      data-message-card="true"
       className={cn(
         'absolute w-64 rounded-lg shadow-lg transition-shadow duration-300',
         isOwner && 'cursor-grab',
@@ -106,23 +138,35 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
     >
-      <CardContent className="relative p-4 flex gap-2">
+      <CardContent className="relative p-4 flex gap-2 items-start">
         {isOwner && (
           <div
-            className="py-1 text-muted-foreground/50 hover:text-muted-foreground touch-none"
-            onPointerDown={handlePointerDown}
+            className="py-1 text-muted-foreground/50 hover:text-muted-foreground touch-none cursor-pointer"
+            onPointerDown={handleGripPointerDown}
+            onPointerMove={handleGripPointerMove}
+            onPointerUp={handleGripPointerUp}
+            onPointerCancel={handleGripPointerUp}
           >
             <GripVertical className="h-5 w-5" />
           </div>
         )}
-        <div className="flex-1">
-          <p className="text-sm text-foreground whitespace-pre-wrap break-words">{message.text}</p>
-          <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
-            <span>
-              {message.createdAt ? formatDistanceToNow(message.createdAt.toDate(), { addSuffix: true, locale: ru }) : 'только что'}
-            </span>
-          </div>
-        </div>
+        
+        {!isOwner && !isCollapsed && <div className='w-5 shrink-0'></div>}
+
+        {!isCollapsed ? (
+            <div className="flex-1">
+              <p className="text-sm text-foreground whitespace-pre-wrap break-words">{message.text}</p>
+              <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
+                <span>
+                  {message.createdAt ? formatDistanceToNow(message.createdAt.toDate(), { addSuffix: true, locale: ru }) : 'только что'}
+                </span>
+              </div>
+            </div>
+        ) : (
+            <div className="flex-1 text-xs text-muted-foreground italic self-center">
+                Сообщение свёрнуто...
+            </div>
+        )}
       </CardContent>
     </Card>
   );
