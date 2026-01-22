@@ -48,14 +48,15 @@ export function Room({ roomId }: RoomProps) {
   }, [firestore, roomId]);
 
   const { data: roomData } = useDoc(roomRef);
-  const isOwner = roomData?.creatorId === user?.uid;
-
+  
   const handleDeleteRoom = async () => {
-    if (!firestore || !isOwner || !roomRef) return;
+    if (!firestore || !user || !roomRef) return;
     
     setIsDeleting(true);
     
     try {
+        // The security rules will handle the logic of whether the user is the last one.
+        // We just need to attempt the deletion.
         const messagesCollectionRef = collection(firestore, 'rooms', roomId, 'messages');
         const messagesSnapshot = await getDocs(messagesCollectionRef);
         
@@ -80,7 +81,7 @@ export function Room({ roomId }: RoomProps) {
         console.error("Ошибка при удалении комнаты: ", error);
         toast({
             title: 'Ошибка удаления',
-            description: getErrorMessage(error),
+            description: 'Удалить комнату может только последний участник. ' + getErrorMessage(error),
             variant: 'destructive',
         });
         setIsDeleting(false);
@@ -152,14 +153,14 @@ export function Room({ roomId }: RoomProps) {
             {roomId}
           </Badge>
         </div>
-        {isOwner && (
+        {user && (
           <>
             <Button
                 variant="destructive"
                 size="icon"
                 onClick={() => setIsDeleteDialogOpen(true)}
                 disabled={isDeleting}
-                title="Удалить комнату"
+                title="Удалить комнату (только для последнего участника)"
             >
                 {isDeleting ? <Loader2 className="animate-spin" /> : <Trash2 />}
             </Button>
@@ -168,8 +169,8 @@ export function Room({ roomId }: RoomProps) {
                     <AlertDialogHeader>
                         <AlertDialogTitle>Вы уверены?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Это действие невозможно отменить. Это навсегда удалит комнату
-                            и все сообщения в ней.
+                            Это действие навсегда удалит комнату и все сообщения в ней.
+                            Действие сработает, только если вы последний участник в комнате.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

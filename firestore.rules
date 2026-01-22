@@ -42,6 +42,14 @@ service cloud.firestore {
     function isRoomOwner(roomId) {
       return isSignedIn() && get(/databases/$(database)/documents/rooms/$(roomId)).data.members[request.auth.uid] == 'owner';
     }
+    
+    /**
+     * Returns true if the current user is the only member of the specified room.
+     */
+    function isLastMember(roomId) {
+      let room = get(/databases/$(database)/documents/rooms/$(roomId)).data;
+      return isSignedIn() && room.members.size() == 1 && request.auth.uid in room.members;
+    }
 
     /**
      * Validates that an incoming message on create has the creator's UID.
@@ -76,13 +84,15 @@ service cloud.firestore {
       // The owner can update anything. Members can be added, but not removed by non-owners.
       allow update: if isRoomOwner(roomId) || 
         (isSignedIn() && request.resource.data.members.size() >= resource.data.members.size());
-      allow delete: if isRoomOwner(roomId) && isExistingDoc();
+      // A room can be deleted only by the last member remaining.
+      allow delete: if isLastMember(roomId) && isExistingDoc();
 
       match /messages/{messageId} {
         allow read, list: if isRoomMember(roomId);
         allow create: if isRoomMember(roomId) && isMessageCreator();
         allow update: if isMessageOwner() && isExistingDoc();
-        allow delete: if isRoomOwner(roomId);
+        // Messages can be deleted only by the last member of the room (as part of room deletion).
+        allow delete: if isLastMember(roomId);
       }
     }
   }
