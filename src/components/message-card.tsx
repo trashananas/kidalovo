@@ -24,8 +24,10 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   const { toast } = useToast();
   const [position, setPosition] = useState(message.position);
   const [isDragging, setIsDragging] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const offset = useRef({ x: 0, y: 0 });
   const cardRef = useRef<HTMLDivElement>(null);
+  const dragStartPos = useRef({ x: 0, y: 0 });
   const [isPending, startTransition] = useTransition();
 
   const isOwner = user?.uid === message.userId;
@@ -36,10 +38,14 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
     }
   }, [message.position, isDragging]);
   
-  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+  const handleGripPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isOwner) return;
     e.preventDefault();
+    e.stopPropagation(); // Остановить панорамирование доски
     if (!cardRef.current) return;
+    
+    dragStartPos.current = { x: e.clientX, y: e.clientY };
+
     const rect = cardRef.current.getBoundingClientRect();
     offset.current = {
       x: e.clientX - rect.left,
@@ -64,10 +70,23 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDragging || !isOwner || !firestore) return;
+    if (!isDragging || !isOwner) return;
     e.preventDefault();
     setIsDragging(false);
     cardRef.current?.releasePointerCapture(e.pointerId);
+
+    const distanceMoved = Math.sqrt(
+      Math.pow(e.clientX - dragStartPos.current.x, 2) +
+      Math.pow(e.clientY - dragStartPos.current.y, 2)
+    );
+
+    if (distanceMoved < 5) { // Это клик
+      setIsCollapsed(prev => !prev);
+      setPosition(message.position); // Сбросить любое незначительное перетаскивание
+      return;
+    }
+    
+    if (!firestore) return;
     
     if (position.x === message.position.x && position.y === message.position.y) {
       return;
@@ -92,10 +111,11 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
     <Card
       ref={cardRef}
       className={cn(
-        'absolute w-64 rounded-lg shadow-lg transition-shadow duration-300',
+        'absolute w-64 rounded-lg shadow-lg transition-shadow duration-300 message-card',
         isOwner && 'cursor-grab',
         isDragging && 'cursor-grabbing shadow-2xl z-20 scale-105',
-        isPending && 'opacity-70'
+        isPending && 'opacity-70',
+        isCollapsed && 'h-auto'
       )}
       style={{
         left: `${position.x}px`,
@@ -109,18 +129,21 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
       <CardContent className="relative p-4 flex gap-2">
         {isOwner && (
           <div
-            className="py-1 text-muted-foreground/50 hover:text-muted-foreground touch-none"
-            onPointerDown={handlePointerDown}
+            className="py-1 text-muted-foreground/50 hover:text-muted-foreground touch-none cursor-pointer"
+            onPointerDown={handleGripPointerDown}
           >
             <GripVertical className="h-5 w-5" />
           </div>
         )}
-        <div className="flex-1">
-          <p className="text-sm text-foreground whitespace-pre-wrap break-words">{message.text}</p>
+        <div className="flex-1 overflow-hidden">
+          {!isCollapsed && (
+            <p className="text-sm text-foreground whitespace-pre-wrap break-words">{message.text}</p>
+          )}
           <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
             <span>
               {message.createdAt ? formatDistanceToNow(message.createdAt.toDate(), { addSuffix: true, locale: ru }) : 'только что'}
             </span>
+             {isCollapsed && <span className="text-xs italic">Свернуто...</span>}
           </div>
         </div>
       </CardContent>

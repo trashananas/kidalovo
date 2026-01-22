@@ -65,7 +65,7 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
   };
 
   const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.ctrlKey) {
       e.preventDefault();
       form.handleSubmit(onSubmit)();
     }
@@ -91,7 +91,7 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
                   <FormControl>
                     <Textarea
                       {...field}
-                      placeholder="Введите ваше сообщение... (Shift+Enter для новой строки)"
+                      placeholder="Введите ваше сообщение... (Ctrl+Enter для новой строки)"
                       className="min-h-0 resize-none"
                       rows={1}
                       onKeyDown={handleTextareaKeyDown}
