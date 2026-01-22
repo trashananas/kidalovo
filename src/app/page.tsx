@@ -15,7 +15,7 @@ import {
   FormItem,
   FormMessage,
 } from '@/components/ui/form';
-import { PenSquare } from 'lucide-react';
+import { Loader2, PenSquare } from 'lucide-react';
 
 const joinRoomSchema = z.object({
   code: z
@@ -25,7 +25,7 @@ const joinRoomSchema = z.object({
 });
 
 function CreateRoomForm() {
-  const [state, formAction] = useActionState(createRoom, { message: '' });
+  const [state, formAction, isPending] = useActionState(createRoom, { message: '' });
   const { toast } = useToast();
 
   useEffect(() => {
@@ -40,15 +40,22 @@ function CreateRoomForm() {
 
   return (
     <form action={formAction}>
-      <Button size="lg" type="submit">
-        Создать новую комнату
+      <Button size="lg" type="submit" disabled={isPending}>
+        {isPending ? (
+          <>
+            <Loader2 className="animate-spin" />
+            Создание...
+          </>
+        ) : (
+          'Создать новую комнату'
+        )}
       </Button>
     </form>
   );
 }
 
 function JoinRoomForm() {
-  const [state, formAction] = useActionState(joinRoom, { message: '' });
+  const [state, formAction, isPending] = useActionState(joinRoom, { message: '' });
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -90,14 +97,22 @@ function JoinRoomForm() {
                   className="w-32 text-center text-lg font-semibold tracking-widest uppercase"
                   maxLength={4}
                   onChange={(e) => field.onChange(e.target.value.toUpperCase())}
+                  disabled={isPending}
                 />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        <Button type="submit" size="lg" variant="secondary">
-          Войти в комнату
+        <Button type="submit" size="lg" variant="secondary" disabled={isPending}>
+          {isPending ? (
+            <>
+              <Loader2 className="animate-spin" />
+              Вход...
+            </>
+          ) : (
+            'Войти в комнату'
+          )}
         </Button>
       </form>
     </Form>
