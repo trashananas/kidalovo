@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { generateRoomCode, getErrorMessage } from '@/lib/utils';
 import { z } from 'zod';
+import { UserGuide } from '@/components/user-guide';
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
@@ -153,17 +154,19 @@ export default function Home() {
           </p>
         </div>
         <div className="flex flex-col items-center gap-4 rounded-lg border bg-card p-6 shadow-sm">
-          {/* Create Room Button */}
-          <Button size="lg" onClick={handleCreateRoom} disabled={isCreatingRoom || !user}>
-            {isCreatingRoom ? (
-              <>
-                <Loader2 className="animate-spin" />
-                Создание...
-              </>
-            ) : (
-              'Создать новую комнату'
-            )}
-          </Button>
+          <div className="flex gap-2">
+            <Button size="lg" onClick={handleCreateRoom} disabled={isCreatingRoom || !user}>
+              {isCreatingRoom ? (
+                <>
+                  <Loader2 className="animate-spin" />
+                  Создание...
+                </>
+              ) : (
+                'Создать новую комнату'
+              )}
+            </Button>
+            <UserGuide />
+          </div>
 
           <div className="relative w-full text-center">
             <div className="absolute inset-0 flex items-center">
@@ -174,7 +177,6 @@ export default function Home() {
             </div>
           </div>
           
-          {/* Join Room Form */}
           <form onSubmit={handleJoinRoom} className="flex items-start gap-2">
             <div className="space-y-1">
               <Input
