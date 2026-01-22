@@ -7,7 +7,7 @@ import {
   doc,
   updateDoc,
   getDoc,
-  runTransaction,
+  setDoc,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { generateRoomCode, getErrorMessage } from './utils';
@@ -23,48 +23,43 @@ export async function createRoom(
   prevState: FormState,
   formData: FormData
 ): Promise<FormState> {
-  let roomCode = '';
-  let success = false;
   let attempts = 0;
+  const maxAttempts = 10;
 
-  // Пытаемся найти уникальный код несколько раз.
-  while (!success && attempts < 10) {
+  while (attempts < maxAttempts) {
     attempts++;
-    const currentCode = generateRoomCode();
+    const roomCode = generateRoomCode();
+    const roomRef = doc(db, 'rooms', roomCode);
+
     try {
-      // Используем транзакцию для атомарной проверки существования и создания.
-      await runTransaction(db, async (transaction) => {
-        const roomRef = doc(db, 'rooms', currentCode);
-        const roomSnap = await transaction.get(roomRef);
+      const docSnap = await getDoc(roomRef);
 
-        if (roomSnap.exists()) {
-          // Код комнаты уже занят, транзакция прервется, и мы попробуем снова.
-          console.log(`Код комнаты ${currentCode} уже существует. Повторная попытка...`);
-          return;
-        }
+      if (docSnap.exists()) {
+        console.log(`Код комнаты ${roomCode} уже существует. Повторная попытка...`);
+        continue;
+      }
 
-        // Код комнаты уникален, создаем новую комнату.
-        transaction.set(roomRef, {
-          code: currentCode,
-          createdAt: serverTimestamp(),
-        });
-
-        // Если мы дошли до сюда, транзакция готова к выполнению.
-        roomCode = currentCode;
-        success = true;
+      // Код комнаты уникален, создаем новую комнату.
+      await setDoc(roomRef, {
+        code: roomCode,
+        createdAt: serverTimestamp(),
       });
+      
+      // Успех, перенаправляем пользователя.
+      redirect(`/${roomCode}`);
+
     } catch (error) {
-      // Транзакция не удалась. Логгируем ошибку и позволяем циклу попробовать снова.
-      console.error('Транзакция создания комнаты не удалась:', getErrorMessage(error));
+      // Если есть ошибка (например, права доступа), останавливаемся и сообщаем о ней.
+      const errorMessage = getErrorMessage(error);
+      console.error(`Ошибка при создании комнаты: ${errorMessage}`);
+      return { message: `Не удалось создать комнату: ${errorMessage}` };
     }
   }
 
-  if (!success) {
-    return { message: 'Не удалось создать уникальную комнату. Пожалуйста, попробуйте еще раз.' };
-  }
-
-  redirect(`/${roomCode}`);
+  // Если цикл завершился, значит, мы не смогли найти уникальный код.
+  return { message: 'Не удалось создать уникальную комнату после 10 попыток. Пожалуйста, попробуйте еще раз.' };
 }
+
 
 const joinRoomSchema = z.object({
   code: z
