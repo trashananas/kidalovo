@@ -11,22 +11,15 @@ import { useUser, useFirestore } from '@/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
-type MessageCardProps = {
-  message: Message;
-  roomId: string;
-  panOffset: { x: number; y: number };
-};
-
-// This helper function finds URLs in a string and wraps them in <a> tags.
+// This helper function finds URLs, wraps them in <a> tags, and replaces heart codes.
 const renderTextWithLinks = (text: string) => {
   // Regex to find URLs (http, https, www)
   const urlRegex = /((?:https?:\/\/|www\.)[^\s]+)/g;
-  
-  // Split the text by the URL regex to get an array of text and URLs
+
+  // Split the text by URLs first
   return text.split(urlRegex).map((part, index) => {
     // If the part is a URL, wrap it in an anchor tag
     if (part.match(urlRegex)) {
-      // Prepend http:// if URL starts with www.
       const url = part.startsWith('www.') ? `http://${part}` : part;
       return (
         <a
@@ -44,10 +37,20 @@ const renderTextWithLinks = (text: string) => {
         </a>
       );
     }
-    // Otherwise, return the text part as is
-    return part;
+
+    // For text parts, split by the heart pattern
+    const heartRegex = /(\s+<3\s+)/g;
+    return part.split(heartRegex).map((subPart, subIndex) => {
+      if (subPart.match(heartRegex)) {
+        // Replace the heart code (including spaces) with a heart emoji surrounded by single spaces
+        return <span key={subIndex}> ❤️ </span>;
+      }
+      // Otherwise, return the text part as is
+      return subPart;
+    });
   });
 };
+
 
 export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   const { user } = useUser();
