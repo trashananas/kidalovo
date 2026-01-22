@@ -155,60 +155,23 @@
     ]
   },
   "firestore": {
-    "structure": [
-      {
-        "path": "/rooms/{roomId}",
-        "definition": {
-          "entityName": "Room",
-          "schema": {
-            "$ref": "#/backend/entities/Room"
-          },
-          "description": "Stores room metadata, including the join code and creation timestamp.",
-          "params": [
-            {
-              "name": "roomId",
-              "description": "Unique identifier for the room."
-            }
-          ]
-        }
+    "/rooms/{roomId}": {
+      "schema": {
+        "$ref": "#/backend/entities/Room"
       },
-      {
-        "path": "/users/{userId}",
-        "definition": {
-          "entityName": "User",
-          "schema": {
-            "$ref": "#/backend/entities/User"
-          },
-          "description": "Stores user information.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "Unique identifier for the user."
-            }
-          ]
-        }
+      "description": "Stores room metadata, including the join code and creation timestamp."
+    },
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/backend/entities/User"
       },
-      {
-        "path": "/rooms/{roomId}/messages/{messageId}",
-        "definition": {
-          "entityName": "Message",
-          "schema": {
-            "$ref": "#/backend/entities/Message"
-          },
-          "description": "Stores messages within a room. Includes denormalized 'roomId' for authorization independence.",
-          "params": [
-            {
-              "name": "roomId",
-              "description": "Unique identifier for the room."
-            },
-            {
-              "name": "messageId",
-              "description": "Unique identifier for the message."
-            }
-          ]
-        }
-      }
-    ],
-    "reasoning": "The Firestore structure is designed to support a real-time collaborative letter board application. It prioritizes authorization independence and efficient querying. The structure includes collections for `rooms`, `users`, and `messages`. Rooms contain metadata and a code for joining. Messages are stored as subcollections of rooms, and they contain denormalized data (specifically, the members map from the parent room) to allow list operations, ensure authorization independence, and maintain invariants.\n\nAuthorization Independence is achieved by denormalizing the `members` map from the `/rooms/{roomId}` document into each `/rooms/{roomId}/messages/{messageId}` document. This eliminates the need for security rules to perform `get()` operations on parent documents to authorize access to subcollections, crucial for atomicity in transactions/batches and simplifies debugging. This enforces that only members of a given room can add/modify/delete messages within that room.\n\nThe structure supports the required QAPs by:\n\n*   Segregation: Different data types (rooms, users, messages) are stored in separate collections, enabling specific security rules for each.\n*   Membership Model: The `members` map within the room document explicitly defines user roles, facilitating straightforward access control rules.\n\nEach document adheres to a predictable schema, and naming conventions are consistent to improve debuggability."
+      "description": "Stores user information."
+    },
+    "/rooms/{roomId}/messages/{messageId}": {
+      "schema": {
+        "$ref": "#/backend/entities/Message"
+      },
+      "description": "Stores messages within a room. Includes denormalized 'roomId' for authorization independence."
+    }
   }
 }
