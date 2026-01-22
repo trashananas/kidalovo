@@ -1,26 +1,15 @@
 'use client';
 
 import type { Message } from '@/types';
-import { Card, CardContent } from './ui/card';
+import { Card } from './ui/card';
 import { cn, getErrorMessage } from '@/lib/utils';
 import { useState, useEffect, useRef } from 'react';
-import { GripVertical, Copy, Trash2 } from 'lucide-react';
+import { GripVertical, Copy } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Button } from './ui/button';
 
 const Spoiler = ({ children }: { children: React.ReactNode }) => {
   const [isVisible, setIsVisible] = useState(false);
@@ -157,7 +146,6 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   const [isResizing, setIsResizing] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [timeAgo, setTimeAgo] = useState('');
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   const cardRef = useRef<HTMLDivElement>(null);
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -409,30 +397,6 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
       });
   };
 
-  const handleDelete = async () => {
-    if (!isOwner || !firestore) return;
-
-    try {
-      const messageDocRef = doc(
-        firestore,
-        'rooms',
-        roomId,
-        'messages',
-        message.id
-      );
-      await deleteDoc(messageDocRef);
-      toast({ title: 'Сообщение удалено' });
-    } catch (error) {
-      toast({
-        title: 'Ошибка',
-        description: `Не удалось удалить сообщение: ${getErrorMessage(error)}`,
-        variant: 'destructive',
-      });
-    } finally {
-      setIsDeleteDialogOpen(false);
-    }
-  };
-
 
   return (
     <>
@@ -469,16 +433,6 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
                   title="Перетащить / Свернуть"
                 >
                   <GripVertical className="h-5 w-5" />
-                </div>
-                 <div
-                  className="p-1 text-muted-foreground/50 hover:text-destructive cursor-pointer"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsDeleteDialogOpen(true);
-                  }}
-                  title="Удалить"
-                >
-                  <Trash2 className="h-5 w-5" />
                 </div>
               </div>
             )}
@@ -529,25 +483,6 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
           />
         )}
       </Card>
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Вы уверены?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Это действие нельзя будет отменить. Сообщение будет удалено
-              навсегда.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel asChild>
-                <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>Отмена</Button>
-            </AlertDialogCancel>
-            <AlertDialogAction asChild>
-               <Button variant="destructive" onClick={handleDelete}>Удалить</Button>
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 }
