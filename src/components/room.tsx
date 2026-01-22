@@ -25,12 +25,12 @@ export function Room({ roomId }: RoomProps) {
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
-<<<<<<< HEAD
-    if (target.closest('[data-message-card="true"]')) {
-=======
     // Не начинать панорамирование, если клик произошел на карточке, форме или в заголовке
-    if (target.closest('.message-card') || target.closest('.message-form-container') || target.closest('.room-header')) {
->>>>>>> c99791a6028853ccf0442c762b3f54ddfa2e30a0
+    if (
+      target.closest('[data-message-card="true"]') ||
+      target.closest('.message-form-container') ||
+      target.closest('.room-header')
+    ) {
       return;
     }
     setIsPanning(true);
