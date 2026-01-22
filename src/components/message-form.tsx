@@ -25,9 +25,10 @@ const messageSchema = z.object({
 
 type MessageFormProps = {
   roomId: string;
+  panOffset: { x: number; y: number };
 };
 
-export function MessageForm({ roomId }: MessageFormProps) {
+export function MessageForm({ roomId, panOffset }: MessageFormProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -49,8 +50,8 @@ export function MessageForm({ roomId }: MessageFormProps) {
         userId: user.uid,
         createdAt: serverTimestamp(),
         position: {
-          x: Math.random() * (window.innerWidth * 0.6) + 20,
-          y: Math.random() * (window.innerHeight * 0.4) + 20,
+          x: Math.random() * (window.innerWidth * 0.6) + 20 - panOffset.x,
+          y: Math.random() * (window.innerHeight * 0.4) + 20 - panOffset.y,
         },
       });
       form.reset();

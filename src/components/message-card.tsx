@@ -15,9 +15,10 @@ import { useToast } from '@/hooks/use-toast';
 type MessageCardProps = {
   message: Message;
   roomId: string;
+  panOffset: { x: number; y: number };
 };
 
-export function MessageCard({ message, roomId }: MessageCardProps) {
+export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -56,20 +57,18 @@ export function MessageCard({ message, roomId }: MessageCardProps) {
     
     const boardRect = board.getBoundingClientRect();
 
-    const newX = e.clientX - boardRect.left - offset.current.x;
-    const newY = e.clientY - boardRect.top - offset.current.y;
+    const newWorldX = e.clientX - boardRect.left - panOffset.x - offset.current.x;
+    const newWorldY = e.clientY - boardRect.top - panOffset.y - offset.current.y;
     
-    setPosition({ x: newX, y: newY });
+    setPosition({ x: newWorldX, y: newWorldY });
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDragging || !isOwner || !firestore) return;
-    // prevent default to avoid any unwanted side-effects
     e.preventDefault();
     setIsDragging(false);
     cardRef.current?.releasePointerCapture(e.pointerId);
     
-    // Only update if position has changed
     if (position.x === message.position.x && position.y === message.position.y) {
       return;
     }
@@ -77,14 +76,13 @@ export function MessageCard({ message, roomId }: MessageCardProps) {
     startTransition(async () => {
       try {
         const messageDocRef = doc(firestore, 'rooms', roomId, 'messages', message.id);
-        await updateDoc(messageDocRef, { position });
+        await updateDoc(messageDocRef, { 'position.x': position.x, 'position.y': position.y });
       } catch (error) {
         toast({
           title: 'Ошибка',
           description: `Не удалось обновить позицию: ${getErrorMessage(error)}`,
           variant: 'destructive',
         });
-        // Revert position visually on error
         setPosition(message.position);
       }
     });
@@ -106,7 +104,7 @@ export function MessageCard({ message, roomId }: MessageCardProps) {
       }}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerUp} // Also handle pointer cancel
+      onPointerCancel={handlePointerUp}
     >
       <CardContent className="relative p-4 flex gap-2">
         {isOwner && (

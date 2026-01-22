@@ -8,6 +8,8 @@ import Link from 'next/link';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { useUser } from '@/firebase';
+import { useState, useRef } from 'react';
+import { cn } from '@/lib/utils';
 
 type RoomProps = {
   roomId: string;
@@ -16,6 +18,33 @@ type RoomProps = {
 export function Room({ roomId }: RoomProps) {
   const { user, isUserLoading } = useUser();
   const { messages, loading, error } = useRoom(roomId);
+  
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const panStart = useRef({ x: 0, y: 0 });
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('.absolute')) {
+      return;
+    }
+    setIsPanning(true);
+    panStart.current = { x: e.clientX - panOffset.x, y: e.clientY - panOffset.y };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isPanning) return;
+    const newX = e.clientX - panStart.current.x;
+    const newY = e.clientY - panStart.current.y;
+    setPanOffset({ x: newX, y: newY });
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isPanning) return;
+    setIsPanning(false);
+    e.currentTarget.releasePointerCapture(e.pointerId);
+  };
   
   if (isUserLoading || (!user && !error)) {
     return (
@@ -40,7 +69,7 @@ export function Room({ roomId }: RoomProps) {
   }
 
   return (
-    <div className="relative h-screen w-full overflow-hidden bg-card border-4 border-background rounded-lg">
+    <div className="relative h-screen w-full overflow-hidden bg-zinc-100 dark:bg-zinc-900 border-4 border-background rounded-lg">
       <header className="absolute top-4 left-4 z-10 flex items-center gap-4">
         <Button asChild variant="outline" size="icon">
           <Link href="/">
@@ -56,15 +85,32 @@ export function Room({ roomId }: RoomProps) {
         </div>
       </header>
       
-      <div className="absolute inset-0" id="board">
-        {messages.map((msg) => (
-          <MessageCard key={msg.id} message={msg} roomId={roomId} />
-        ))}
-        {loading && messages.length === 0 && <p className="text-center p-8 text-muted-foreground">Загрузка сообщений...</p>}
+      <div
+        id="board"
+        className={cn(
+            'absolute inset-0',
+            isPanning ? 'cursor-grabbing' : 'cursor-grab'
+        )}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+      >
+        <div
+          id="pannable-container"
+          style={{
+            transform: `translate(${panOffset.x}px, ${panOffset.y}px)`,
+          }}
+        >
+          {messages.map((msg) => (
+            <MessageCard key={msg.id} message={msg} roomId={roomId} panOffset={panOffset} />
+          ))}
+        </div>
+        {loading && messages.length === 0 && <p className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground">Загрузка сообщений...</p>}
       </div>
 
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-10">
-        <MessageForm roomId={roomId} />
+        <MessageForm roomId={roomId} panOffset={panOffset} />
       </div>
     </div>
   );
