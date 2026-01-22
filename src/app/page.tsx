@@ -7,7 +7,7 @@ import { createRoom, joinRoom } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { useEffect, useRef, useActionState } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import {
   Form,
   FormControl,
@@ -25,21 +25,32 @@ const joinRoomSchema = z.object({
 });
 
 function CreateRoomForm() {
-  const [state, formAction, isPending] = useActionState(createRoom, { message: '' });
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
 
   useEffect(() => {
-    if (state?.message) {
+    if (error) {
       toast({
         title: 'Ошибка',
-        description: state.message,
+        description: error,
         variant: 'destructive',
       });
+      setError(null);
     }
-  }, [state, toast]);
+  }, [error, toast]);
+
+  const handleSubmit = (formData: FormData) => {
+    startTransition(async () => {
+      const result = await createRoom({ message: '' }, formData);
+      if (result?.message) {
+        setError(result.message);
+      }
+    });
+  };
 
   return (
-    <form action={formAction}>
+    <form action={handleSubmit}>
       <Button size="lg" type="submit" disabled={isPending}>
         {isPending ? (
           <>
@@ -55,7 +66,8 @@ function CreateRoomForm() {
 }
 
 function JoinRoomForm() {
-  const [state, formAction, isPending] = useActionState(joinRoom, { message: '' });
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -67,21 +79,31 @@ function JoinRoomForm() {
   });
 
   useEffect(() => {
-    if (state?.message) {
+    if (error) {
       toast({
         title: 'Ошибка',
-        description: state.message,
+        description: error,
         variant: 'destructive',
       });
       form.reset();
+      setError(null);
     }
-  }, [state, toast, form]);
+  }, [error, toast, form]);
+
+  const handleSubmit = (formData: FormData) => {
+    startTransition(async () => {
+      const result = await joinRoom({ message: '' }, formData);
+      if (result?.message) {
+        setError(result.message);
+      }
+    });
+  };
 
   return (
     <Form {...form}>
       <form
         ref={formRef}
-        action={formAction}
+        action={handleSubmit}
         onSubmit={form.handleSubmit(() => formRef.current?.submit())}
         className="flex items-start gap-2"
       >
