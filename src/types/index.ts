@@ -1,9 +1,15 @@
 import type { Timestamp } from 'firebase/firestore';
 
+export type FileAttachment = {
+  name: string;
+  type: string;
+  dataUrl: string;
+};
+
 export type Message = {
   id: string;
   text?: string;
-  imageUrl?: string;
+  file?: FileAttachment;
   userId: string;
   createdAt: Timestamp;
   position: {

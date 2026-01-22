@@ -78,9 +78,28 @@
           "type": "string",
           "description": "The text content of the message."
         },
-        "imageUrl": {
-          "type": "string",
-          "description": "A data URI for an attached image."
+        "file": {
+          "type": "object",
+          "description": "An attached file, stored as a data URI.",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The name of the file."
+            },
+            "type": {
+              "type": "string",
+              "description": "The MIME type of the file."
+            },
+            "dataUrl": {
+              "type": "string",
+              "description": "The base64-encoded data URI of the file."
+            }
+          },
+          "required": [
+            "name",
+            "type",
+            "dataUrl"
+          ]
         },
         "position": {
           "type": "object",

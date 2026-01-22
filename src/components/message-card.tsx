@@ -4,13 +4,12 @@ import type { Message } from '@/types';
 import { Card } from './ui/card';
 import { cn, getErrorMessage } from '@/lib/utils';
 import { useState, useEffect, useRef } from 'react';
-import { GripVertical, Copy } from 'lucide-react';
+import { GripVertical, Copy, File as FileIcon, Download } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useUser, useFirestore } from '@/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import Image from 'next/image';
 
 const Spoiler = ({ children }: { children: React.ReactNode }) => {
   const [isVisible, setIsVisible] = useState(false);
@@ -423,15 +422,21 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
         onPointerCancel={handleCardPointerUp}
       >
         <div className="relative p-4 flex flex-col gap-2 flex-grow overflow-y-auto">
-          {message.imageUrl && !isCollapsed && (
-             <div className="relative w-full aspect-video mb-2 rounded-md overflow-hidden">
-                <Image 
-                    src={message.imageUrl} 
-                    alt="Загруженное изображение" 
-                    fill
-                    style={{ objectFit: 'contain' }}
-                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                />
+          {message.file && !isCollapsed && (
+             <div className="flex items-center gap-3 p-2 rounded-md border bg-background mb-2">
+                <FileIcon className="h-8 w-8 text-muted-foreground flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{message.file.name}</p>
+                     <a
+                        href={message.file.dataUrl}
+                        download={message.file.name}
+                        className="text-xs text-primary hover:underline flex items-center gap-1"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <Download className="h-3 w-3" />
+                        Скачать
+                    </a>
+                </div>
              </div>
           )}
 
@@ -455,7 +460,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
 
             <div className="flex-1 min-w-0 overflow-y-auto">
               {!isCollapsed ? (
-                message.text?.trim() === '<3' && !message.imageUrl ? (
+                message.text?.trim() === '<3' && !message.file ? (
                   <div className="flex w-full items-center justify-center">
                     <span className="text-5xl">❤️</span>
                   </div>

@@ -59,12 +59,12 @@ service cloud.firestore {
     }
 
     /**
-     * Validates that an incoming message has content (text or an image).
+     * Validates that an incoming message has content (text or a file).
      */
     function hasContent() {
       let data = request.resource.data;
       return (data.text != null && data.text is string && data.text.size() > 0) 
-          || (data.imageUrl != null && data.imageUrl is string && data.imageUrl.size() > 0);
+          || (data.file != null && data.file.dataUrl != null && data.file.dataUrl is string && data.file.dataUrl.size() > 0);
     }
 
     /**

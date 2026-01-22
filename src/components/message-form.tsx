@@ -14,7 +14,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Card, CardContent } from './ui/card';
-import { Send, Paperclip, X } from 'lucide-react';
+import { Send, Paperclip, X, File as FileIcon } from 'lucide-react';
 import { useUser, useFirestore } from '@/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { getErrorMessage } from '@/lib/utils';
@@ -29,14 +29,20 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import Image from 'next/image';
+import type { FileAttachment } from '@/types';
 
 const messageSchema = z
   .object({
     message: z.string(),
-    imageUrl: z.string().nullable(),
+    file: z
+      .object({
+        name: z.string(),
+        type: z.string(),
+        dataUrl: z.string(),
+      })
+      .nullable(),
   })
-  .refine((data) => data.message.trim().length > 0 || !!data.imageUrl, {
+  .refine((data) => data.message.trim().length > 0 || !!data.file, {
     message: 'Сообщение не может быть пустым',
     path: ['message'],
   });
@@ -55,52 +61,66 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
 
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [filePreview, setFilePreview] = useState<{
+    name: string;
+    type: string;
+  } | null>(null);
   const selectionRef = useRef<{ start: number; end: number } | null>(null);
 
   const form = useForm<z.infer<typeof messageSchema>>({
     resolver: zodResolver(messageSchema),
     defaultValues: {
       message: '',
-      imageUrl: null,
+      file: null,
     },
   });
-  
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
-        toast({ title: 'Неверный тип файла', description: 'Пожалуйста, выберите изображение.', variant: 'destructive' });
+    if (file.size > 1024 * 1024) { // ~1MB limit
+        toast({ 
+            title: 'Файл слишком большой', 
+            description: 'Пожалуйста, выберите файл размером до 1 МБ.', 
+            variant: 'destructive' 
+        });
+        if(fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
         return;
     }
 
     const reader = new FileReader();
     reader.onload = (event) => {
-        const dataUrl = event.target?.result as string;
-        setImagePreview(dataUrl);
-        form.setValue('imageUrl', dataUrl, { shouldValidate: true });
+      const dataUrl = event.target?.result as string;
+      setFilePreview({ name: file.name, type: file.type });
+      form.setValue(
+        'file',
+        { name: file.name, type: file.type, dataUrl },
+        { shouldValidate: true }
+      );
     };
     reader.readAsDataURL(file);
-  }
+  };
 
-  const removeImage = () => {
-    setImagePreview(null);
-    form.setValue('imageUrl', null, { shouldValidate: true });
-    if(fileInputRef.current) {
-        fileInputRef.current.value = '';
+  const removeFile = () => {
+    setFilePreview(null);
+    form.setValue('file', null, { shouldValidate: true });
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
-  }
+  };
 
   const onSubmit = async (values: z.infer<typeof messageSchema>) => {
     if (!firestore || !user || !roomId) return;
-    if (!values.message && !values.imageUrl) return;
+    if (!values.message && !values.file) return;
 
     try {
       const messagesColRef = collection(firestore, 'rooms', roomId, 'messages');
       await addDoc(messagesColRef, {
         text: values.message,
-        imageUrl: values.imageUrl,
+        file: values.file,
         userId: user.uid,
         createdAt: serverTimestamp(),
         position: {
@@ -108,12 +128,12 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
           y: Math.random() * (window.innerHeight * 0.4) + 20 - panOffset.y,
         },
         size: {
-          width: 320, // increased default width for images
-          height: values.imageUrl ? 280 : 128, // increased default height for images
+          width: 320,
+          height: values.file ? 200 : 128,
         },
       });
       form.reset();
-      removeImage();
+      removeFile();
     } catch (error) {
       toast({
         title: 'Ошибка отправки',
@@ -240,63 +260,78 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
             onSubmit={form.handleSubmit(onSubmit)}
             className="flex flex-col gap-2"
           >
-            {imagePreview && (
-                <div className="relative w-32 h-32 rounded-md overflow-hidden">
-                    <Image src={imagePreview} alt="Image preview" fill style={{objectFit: 'cover'}}/>
-                    <Button
-                        type="button"
-                        variant="destructive"
-                        size="icon"
-                        className="absolute top-1 right-1 h-6 w-6"
-                        onClick={removeImage}
-                    >
-                        <X className="h-4 w-4" />
-                    </Button>
+            {filePreview && (
+              <div className="relative flex items-center gap-3 p-2 border rounded-md bg-muted/50">
+                <FileIcon className="h-8 w-8 text-muted-foreground flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">
+                    {filePreview.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {filePreview.type || 'unknown'}
+                  </p>
                 </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 flex-shrink-0"
+                  onClick={removeFile}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
             )}
             <div className="flex items-start gap-4">
-            <FormField
-              control={form.control}
-              name="message"
-              render={({ field }) => (
-                <FormItem className="flex-grow">
-                  <FormControl>
-                    <Textarea
-                      {...field}
-                      ref={(e) => {
-                        field.ref(e);
-                        textareaRef.current = e;
-                      }}
-                      placeholder="Введите ваше сообщение..."
-                      className="min-h-0 resize-none"
-                      rows={1}
-                      onKeyDown={handleTextareaKeyDown}
-                      disabled={form.formState.isSubmitting}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <input type="file" ref={fileInputRef} onChange={handleImageChange} accept="image/*" hidden/>
-            <Button
-                type='button'
-                size='icon'
-                variant='outline'
+              <FormField
+                control={form.control}
+                name="message"
+                render={({ field }) => (
+                  <FormItem className="flex-grow">
+                    <FormControl>
+                      <Textarea
+                        {...field}
+                        ref={(e) => {
+                          field.ref(e);
+                          textareaRef.current = e;
+                        }}
+                        placeholder="Введите ваше сообщение..."
+                        className="min-h-0 resize-none"
+                        rows={1}
+                        onKeyDown={handleTextareaKeyDown}
+                        disabled={form.formState.isSubmitting}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                hidden
+              />
+              <Button
+                type="button"
+                size="icon"
+                variant="outline"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={form.formState.isSubmitting}
-            >
-                <Paperclip className="h-4 w-4"/>
+              >
+                <Paperclip className="h-4 w-4" />
                 <span className="sr-only">Прикрепить файл</span>
-            </Button>
-            <Button
-              type="submit"
-              size="icon"
-              disabled={form.formState.isSubmitting || !form.formState.isValid}
-            >
-              <Send className="h-4 w-4" />
-              <span className="sr-only">Отправить</span>
-            </Button>
+              </Button>
+              <Button
+                type="submit"
+                size="icon"
+                disabled={
+                  form.formState.isSubmitting || !form.formState.isValid
+                }
+              >
+                <Send className="h-4 w-4" />
+                <span className="sr-only">Отправить</span>
+              </Button>
             </div>
           </form>
         </Form>
