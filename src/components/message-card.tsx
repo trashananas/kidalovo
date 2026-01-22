@@ -341,9 +341,15 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
 
           <div className="flex-1 min-w-0">
             {!isCollapsed ? (
-              <p className="text-sm text-foreground whitespace-pre-wrap break-words">
-                {renderTextWithLinks(message.text)}
-              </p>
+              message.text.trim() === '<3' ? (
+                <div className="flex h-full w-full items-center justify-center">
+                  <span className="text-5xl">❤️</span>
+                </div>
+              ) : (
+                <p className="text-sm text-foreground whitespace-pre-wrap break-words">
+                  {renderTextWithLinks(message.text)}
+                </p>
+              )
             ) : (
               <div className="h-full flex items-center justify-center text-xs text-muted-foreground italic">
                 Сообщение свёрнуто...
