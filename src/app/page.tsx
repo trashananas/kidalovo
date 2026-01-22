@@ -1,143 +1,113 @@
 'use client';
 
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import { useActionState, useEffect, useRef } from 'react';
+import { useFormStatus } from 'react-dom';
 import { createRoom, joinRoom } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { useEffect, useRef, useState, useTransition } from 'react';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormMessage,
-} from '@/components/ui/form';
 import { Loader2, PenSquare } from 'lucide-react';
 
-const joinRoomSchema = z.object({
-  code: z
-    .string()
-    .length(4, 'Код должен состоять из 4 букв')
-    .regex(/^[A-Z]+$/, 'Код должен состоять из заглавных латинских букв'),
-});
+function CreateRoomButton() {
+  const { pending } = useFormStatus();
+
+  return (
+    <Button size="lg" type="submit" disabled={pending}>
+      {pending ? (
+        <>
+          <Loader2 className="animate-spin" />
+          Создание...
+        </>
+      ) : (
+        'Создать новую комнату'
+      )}
+    </Button>
+  );
+}
 
 function CreateRoomForm() {
-  const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [state, formAction] = useActionState(createRoom, { message: '' });
   const { toast } = useToast();
 
   useEffect(() => {
-    if (error) {
+    if (state?.message) {
       toast({
         title: 'Ошибка',
-        description: error,
+        description: state.message,
         variant: 'destructive',
       });
-      setError(null);
     }
-  }, [error, toast]);
-
-  const handleSubmit = (formData: FormData) => {
-    startTransition(async () => {
-      const result = await createRoom({ message: '' }, formData);
-      if (result?.message) {
-        setError(result.message);
-      }
-    });
-  };
+  }, [state, toast]);
 
   return (
-    <form action={handleSubmit}>
-      <Button size="lg" type="submit" disabled={isPending}>
-        {isPending ? (
-          <>
-            <Loader2 className="animate-spin" />
-            Создание...
-          </>
-        ) : (
-          'Создать новую комнату'
-        )}
-      </Button>
+    <form action={formAction}>
+      <CreateRoomButton />
     </form>
   );
 }
 
-function JoinRoomForm() {
-  const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
-  const { toast } = useToast();
-  const formRef = useRef<HTMLFormElement>(null);
-
-  const form = useForm<z.infer<typeof joinRoomSchema>>({
-    resolver: zodResolver(joinRoomSchema),
-    defaultValues: {
-      code: '',
-    },
-  });
-
-  useEffect(() => {
-    if (error) {
-      toast({
-        title: 'Ошибка',
-        description: error,
-        variant: 'destructive',
-      });
-      form.reset();
-      setError(null);
-    }
-  }, [error, toast, form]);
-
-  const handleSubmit = (formData: FormData) => {
-    startTransition(async () => {
-      const result = await joinRoom({ message: '' }, formData);
-      if (result?.message) {
-        setError(result.message);
-      }
-    });
-  };
+function JoinRoomButton() {
+  const { pending } = useFormStatus();
 
   return (
-    <Form {...form}>
-      <form
-        ref={formRef}
-        action={handleSubmit}
-        onSubmit={form.handleSubmit(() => formRef.current?.submit())}
-        className="flex items-start gap-2"
-      >
-        <FormField
-          control={form.control}
+    <Button type="submit" size="lg" variant="secondary" disabled={pending}>
+      {pending ? (
+        <>
+          <Loader2 className="animate-spin" />
+          Вход...
+        </>
+      ) : (
+        'Войти в комнату'
+      )}
+    </Button>
+  );
+}
+
+function JoinRoomForm() {
+  const [state, formAction] = useActionState(joinRoom, { message: '' });
+  const { toast } = useToast();
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (state.message) {
+      // Показывать ошибки валидации встроенно, а не в тосте
+      if (!state.message.toLowerCase().includes('код')) {
+        toast({
+          title: 'Ошибка',
+          description: state.message,
+          variant: 'destructive',
+        });
+      }
+      // При ошибке сфокусироваться на поле ввода, чтобы пользователь мог ее исправить
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+  }, [state, toast]);
+
+  return (
+    <form action={formAction} className="flex items-start gap-2">
+      <div className="space-y-1">
+        <Input
+          ref={inputRef}
           name="code"
-          render={({ field }) => (
-            <FormItem>
-              <FormControl>
-                <Input
-                  {...field}
-                  placeholder="ABCD"
-                  className="w-32 text-center text-lg font-semibold tracking-widest uppercase"
-                  maxLength={4}
-                  onChange={(e) => field.onChange(e.target.value.toUpperCase())}
-                  disabled={isPending}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
+          placeholder="ABCD"
+          className="w-32 text-center text-lg font-semibold tracking-widest uppercase"
+          maxLength={4}
+          onChange={(e) => {
+            e.target.value = e.target.value
+              .toUpperCase()
+              .replace(/[^A-Z]/g, '');
+          }}
+          required
         />
-        <Button type="submit" size="lg" variant="secondary" disabled={isPending}>
-          {isPending ? (
-            <>
-              <Loader2 className="animate-spin" />
-              Вход...
-            </>
-          ) : (
-            'Войти в комнату'
-          )}
-        </Button>
-      </form>
-    </Form>
+        {state.message && (
+          <p className="text-[0.8rem] font-medium text-destructive">
+            {state.message}
+          </p>
+        )}
+      </div>
+      <JoinRoomButton />
+    </form>
   );
 }
 
@@ -146,12 +116,13 @@ export default function Home() {
     <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
       <div className="flex flex-col items-center gap-8">
         <div className="flex flex-col items-center gap-2">
-           <PenSquare className="h-16 w-16 text-primary" />
+          <PenSquare className="h-16 w-16 text-primary" />
           <h1 className="text-5xl font-bold tracking-tight text-center font-headline">
             Доска для записок
           </h1>
           <p className="text-muted-foreground text-center max-w-sm">
-            Совместная доска для сообщений в реальном времени. Создайте комнату и поделитесь кодом или присоединитесь к существующей.
+            Совместная доска для сообщений в реальном времени. Создайте комнату
+            и поделитесь кодом или присоединитесь к существующей.
           </p>
         </div>
         <div className="flex flex-col items-center gap-4 rounded-lg border bg-card p-6 shadow-sm">
