@@ -14,9 +14,10 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Card, CardContent } from './ui/card';
-import { Send, Paperclip, X, File as FileIcon } from 'lucide-react';
-import { useUser, useFirestore } from '@/firebase';
+import { Send, Paperclip, X, File as FileIcon, Loader2 } from 'lucide-react';
+import { useUser, useFirestore, useStorage } from '@/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { getErrorMessage } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -33,13 +34,7 @@ import { Label } from '@/components/ui/label';
 const messageSchema = z
   .object({
     message: z.string(),
-    file: z
-      .object({
-        name: z.string(),
-        type: z.string(),
-        dataUrl: z.string(),
-      })
-      .nullable(),
+    file: z.instanceof(File).nullable(),
   })
   .refine((data) => data.message.trim().length > 0 || !!data.file, {
     message: 'Сообщение не может быть пустым',
@@ -54,16 +49,14 @@ type MessageFormProps = {
 export function MessageForm({ roomId, panOffset }: MessageFormProps) {
   const { user } = useUser();
   const firestore = useFirestore();
+  const storage = useStorage();
   const { toast } = useToast();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
-  const [filePreview, setFilePreview] = useState<{
-    name: string;
-    type: string;
-  } | null>(null);
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
   const selectionRef = useRef<{ start: number; end: number } | null>(null);
 
   const form = useForm<z.infer<typeof messageSchema>>({
@@ -74,59 +67,60 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
     },
   });
 
-  const fileDataUrl = form.watch('file.dataUrl');
-  const isImagePreview = filePreview?.type.startsWith('image/');
+  const selectedFile = form.watch('file');
+  const isImagePreview = selectedFile?.type.startsWith('image/');
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
-    const MAX_FILE_SIZE_BYTES = 750 * 1024; // 750 KB
 
-    if (file.size > MAX_FILE_SIZE_BYTES) {
-        toast({ 
-            title: 'Файл слишком большой', 
-            description: 'Пожалуйста, выберите файл размером до 750 КБ.', 
-            variant: 'destructive' 
-        });
-        if(fileInputRef.current) {
-            fileInputRef.current.value = '';
-        }
-        return;
-    }
+    form.setValue('file', file, { shouldValidate: true });
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      setFilePreview({ name: file.name, type: file.type });
-      form.setValue(
-        'file',
-        { name: file.name, type: file.type, dataUrl },
-        { shouldValidate: true }
-      );
-    };
-    reader.readAsDataURL(file);
+    // Create a temporary URL for client-side preview
+    const previewUrl = URL.createObjectURL(file);
+    setFilePreviewUrl(previewUrl);
   };
 
   const removeFile = () => {
-    setFilePreview(null);
     form.setValue('file', null, { shouldValidate: true });
+    if (filePreviewUrl) {
+      URL.revokeObjectURL(filePreviewUrl);
+    }
+    setFilePreviewUrl(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
   const onSubmit = async (values: z.infer<typeof messageSchema>) => {
-    if (!firestore || !user || !roomId) return;
-    if (!values.message && !values.file) return;
+    if (!firestore || !user || !roomId || !storage) return;
 
-    const isImage = values.file?.type.startsWith('image/');
+    const { message, file } = values;
+    if (!message && !file) return;
+
+    form.formState.isSubmitting = true;
 
     try {
+      let fileAttachment = null;
+      if (file) {
+        const filePath = `files/${roomId}/${Date.now()}_${file.name}`;
+        const fileStorageRef = storageRef(storage, filePath);
+
+        await uploadBytes(fileStorageRef, file);
+        const downloadUrl = await getDownloadURL(fileStorageRef);
+
+        fileAttachment = {
+          name: file.name,
+          type: file.type,
+          url: downloadUrl,
+        };
+      }
+
+      const isImage = file?.type.startsWith('image/');
       const messagesColRef = collection(firestore, 'rooms', roomId, 'messages');
       await addDoc(messagesColRef, {
-        text: values.message,
-        file: values.file,
+        text: message,
+        file: fileAttachment,
         userId: user.uid,
         createdAt: serverTimestamp(),
         position: {
@@ -135,7 +129,7 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
         },
         size: {
             width: 320,
-            height: isImage ? 240 : (values.file ? 160 : 128),
+            height: isImage ? 240 : (file ? 160 : 128),
         },
       });
       form.reset();
@@ -146,6 +140,8 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
         description: getErrorMessage(error),
         variant: 'destructive',
       });
+    } finally {
+        form.formState.isSubmitting = false;
     }
   };
 
@@ -266,7 +262,7 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
             onSubmit={form.handleSubmit(onSubmit)}
             className="flex flex-col gap-2"
           >
-            {filePreview && (
+            {selectedFile && filePreviewUrl && (
                 <div className="relative p-2 border rounded-md bg-muted/50">
                      <Button
                         type="button"
@@ -278,13 +274,13 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
                         <X className="h-4 w-4" />
                     </Button>
                     {isImagePreview ? (
-                        <img src={fileDataUrl} alt="Предпросмотр" className="max-h-28 w-auto rounded-md mx-auto" />
+                        <img src={filePreviewUrl} alt="Предпросмотр" className="max-h-28 w-auto rounded-md mx-auto" />
                     ) : (
                     <div className="flex items-center gap-3 pr-6">
                         <FileIcon className="h-8 w-8 text-muted-foreground flex-shrink-0" />
                         <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{filePreview.name}</p>
-                        <p className="text-xs text-muted-foreground">{filePreview.type || 'unknown'}</p>
+                        <p className="text-sm font-medium truncate">{selectedFile.name}</p>
+                        <p className="text-xs text-muted-foreground">{selectedFile.type || 'unknown'}</p>
                         </div>
                     </div>
                     )}
@@ -337,7 +333,7 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
                   form.formState.isSubmitting || !form.formState.isValid
                 }
               >
-                <Send className="h-4 w-4" />
+                {form.formState.isSubmitting ? <Loader2 className="animate-spin" /> : <Send className="h-4 w-4" />}
                 <span className="sr-only">Отправить</span>
               </Button>
             </div>

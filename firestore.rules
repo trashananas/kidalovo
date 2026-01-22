@@ -64,7 +64,7 @@ service cloud.firestore {
     function hasContent() {
       let data = request.resource.data;
       return (data.text != null && data.text is string && data.text.size() > 0) 
-          || (data.file != null && data.file.dataUrl != null && data.file.dataUrl is string && data.file.dataUrl.size() > 0);
+          || (data.file != null && data.file.url != null && data.file.url is string && data.file.url.size() > 0);
     }
 
     /**

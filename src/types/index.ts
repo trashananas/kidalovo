@@ -3,7 +3,7 @@ import type { Timestamp } from 'firebase/firestore';
 export type FileAttachment = {
   name: string;
   type: string;
-  dataUrl: string;
+  url: string; // Changed from dataUrl to url
 };
 
 export type Message = {

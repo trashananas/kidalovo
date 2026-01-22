@@ -427,13 +427,15 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
             isImage ? (
                 <div className="relative w-full rounded-md overflow-hidden mb-2 group">
                     <img 
-                        src={message.file.dataUrl} 
+                        src={message.file.url} 
                         alt={message.file.name} 
                         className="w-full h-auto object-contain max-h-96"
                     />
                     <a 
-                        href={message.file.dataUrl} 
+                        href={message.file.url} 
                         download={message.file.name}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className="absolute bottom-1 right-1 bg-black/50 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                         onClick={(e) => {e.stopPropagation()}}
                         title="Скачать изображение"
@@ -447,8 +449,10 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
                 <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{message.file.name}</p>
                      <a
-                        href={message.file.dataUrl}
+                        href={message.file.url}
                         download={message.file.name}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className="text-xs text-primary hover:underline flex items-center gap-1"
                         onClick={(e) => e.stopPropagation()}
                     >
