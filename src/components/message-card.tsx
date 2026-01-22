@@ -4,7 +4,7 @@ import type { Message } from '@/types';
 import { Card, CardContent } from './ui/card';
 import { cn } from '@/lib/utils';
 import { useState, useEffect, useRef } from 'react';
-import { GripVertical } from 'lucide-react';
+import { GripVertical, Copy } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useUser, useFirestore } from '@/firebase';
@@ -210,6 +210,21 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
     };
   }, [isResizing, firestore, isOwner, message.id, roomId, size, toast, message.size]);
 
+  const handleCopy = () => {
+    navigator.clipboard.writeText(message.text).then(() => {
+      toast({
+        title: "Текст скопирован",
+        description: "Сообщение было скопировано в буфер обмена.",
+      });
+    }).catch(err => {
+      console.error('Could not copy text: ', err);
+      toast({
+        title: "Ошибка",
+        description: "Не удалось скопировать текст.",
+        variant: "destructive",
+      });
+    });
+  };
 
   return (
     <Card
@@ -232,7 +247,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
       onPointerUp={handleCardPointerUp}
       onPointerCancel={handleCardPointerUp}
     >
-      <CardContent className="relative p-4 flex gap-2 items-start flex-grow overflow-y-auto">
+      <CardContent className="relative p-4 flex gap-2 items-start flex-grow overflow-hidden">
         {isOwner && (
           <div
             className="py-1 text-muted-foreground/50 hover:text-muted-foreground touch-none cursor-pointer"
@@ -248,18 +263,30 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
         {!isOwner && !isCollapsed && <div className='w-5 shrink-0'></div>}
 
         {!isCollapsed ? (
-            <div className="flex-1 min-h-0">
-              <p className="text-sm text-foreground whitespace-pre-wrap break-words">{message.text}</p>
-              <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
-                <span>
-                  {message.createdAt ? formatDistanceToNow(message.createdAt.toDate(), { addSuffix: true, locale: ru }) : 'только что'}
-                </span>
-              </div>
+            <div className="flex-1 min-h-0 flex flex-col">
+                <div className="flex-grow overflow-y-auto">
+                    <p className="text-sm text-foreground whitespace-pre-wrap break-words">{message.text}</p>
+                </div>
+                <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
+                    <span>
+                    {message.createdAt ? formatDistanceToNow(message.createdAt.toDate(), { addSuffix: true, locale: ru }) : 'только что'}
+                    </span>
+                </div>
             </div>
         ) : (
             <div className="flex-1 text-xs text-muted-foreground italic self-center">
                 Сообщение свёрнуто...
             </div>
+        )}
+
+        {!isCollapsed && (
+          <div
+            className="py-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer"
+            onClick={handleCopy}
+            title="Скопировать текст"
+          >
+            <Copy className="h-5 w-5" />
+          </div>
         )}
       </CardContent>
 
