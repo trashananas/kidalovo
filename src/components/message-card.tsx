@@ -7,9 +7,13 @@ import { useState, useEffect, useRef } from 'react';
 import { GripVertical, Copy, Pencil, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { useUser, useFirestore, errorEmitter, FirestorePermissionError } from '@/firebase';
-import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { getErrorMessage } from '@/lib/utils';
+import {
+  useUser,
+  useFirestore,
+  updateDocumentNonBlocking,
+  deleteDocumentNonBlocking,
+} from '@/firebase';
+import { doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import {
   ContextMenu,
@@ -70,7 +74,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   }, [message.text, isEditing]);
 
   const handleGripPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isOwner) return;
+    if (!isOwner || e.button !== 0) return; // Ignore non-left-clicks to allow context menu
     e.preventDefault();
     e.stopPropagation(); // Остановить панорамирование доски
     if (!cardRef.current) return;
@@ -128,21 +132,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
 
     const messageDocRef = doc(firestore, 'rooms', roomId, 'messages', message.id);
     const newPosition = { 'position.x': position.x, 'position.y': position.y };
-    updateDoc(messageDocRef, newPosition)
-        .catch(err => {
-            const permissionError = new FirestorePermissionError({
-                path: messageDocRef.path,
-                operation: 'update',
-                requestResourceData: newPosition
-            });
-            errorEmitter.emit('permission-error', permissionError);
-            toast({
-              title: 'Ошибка',
-              description: `Не удалось обновить позицию: ${getErrorMessage(err)}`,
-              variant: 'destructive',
-            });
-            setPosition(message.position);
-        });
+    updateDocumentNonBlocking(messageDocRef, newPosition);
   };
 
   const handleCopy = () => {
@@ -180,26 +170,9 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
     const messageDocRef = doc(firestore, 'rooms', roomId, 'messages', message.id);
     const updatedData = { text: editText };
 
-    updateDoc(messageDocRef, updatedData)
-      .then(() => {
-        setIsEditing(false);
-      })
-      .catch((err) => {
-        const permissionError = new FirestorePermissionError({
-          path: messageDocRef.path,
-          operation: 'update',
-          requestResourceData: updatedData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        toast({
-          title: 'Ошибка',
-          description: `Не удалось сохранить изменения: ${getErrorMessage(err)}`,
-          variant: 'destructive',
-        });
-      })
-      .finally(() => {
-        setIsSaving(false);
-      });
+    updateDocumentNonBlocking(messageDocRef, updatedData);
+    setIsSaving(false);
+    setIsEditing(false);
   };
 
   const handleDelete = () => {
@@ -209,22 +182,8 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
     setShowDeleteConfirm(false);
     const messageDocRef = doc(firestore, 'rooms', roomId, 'messages', message.id);
 
-    deleteDoc(messageDocRef)
-      .catch((err) => {
-        const permissionError = new FirestorePermissionError({
-          path: messageDocRef.path,
-          operation: 'delete',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        toast({
-          title: 'Ошибка',
-          description: `Не удалось удалить сообщение: ${getErrorMessage(err)}`,
-          variant: 'destructive',
-        });
-      })
-      .finally(() => {
-        setIsDeleting(false);
-      });
+    deleteDocumentNonBlocking(messageDocRef);
+    // The component will unmount via the realtime listener
   };
   
   const cardComponent = (
@@ -234,7 +193,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
         'absolute w-64 rounded-lg shadow-lg transition-shadow duration-300 message-card',
         isOwner && !isEditing && 'cursor-grab',
         isDragging && 'cursor-grabbing shadow-2xl z-20 scale-105',
-        (isSaving || isDeleting || isDragging) && 'opacity-70',
+        (isSaving || isDeleting) && 'opacity-70',
         isCollapsed && !isEditing && 'h-auto'
       )}
       style={{
