@@ -3,11 +3,11 @@
 import type { Message } from '@/types';
 import { Card, CardContent } from './ui/card';
 import { cn } from '@/lib/utils';
-import { useState, useEffect, useRef, useTransition } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { GripVertical, Copy, Pencil, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { useUser, useFirestore } from '@/firebase';
+import { useUser, useFirestore, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { getErrorMessage } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -47,7 +47,9 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   const offset = useRef({ x: 0, y: 0 });
   const cardRef = useRef<HTMLDivElement>(null);
   const dragStartPos = useRef({ x: 0, y: 0 });
-  const [isPending, startTransition] = useTransition();
+
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(message.text);
@@ -124,19 +126,23 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
       return;
     }
 
-    startTransition(async () => {
-      try {
-        const messageDocRef = doc(firestore, 'rooms', roomId, 'messages', message.id);
-        await updateDoc(messageDocRef, { 'position.x': position.x, 'position.y': position.y });
-      } catch (error) {
-        toast({
-          title: 'Ошибка',
-          description: `Не удалось обновить позицию: ${getErrorMessage(error)}`,
-          variant: 'destructive',
+    const messageDocRef = doc(firestore, 'rooms', roomId, 'messages', message.id);
+    const newPosition = { 'position.x': position.x, 'position.y': position.y };
+    updateDoc(messageDocRef, newPosition)
+        .catch(err => {
+            const permissionError = new FirestorePermissionError({
+                path: messageDocRef.path,
+                operation: 'update',
+                requestResourceData: newPosition
+            });
+            errorEmitter.emit('permission-error', permissionError);
+            toast({
+              title: 'Ошибка',
+              description: `Не удалось обновить позицию: ${getErrorMessage(err)}`,
+              variant: 'destructive',
+            });
+            setPosition(message.position);
         });
-        setPosition(message.position);
-      }
-    });
   };
 
   const handleCopy = () => {
@@ -159,7 +165,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
     setEditText(message.text); // Сбросить текст
   };
 
-  const handleSaveEdit = async () => {
+  const handleSaveEdit = () => {
     if (!isOwner || !firestore) return;
     if (editText.trim() === '') {
       toast({ title: 'Ошибка', description: 'Сообщение не может быть пустым.', variant: 'destructive' });
@@ -170,37 +176,55 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
       return;
     }
     
-    startTransition(async () => {
-      try {
-        const messageDocRef = doc(firestore, 'rooms', roomId, 'messages', message.id);
-        await updateDoc(messageDocRef, { text: editText });
+    setIsSaving(true);
+    const messageDocRef = doc(firestore, 'rooms', roomId, 'messages', message.id);
+    const updatedData = { text: editText };
+
+    updateDoc(messageDocRef, updatedData)
+      .then(() => {
         setIsEditing(false);
-      } catch (error) {
+      })
+      .catch((err) => {
+        const permissionError = new FirestorePermissionError({
+          path: messageDocRef.path,
+          operation: 'update',
+          requestResourceData: updatedData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
         toast({
           title: 'Ошибка',
-          description: `Не удалось сохранить изменения: ${getErrorMessage(error)}`,
+          description: `Не удалось сохранить изменения: ${getErrorMessage(err)}`,
           variant: 'destructive',
         });
-      }
-    });
+      })
+      .finally(() => {
+        setIsSaving(false);
+      });
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!isOwner || !firestore) return;
     
-    startTransition(async () => {
-      try {
-        const messageDocRef = doc(firestore, 'rooms', roomId, 'messages', message.id);
-        await deleteDoc(messageDocRef);
-        setShowDeleteConfirm(false);
-      } catch (error) {
+    setIsDeleting(true);
+    setShowDeleteConfirm(false);
+    const messageDocRef = doc(firestore, 'rooms', roomId, 'messages', message.id);
+
+    deleteDoc(messageDocRef)
+      .catch((err) => {
+        const permissionError = new FirestorePermissionError({
+          path: messageDocRef.path,
+          operation: 'delete',
+        });
+        errorEmitter.emit('permission-error', permissionError);
         toast({
           title: 'Ошибка',
-          description: `Не удалось удалить сообщение: ${getErrorMessage(error)}`,
+          description: `Не удалось удалить сообщение: ${getErrorMessage(err)}`,
           variant: 'destructive',
         });
-      }
-    });
+      })
+      .finally(() => {
+        setIsDeleting(false);
+      });
   };
   
   const cardComponent = (
@@ -210,7 +234,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
         'absolute w-64 rounded-lg shadow-lg transition-shadow duration-300 message-card',
         isOwner && !isEditing && 'cursor-grab',
         isDragging && 'cursor-grabbing shadow-2xl z-20 scale-105',
-        (isPending || isDragging) && 'opacity-70',
+        (isSaving || isDeleting || isDragging) && 'opacity-70',
         isCollapsed && !isEditing && 'h-auto'
       )}
       style={{
@@ -252,8 +276,8 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
               />
               <div className="flex justify-end gap-2">
                 <Button variant="ghost" size="sm" onClick={handleCancelEdit}>Отмена</Button>
-                <Button size="sm" onClick={handleSaveEdit} disabled={isPending}>
-                  {isPending ? 'Сохранение...' : 'Сохранить'}
+                <Button size="sm" onClick={handleSaveEdit} disabled={isSaving}>
+                  {isSaving ? 'Сохранение...' : 'Сохранить'}
                 </Button>
               </div>
             </div>
@@ -314,8 +338,8 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Отмена</AlertDialogCancel>
-          <AlertDialogAction onClick={handleDelete} disabled={isPending}>
-            {isPending ? "Удаление..." : "Удалить"}
+          <AlertDialogAction onClick={handleDelete} disabled={isDeleting}>
+            {isDeleting ? "Удаление..." : "Удалить"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
