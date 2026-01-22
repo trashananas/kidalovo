@@ -20,7 +20,7 @@ import { getErrorMessage } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
 const messageSchema = z.object({
-  message: z.string().min(1, 'Сообщение не может быть пустым').max(280, 'Сообщение слишком длинное'),
+  message: z.string().min(1, 'Сообщение не может быть пустым'),
 });
 
 type MessageFormProps = {

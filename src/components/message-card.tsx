@@ -36,9 +36,11 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   const isOwner = user?.uid === message.userId;
 
   useEffect(() => {
+    // Only update position from props if not currently dragging
     if (!isDragging) {
       setPosition(message.position);
     }
+    // Only update size from props if not currently resizing
     if (!isResizing) {
         setSize(message.size || { width: 256, height: 128 });
     }
@@ -58,6 +60,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
     const dx = Math.abs(e.clientX - dragStartRef.current.x);
     const dy = Math.abs(e.clientY - dragStartRef.current.y);
 
+    // Start dragging only after a small movement threshold
     if (dx > 5 || dy > 5) {
       if (!cardRef.current) return;
       (e.target as HTMLElement).releasePointerCapture(e.pointerId);
@@ -68,10 +71,10 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
         y: e.clientY - rect.top,
       };
 
-      setIsDragging(true);
+      setIsDragging(true); // Enter dragging mode
       cardRef.current.setPointerCapture(e.pointerId);
       
-      dragStartRef.current = null;
+      dragStartRef.current = null; // Clear the start ref to prevent re-triggering
     }
   };
   
@@ -80,10 +83,11 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
     e.stopPropagation();
     (e.target as HTMLElement).releasePointerCapture(e.pointerId);
     
+    // If dragStartRef is still present, it means it was a click, not a drag
     if (dragStartRef.current) {
         setIsCollapsed(p => !p);
     }
-    dragStartRef.current = null;
+    dragStartRef.current = null; // Reset on pointer up
   };
 
   const handleCardPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -101,11 +105,21 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   };
 
   const handleCardPointerUp = async (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDragging || !isOwner || !firestore) return;
-
+    if (!isDragging || !isOwner || !firestore) {
+      if(isDragging) {
+        setIsDragging(false);
+        cardRef.current?.releasePointerCapture(e.pointerId);
+      }
+      return;
+    }
+  
+    // We are now in a "finishing drag" state.
+    cardRef.current?.releasePointerCapture(e.pointerId);
+  
     try {
       if (position.x !== message.position.x || position.y !== message.position.y) {
         const messageDocRef = doc(firestore, 'rooms', roomId, 'messages', message.id);
+        // Await the update to ensure it completes before we reset the dragging state
         await updateDoc(messageDocRef, { 'position': position });
       }
     } catch (error) {
@@ -114,10 +128,11 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
         description: `Не удалось обновить позицию: ${getErrorMessage(error)}`,
         variant: 'destructive',
       });
+      // Revert local state to the one from props if the update fails
       setPosition(message.position);
     } finally {
+      // Only set dragging to false after the operation is complete.
       setIsDragging(false);
-      cardRef.current?.releasePointerCapture(e.pointerId);
     }
   };
 
@@ -126,6 +141,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
     e.stopPropagation();
     e.preventDefault();
     
+    setIsResizing(true);
     resizeStartRef.current = {
         x: e.clientX,
         y: e.clientY,
@@ -133,7 +149,6 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
         height: cardRef.current?.offsetHeight || size.height
     };
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    setIsResizing(true);
   };
 
   useEffect(() => {
@@ -151,13 +166,16 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
 
     const handlePointerUpGlobal = async () => {
       if (!isResizing) return;
-
-      setIsResizing(false);
       
-      if (!isOwner || !firestore) return;
+      if (!isOwner || !firestore) {
+        setIsResizing(false);
+        resizeStartRef.current = null;
+        return;
+      }
 
       const originalSize = message.size || { width: 256, height: 128 };
       if (size.width === originalSize.width && size.height === originalSize.height) {
+          setIsResizing(false);
           resizeStartRef.current = null;
           return;
       }
@@ -171,9 +189,12 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
               description: `Не удалось обновить размер: ${getErrorMessage(error)}`,
               variant: 'destructive',
           });
+          // Revert to original size on error
           setSize(message.size || { width: 256, height: 128 });
+      } finally {
+        setIsResizing(false);
+        resizeStartRef.current = null;
       }
-      resizeStartRef.current = null;
     };
 
     if (isResizing) {
@@ -227,7 +248,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
         {!isOwner && !isCollapsed && <div className='w-5 shrink-0'></div>}
 
         {!isCollapsed ? (
-            <div className="flex-1">
+            <div className="flex-1 min-h-0">
               <p className="text-sm text-foreground whitespace-pre-wrap break-words">{message.text}</p>
               <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
                 <span>
