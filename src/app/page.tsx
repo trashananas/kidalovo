@@ -1,6 +1,5 @@
 'use client';
 
-import { useFormState } from 'react-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -8,7 +7,7 @@ import { createRoom, joinRoom } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useActionState } from 'react';
 import {
   Form,
   FormControl,
@@ -26,7 +25,7 @@ const joinRoomSchema = z.object({
 });
 
 function CreateRoomForm() {
-  const [state, formAction] = useFormState(createRoom, { message: '' });
+  const [state, formAction] = useActionState(createRoom, { message: '' });
   const { toast } = useToast();
 
   useEffect(() => {
@@ -49,7 +48,7 @@ function CreateRoomForm() {
 }
 
 function JoinRoomForm() {
-  const [state, formAction] = useFormState(joinRoom, { message: '' });
+  const [state, formAction] = useActionState(joinRoom, { message: '' });
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
 
