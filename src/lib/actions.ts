@@ -17,8 +17,6 @@ import { generateRoomCode, getErrorMessage } from './utils';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { classifyMessage } from '@/ai/flows/message-classification';
-import type { Message } from '@/types';
 
 type FormState = {
   message: string;
@@ -98,7 +96,6 @@ export async function joinRoom(
 const messageSchema = z.object({
   message: z.string().min(1, 'Message cannot be empty').max(280),
   roomId: z.string(),
-  existingMessages: z.string(),
 });
 
 export async function sendMessage(
@@ -109,7 +106,6 @@ export async function sendMessage(
     const validatedFields = messageSchema.safeParse({
       message: formData.get('message'),
       roomId: formData.get('roomId'),
-      existingMessages: formData.get('existingMessages'),
     });
 
     if (!validatedFields.success) {
@@ -118,7 +114,7 @@ export async function sendMessage(
       };
     }
 
-    const { message, roomId, existingMessages } = validatedFields.data;
+    const { message, roomId } = validatedFields.data;
 
     const roomsRef = collection(db, 'rooms');
     const q = query(roomsRef, where('code', '==', roomId), limit(1));
@@ -128,13 +124,6 @@ export async function sendMessage(
       return { message: 'Room not found.' };
     }
     const roomDoc = roomSnapshot.docs[0];
-    
-    const parsedMessages = JSON.parse(existingMessages);
-
-    const classificationResult = await classifyMessage({
-      newMessage: message,
-      existingMessages: parsedMessages,
-    });
 
     const messagesColRef = collection(db, 'rooms', roomDoc.id, 'messages');
     await addDoc(messagesColRef, {
@@ -144,8 +133,6 @@ export async function sendMessage(
         x: Math.random() * 200 + 50,
         y: Math.random() * 200 + 50,
       },
-      classification: classificationResult.classification,
-      reason: classificationResult.reason,
     });
 
     revalidatePath(`/${roomId}`);

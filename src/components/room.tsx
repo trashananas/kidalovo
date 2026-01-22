@@ -42,7 +42,7 @@ export function Room({ roomId, roomDocId }: RoomProps) {
       </div>
 
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-10">
-        <MessageForm roomId={roomId} existingMessages={messages.map(m => m.text)} />
+        <MessageForm roomId={roomId} />
       </div>
     </div>
   );

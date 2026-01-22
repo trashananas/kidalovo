@@ -24,10 +24,9 @@ const messageSchema = z.object({
 
 type MessageFormProps = {
   roomId: string;
-  existingMessages: string[];
 };
 
-export function MessageForm({ roomId, existingMessages }: MessageFormProps) {
+export function MessageForm({ roomId }: MessageFormProps) {
   const [state, formAction] = useFormState(sendMessage, { message: '' });
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -62,7 +61,6 @@ export function MessageForm({ roomId, existingMessages }: MessageFormProps) {
             className="flex items-start gap-4"
           >
             <input type="hidden" name="roomId" value={roomId} />
-            <input type="hidden" name="existingMessages" value={JSON.stringify(existingMessages)} />
             <FormField
               control={form.control}
               name="message"

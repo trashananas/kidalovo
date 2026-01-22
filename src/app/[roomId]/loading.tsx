@@ -1,18 +1,26 @@
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function Loading() {
+  const skeletonPositions = [
+    { top: '15%', left: '10%', rotate: '-3deg' },
+    { top: '30%', left: '60%', rotate: '2deg' },
+    { top: '55%', left: '20%', rotate: '5deg' },
+    { top: '70%', left: '75%', rotate: '-2deg' },
+    { top: '40%', left: '35%', rotate: '-4deg' },
+  ];
+
   return (
     <div className="w-full h-screen p-4 overflow-hidden">
       <div className="w-full h-full rounded-lg border bg-card shadow-sm relative">
         <Skeleton className="absolute top-4 left-4 h-10 w-24 rounded-lg" />
-        {[...Array(5)].map((_, i) => (
+        {skeletonPositions.map((pos, i) => (
           <Skeleton
             key={i}
             className="absolute w-64 h-32 rounded-lg"
             style={{
-              top: `${Math.random() * 60 + 10}%`,
-              left: `${Math.random() * 70 + 5}%`,
-              transform: `rotate(${Math.random() * 10 - 5}deg)`,
+              top: pos.top,
+              left: pos.left,
+              transform: `rotate(${pos.rotate})`,
             }}
           />
         ))}

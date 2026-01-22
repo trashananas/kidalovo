@@ -1,7 +1,5 @@
 import type { Timestamp } from 'firebase/firestore';
 
-export type MessageClassification = 'adds_information' | 'contradicts' | 'neutral';
-
 export type Message = {
   id: string;
   text: string;
@@ -10,6 +8,4 @@ export type Message = {
     x: number;
     y: number;
   };
-  classification: MessageClassification;
-  reason: string;
 };

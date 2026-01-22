@@ -1,37 +1,17 @@
 'use client';
 
-import type { Message, MessageClassification } from '@/types';
+import type { Message } from '@/types';
 import { Card, CardContent } from './ui/card';
 import { cn } from '@/lib/utils';
 import { useState, useEffect, useRef, useTransition } from 'react';
 import { updateMessagePosition } from '@/lib/actions';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { Info, AlertTriangle, MessageCircle, GripVertical } from 'lucide-react';
+import { GripVertical } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 type MessageCardProps = {
   message: Message;
   roomId: string;
 };
-
-const classificationIcons: Record<MessageClassification, React.ElementType> = {
-  adds_information: Info,
-  contradicts: AlertTriangle,
-  neutral: MessageCircle,
-};
-
-const classificationColors: Record<MessageClassification, string> = {
-  adds_information: 'text-blue-500',
-  contradicts: 'text-red-500',
-  neutral: 'text-gray-400',
-};
-
-const classificationLabels: Record<MessageClassification, string> = {
-  adds_information: 'Adds Information',
-  contradicts: 'Contradicts',
-  neutral: 'Neutral',
-};
-
 
 export function MessageCard({ message, roomId }: MessageCardProps) {
   const [position, setPosition] = useState(message.position);
@@ -83,8 +63,6 @@ export function MessageCard({ message, roomId }: MessageCardProps) {
     });
   };
 
-  const ClassificationIcon = message.classification ? classificationIcons[message.classification] : null;
-
   return (
     <Card
       ref={cardRef}
@@ -114,19 +92,6 @@ export function MessageCard({ message, roomId }: MessageCardProps) {
             <span>
               {message.createdAt ? formatDistanceToNow(message.createdAt.toDate(), { addSuffix: true }) : 'just now'}
             </span>
-            {ClassificationIcon && message.classification && (
-              <TooltipProvider delayDuration={100}>
-                <Tooltip>
-                  <TooltipTrigger>
-                    <ClassificationIcon className={cn('h-4 w-4', classificationColors[message.classification])} />
-                  </TooltipTrigger>
-                  <TooltipContent side="top" align="center" className="max-w-xs">
-                      <p className='font-bold'>{classificationLabels[message.classification]}</p>
-                      <p>{message.reason}</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
           </div>
         </div>
       </CardContent>
