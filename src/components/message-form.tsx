@@ -53,6 +53,10 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
           x: Math.random() * (window.innerWidth * 0.6) + 20 - panOffset.x,
           y: Math.random() * (window.innerHeight * 0.4) + 20 - panOffset.y,
         },
+        size: {
+          width: 256,
+          height: 128,
+        },
       });
       form.reset();
     } catch (error) {

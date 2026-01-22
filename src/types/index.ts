@@ -9,4 +9,8 @@ export type Message = {
     x: number;
     y: number;
   };
+  size?: {
+    width: number;
+    height: number;
+  };
 };
