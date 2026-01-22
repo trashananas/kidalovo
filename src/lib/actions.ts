@@ -13,8 +13,7 @@ import { generateRoomCode, getErrorMessage } from './utils';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { getFirestore } from 'firebase/firestore';
-import { initializeFirebase } from '@/firebase';
+import { initializeFirebase } from '@/firebase/init';
 
 
 type FormState = {
@@ -23,7 +22,8 @@ type FormState = {
 
 // Helper function to get the Firestore instance
 function getDb() {
-  return getFirestore(initializeFirebase().firebaseApp);
+  const { firestore } = initializeFirebase();
+  return firestore;
 }
 
 export async function createRoom(
@@ -33,6 +33,11 @@ export async function createRoom(
   let attempts = 0;
   const maxAttempts = 10;
   const db = getDb();
+  const userId = formData.get('userId') as string | null;
+
+  if (!userId) {
+    return { message: "Ошибка: пользователь не найден. Не удалось создать комнату." };
+  }
 
   while (attempts < maxAttempts) {
     attempts++;
@@ -50,7 +55,10 @@ export async function createRoom(
       await setDoc(roomRef, {
         code: roomCode,
         createdAt: serverTimestamp(),
-        members: {}, // Add members map
+        creatorId: userId,
+        members: {
+          [userId]: 'owner',
+        },
       });
       
       redirect(`/${roomCode}`);
@@ -58,7 +66,6 @@ export async function createRoom(
     } catch (error) {
       const errorMessage = getErrorMessage(error);
       console.error(`Ошибка при создании комнаты: ${errorMessage}`);
-      // Only return a user-facing error on the last attempt
       if (attempts === maxAttempts) {
         return { message: `Не удалось создать комнату: ${errorMessage}` };
       }
@@ -130,8 +137,17 @@ export async function sendMessage(
     }
 
     const { message, roomId, userId } = validatedFields.data;
-
+    
     const roomDocRef = doc(db, 'rooms', roomId);
+    const roomSnap = await getDoc(roomDocRef);
+    if (!roomSnap.exists()) {
+      return { message: 'Комната не найдена.' };
+    }
+    const roomData = roomSnap.data();
+    if (!roomData.members || !roomData.members[userId]) {
+        return { message: 'У вас нет прав для отправки сообщений в эту комнату.' };
+    }
+
     const messagesColRef = collection(roomDocRef, 'messages');
     
     await addDoc(messagesColRef, {
@@ -139,8 +155,8 @@ export async function sendMessage(
       userId: userId,
       createdAt: serverTimestamp(),
       position: {
-        x: Math.random() * 200 + 50,
-        y: Math.random() * 200 + 50,
+        x: Math.random() * 500 + 20,
+        y: Math.random() * 300 + 20,
       },
     });
 

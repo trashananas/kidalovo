@@ -29,6 +29,7 @@ function CreateRoomButton() {
 }
 
 function CreateRoomForm() {
+  const { user } = useUser();
   const [state, formAction] = useActionState(createRoom, { message: '' });
   const { toast } = useToast();
 
@@ -41,9 +42,14 @@ function CreateRoomForm() {
       });
     }
   }, [state, toast]);
+  
+  if (!user) {
+    return <Button size="lg" disabled><Loader2 className="animate-spin" /> Загрузка...</Button>;
+  }
 
   return (
     <form action={formAction}>
+      <input type="hidden" name="userId" value={user.uid} />
       <CreateRoomButton />
     </form>
   );
@@ -117,13 +123,13 @@ export default function Home() {
   const auth = useAuth();
   
   useEffect(() => {
-    if (!user && !isUserLoading) {
+    if (!user && !isUserLoading && auth) {
       initiateAnonymousSignIn(auth);
     }
   }, [user, isUserLoading, auth]);
 
 
-  if (isUserLoading || !user) {
+  if (isUserLoading) {
     return (
       <div className="flex min-h-screen w-full flex-col items-center justify-center">
         <Loader2 className="h-16 w-16 animate-spin" />
