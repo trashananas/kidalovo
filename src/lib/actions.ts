@@ -3,14 +3,11 @@
 import {
   collection,
   addDoc,
-  getDocs,
-  query,
-  where,
   serverTimestamp,
   doc,
   updateDoc,
   getDoc,
-  limit,
+  runTransaction,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { generateRoomCode, getErrorMessage } from './utils';
@@ -26,34 +23,47 @@ export async function createRoom(
   prevState: FormState,
   formData: FormData
 ): Promise<FormState> {
-  let roomCode: string;
-  let roomExists = true;
+  let roomCode = '';
+  let success = false;
   let attempts = 0;
 
-  try {
-    // Prevent infinite loops
-    while (roomExists && attempts < 10) {
-      roomCode = generateRoomCode();
-      const roomsRef = collection(db, 'rooms');
-      const q = query(roomsRef, where('code', '==', roomCode), limit(1));
-      const querySnapshot = await getDocs(q);
-      roomExists = !querySnapshot.empty;
-      attempts++;
-    }
+  // Пытаемся найти уникальный код несколько раз.
+  while (!success && attempts < 10) {
+    attempts++;
+    const currentCode = generateRoomCode();
+    try {
+      // Используем транзакцию для атомарной проверки существования и создания.
+      await runTransaction(db, async (transaction) => {
+        const roomRef = doc(db, 'rooms', currentCode);
+        const roomSnap = await transaction.get(roomRef);
 
-    if (roomExists) {
-      return { message: 'Не удалось создать уникальную комнату. Пожалуйста, попробуйте еще раз.' };
-    }
+        if (roomSnap.exists()) {
+          // Код комнаты уже занят, транзакция прервется, и мы попробуем снова.
+          console.log(`Код комнаты ${currentCode} уже существует. Повторная попытка...`);
+          return;
+        }
 
-    await addDoc(collection(db, 'rooms'), {
-      code: roomCode!,
-      createdAt: serverTimestamp(),
-    });
-  } catch (error) {
-    return { message: getErrorMessage(error) };
+        // Код комнаты уникален, создаем новую комнату.
+        transaction.set(roomRef, {
+          code: currentCode,
+          createdAt: serverTimestamp(),
+        });
+
+        // Если мы дошли до сюда, транзакция готова к выполнению.
+        roomCode = currentCode;
+        success = true;
+      });
+    } catch (error) {
+      // Транзакция не удалась. Логгируем ошибку и позволяем циклу попробовать снова.
+      console.error('Транзакция создания комнаты не удалась:', getErrorMessage(error));
+    }
   }
 
-  redirect(`/${roomCode!}`);
+  if (!success) {
+    return { message: 'Не удалось создать уникальную комнату. Пожалуйста, попробуйте еще раз.' };
+  }
+
+  redirect(`/${roomCode}`);
 }
 
 const joinRoomSchema = z.object({
@@ -80,17 +90,17 @@ export async function joinRoom(
 
     const { code } = validatedFields.data;
 
-    const roomsRef = collection(db, 'rooms');
-    const q = query(roomsRef, where('code', '==', code), limit(1));
-    const querySnapshot = await getDocs(q);
+    // Проверяем существование комнаты напрямую по ID
+    const roomRef = doc(db, 'rooms', code);
+    const roomSnap = await getDoc(roomRef);
 
-    if (querySnapshot.empty) {
+    if (!roomSnap.exists()) {
       return { message: 'Комната не найдена. Пожалуйста, проверьте код.' };
     }
   } catch (error) {
     return { message: getErrorMessage(error) };
   }
-  redirect(`/${formData.get('code')}`);
+  redirect(`/${formData.get('code') as string}`);
 }
 
 const messageSchema = z.object({
@@ -116,16 +126,15 @@ export async function sendMessage(
 
     const { message, roomId } = validatedFields.data;
 
-    const roomsRef = collection(db, 'rooms');
-    const q = query(roomsRef, where('code', '==', roomId), limit(1));
-    const roomSnapshot = await getDocs(q);
+    // ID документа комнаты - это сам ID комнаты (код).
+    const roomDocRef = doc(db, 'rooms', roomId);
+    const roomDocSnap = await getDoc(roomDocRef);
 
-    if (roomSnapshot.empty) {
+    if (!roomDocSnap.exists()) {
       return { message: 'Комната не найдена.' };
     }
-    const roomDoc = roomSnapshot.docs[0];
 
-    const messagesColRef = collection(db, 'rooms', roomDoc.id, 'messages');
+    const messagesColRef = collection(roomDocRef, 'messages');
     await addDoc(messagesColRef, {
       text: message,
       createdAt: serverTimestamp(),
@@ -148,23 +157,9 @@ export async function updateMessagePosition(
   position: { x: number; y: number }
 ) {
   try {
-    const roomsRef = collection(db, 'rooms');
-    const q = query(roomsRef, where('code', '==', roomId), limit(1));
-    const roomSnapshot = await getDocs(q);
+    // ID документа комнаты - это сам ID комнаты (код).
+    const messageDocRef = doc(db, 'rooms', roomId, 'messages', messageId);
 
-    if (roomSnapshot.empty) {
-      throw new Error('Комната не найдена');
-    }
-
-    const roomDocId = roomSnapshot.docs[0].id;
-    const messageDocRef = doc(
-      db,
-      'rooms',
-      roomDocId,
-      'messages',
-      messageId
-    );
-    
     const messageDoc = await getDoc(messageDocRef);
     if (!messageDoc.exists()) {
         throw new Error("Сообщение не найдено");

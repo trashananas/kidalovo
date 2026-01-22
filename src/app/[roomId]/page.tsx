@@ -1,4 +1,4 @@
-import { collection, getDocs, limit, query, where } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Room } from '@/components/room';
 import { notFound } from 'next/navigation';
@@ -11,15 +11,16 @@ type RoomPageProps = {
 
 export default async function RoomPage({ params }: RoomPageProps) {
   const { roomId } = params;
+  const upperCaseRoomId = roomId.toUpperCase();
 
-  const roomsRef = collection(db, 'rooms');
-  const q = query(roomsRef, where('code', '==', roomId.toUpperCase()), limit(1));
-  const querySnapshot = await getDocs(q);
+  // Получаем комнату напрямую по ее ID (который является кодом комнаты).
+  const roomRef = doc(db, 'rooms', upperCaseRoomId);
+  const roomSnap = await getDoc(roomRef);
 
-  if (querySnapshot.empty) {
+  if (!roomSnap.exists()) {
     return notFound();
   }
-  const roomDoc = querySnapshot.docs[0];
 
-  return <Room roomId={roomId.toUpperCase()} roomDocId={roomDoc.id} />;
+  // ID документа комнаты совпадает с ID комнаты из URL.
+  return <Room roomId={upperCaseRoomId} roomDocId={upperCaseRoomId} />;
 }
