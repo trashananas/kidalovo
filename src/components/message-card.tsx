@@ -3,7 +3,7 @@
 import type { Message } from '@/types';
 import { Card, CardContent } from './ui/card';
 import { cn } from '@/lib/utils';
-import { useState, useEffect, useRef, useTransition } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { GripVertical } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -25,15 +25,17 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   const [position, setPosition] = useState(message.position);
   const [isDragging, setIsDragging] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const offset = useRef({ x: 0, y: 0 });
   const cardRef = useRef<HTMLDivElement>(null);
-  const [isPending, startTransition] = useTransition();
 
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
+  const dragOffset = useRef({ x: 0, y: 0 });
 
   const isOwner = user?.uid === message.userId;
 
   useEffect(() => {
+    // Этот эффект синхронизирует локальную позицию с данными из Firestore.
+    // Если мы в процессе перетаскивания, мы не обновляем позицию из пропсов,
+    // чтобы избежать "прыжков" карточки на старое место.
     if (!isDragging) {
       setPosition(message.position);
     }
@@ -42,7 +44,6 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   const handleGripPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isOwner) return;
     e.stopPropagation();
-    e.preventDefault();
     dragStartRef.current = { x: e.clientX, y: e.clientY };
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
   };
@@ -55,14 +56,15 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
     const dy = Math.abs(e.clientY - dragStartRef.current.y);
 
     if (dx > 5 || dy > 5) {
+      if (!cardRef.current) return;
       (e.target as HTMLElement).releasePointerCapture(e.pointerId);
       
-      if (!cardRef.current) return;
       const rect = cardRef.current.getBoundingClientRect();
-      offset.current = {
+      dragOffset.current = {
         x: e.clientX - rect.left,
         y: e.clientY - rect.top,
       };
+
       setIsDragging(true);
       cardRef.current.setPointerCapture(e.pointerId);
       
@@ -81,42 +83,42 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
     dragStartRef.current = null;
   };
 
-  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDragging || !isOwner || !cardRef.current) return;
+  const handleCardPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging || !isOwner) return;
     e.preventDefault();
     const board = document.getElementById('board');
     if (!board) return;
     
     const boardRect = board.getBoundingClientRect();
 
-    const newWorldX = e.clientX - boardRect.left - panOffset.x - offset.current.x;
-    const newWorldY = e.clientY - boardRect.top - panOffset.y - offset.current.y;
+    const newWorldX = e.clientX - boardRect.left - panOffset.x - dragOffset.current.x;
+    const newWorldY = e.clientY - boardRect.top - panOffset.y - dragOffset.current.y;
     
     setPosition({ x: newWorldX, y: newWorldY });
   };
 
-  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+  const handleCardPointerUp = async (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDragging || !isOwner || !firestore) return;
-    setIsDragging(false);
-    cardRef.current?.releasePointerCapture(e.pointerId);
-    
-    if (position.x === message.position.x && position.y === message.position.y) {
-      return;
-    }
 
-    startTransition(async () => {
-      try {
+    // Сначала обновляем Firestore и дожидаемся завершения
+    try {
+      if (position.x !== message.position.x || position.y !== message.position.y) {
         const messageDocRef = doc(firestore, 'rooms', roomId, 'messages', message.id);
-        await updateDoc(messageDocRef, { 'position.x': position.x, 'position.y': position.y });
-      } catch (error) {
-        toast({
-          title: 'Ошибка',
-          description: `Не удалось обновить позицию: ${getErrorMessage(error)}`,
-          variant: 'destructive',
-        });
-        setPosition(message.position);
+        await updateDoc(messageDocRef, { 'position': position });
       }
-    });
+    } catch (error) {
+      toast({
+        title: 'Ошибка',
+        description: `Не удалось обновить позицию: ${getErrorMessage(error)}`,
+        variant: 'destructive',
+      });
+      // В случае ошибки возвращаем карточку на исходную позицию
+      setPosition(message.position);
+    } finally {
+      // Только после успешного обновления (или ошибки) завершаем перетаскивание
+      setIsDragging(false);
+      cardRef.current?.releasePointerCapture(e.pointerId);
+    }
   };
 
   return (
@@ -126,17 +128,16 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
       className={cn(
         'absolute w-64 rounded-lg shadow-lg transition-shadow duration-300',
         isOwner && 'cursor-grab',
-        isDragging && 'cursor-grabbing shadow-2xl z-20 scale-105',
-        isPending && 'opacity-70'
+        isDragging && 'cursor-grabbing shadow-2xl z-20 scale-105'
       )}
       style={{
         left: `${position.x}px`,
         top: `${position.y}px`,
         touchAction: 'none',
       }}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerUp}
+      onPointerMove={handleCardPointerMove}
+      onPointerUp={handleCardPointerUp}
+      onPointerCancel={handleCardPointerUp}
     >
       <CardContent className="relative p-4 flex gap-2 items-start">
         {isOwner && (
