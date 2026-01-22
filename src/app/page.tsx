@@ -88,8 +88,8 @@ export default function Home() {
   const joinRoomSchema = z.object({
     code: z
       .string()
-      .length(6, 'Код должен состоять из 6 букв')
-      .regex(/^[A-Z]+$/, 'Код должен состоять из заглавных латинских букв'),
+      .length(4, 'Код должен состоять из 4 символов')
+      .regex(/^[A-Z0-9]+$/, 'Код должен состоять из заглавных латинских букв и цифр'),
   });
 
   const handleJoinRoom = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -180,13 +180,13 @@ export default function Home() {
               <Input
                 ref={joinCodeRef}
                 name="code"
-                placeholder="ABCDEF"
+                placeholder="A1B2"
                 className="w-40 text-center text-lg font-semibold tracking-widest uppercase"
-                maxLength={6}
+                maxLength={4}
                 onChange={(e) => {
                   e.target.value = e.target.value
                     .toUpperCase()
-                    .replace(/[^A-Z]/g, '');
+                    .replace(/[^A-Z0-9]/g, '');
                 }}
                 required
                 disabled={isJoiningRoom}
