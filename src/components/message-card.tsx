@@ -158,6 +158,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   const dragOffset = useRef({ x: 0, y: 0 });
 
   const isOwner = user?.uid === message.userId;
+  const isImage = message.file?.type.startsWith('image/');
 
   // Effect for updating the 'time ago' string
   useEffect(() => {
@@ -423,6 +424,24 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
       >
         <div className="relative p-4 flex flex-col gap-2 flex-grow overflow-y-auto">
           {message.file && !isCollapsed && (
+            isImage ? (
+                <div className="relative w-full rounded-md overflow-hidden mb-2 group">
+                    <img 
+                        src={message.file.dataUrl} 
+                        alt={message.file.name} 
+                        className="w-full h-auto object-contain max-h-96"
+                    />
+                    <a 
+                        href={message.file.dataUrl} 
+                        download={message.file.name}
+                        className="absolute bottom-1 right-1 bg-black/50 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => {e.stopPropagation()}}
+                        title="Скачать изображение"
+                    >
+                        <Download className="h-4 w-4" />
+                    </a>
+                </div>
+            ) : (
              <div className="flex items-center gap-3 p-2 rounded-md border bg-background mb-2">
                 <FileIcon className="h-8 w-8 text-muted-foreground flex-shrink-0" />
                 <div className="flex-1 min-w-0">
@@ -438,6 +457,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
                     </a>
                 </div>
              </div>
+            )
           )}
 
           <div className="flex items-start gap-2">

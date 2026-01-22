@@ -29,7 +29,6 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import type { FileAttachment } from '@/types';
 
 const messageSchema = z
   .object({
@@ -75,6 +74,9 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
     },
   });
 
+  const fileDataUrl = form.watch('file.dataUrl');
+  const isImagePreview = filePreview?.type.startsWith('image/');
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -116,6 +118,8 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
     if (!firestore || !user || !roomId) return;
     if (!values.message && !values.file) return;
 
+    const isImage = values.file?.type.startsWith('image/');
+
     try {
       const messagesColRef = collection(firestore, 'rooms', roomId, 'messages');
       await addDoc(messagesColRef, {
@@ -128,8 +132,8 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
           y: Math.random() * (window.innerHeight * 0.4) + 20 - panOffset.y,
         },
         size: {
-          width: 320,
-          height: values.file ? 200 : 128,
+            width: 320,
+            height: isImage ? 240 : (values.file ? 160 : 128),
         },
       });
       form.reset();
@@ -261,26 +265,28 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
             className="flex flex-col gap-2"
           >
             {filePreview && (
-              <div className="relative flex items-center gap-3 p-2 border rounded-md bg-muted/50">
-                <FileIcon className="h-8 w-8 text-muted-foreground flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">
-                    {filePreview.name}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {filePreview.type || 'unknown'}
-                  </p>
+                <div className="relative p-2 border rounded-md bg-muted/50">
+                     <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute top-1 right-1 z-10 h-6 w-6 flex-shrink-0 bg-background/50 hover:bg-background/80 rounded-full"
+                        onClick={removeFile}
+                    >
+                        <X className="h-4 w-4" />
+                    </Button>
+                    {isImagePreview ? (
+                        <img src={fileDataUrl} alt="Предпросмотр" className="max-h-28 w-auto rounded-md mx-auto" />
+                    ) : (
+                    <div className="flex items-center gap-3 pr-6">
+                        <FileIcon className="h-8 w-8 text-muted-foreground flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{filePreview.name}</p>
+                        <p className="text-xs text-muted-foreground">{filePreview.type || 'unknown'}</p>
+                        </div>
+                    </div>
+                    )}
                 </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 flex-shrink-0"
-                  onClick={removeFile}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
             )}
             <div className="flex items-start gap-4">
               <FormField
