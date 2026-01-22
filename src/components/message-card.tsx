@@ -8,6 +8,7 @@ import { updateMessagePosition } from '@/lib/actions';
 import { GripVertical } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ru } from 'date-fns/locale';
+import { useUser } from '@/firebase';
 
 type MessageCardProps = {
   message: Message;
@@ -15,11 +16,14 @@ type MessageCardProps = {
 };
 
 export function MessageCard({ message, roomId }: MessageCardProps) {
+  const { user } = useUser();
   const [position, setPosition] = useState(message.position);
   const [isDragging, setIsDragging] = useState(false);
   const offset = useRef({ x: 0, y: 0 });
   const cardRef = useRef<HTMLDivElement>(null);
   const [isPending, startTransition] = useTransition();
+
+  const isOwner = user?.uid === message.userId;
 
   useEffect(() => {
     if (!isDragging) {
@@ -28,6 +32,7 @@ export function MessageCard({ message, roomId }: MessageCardProps) {
   }, [message.position, isDragging]);
   
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isOwner) return;
     e.preventDefault();
     if (!cardRef.current) return;
     const rect = cardRef.current.getBoundingClientRect();
@@ -40,7 +45,7 @@ export function MessageCard({ message, roomId }: MessageCardProps) {
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDragging || !cardRef.current) return;
+    if (!isDragging || !isOwner || !cardRef.current) return;
     e.preventDefault();
     const board = document.getElementById('board');
     if (!board) return;
@@ -54,7 +59,7 @@ export function MessageCard({ message, roomId }: MessageCardProps) {
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDragging) return;
+    if (!isDragging || !isOwner) return;
     e.preventDefault();
     setIsDragging(false);
     cardRef.current?.releasePointerCapture(e.pointerId);
@@ -68,7 +73,8 @@ export function MessageCard({ message, roomId }: MessageCardProps) {
     <Card
       ref={cardRef}
       className={cn(
-        'absolute w-64 cursor-grab rounded-lg shadow-lg transition-shadow duration-300',
+        'absolute w-64 rounded-lg shadow-lg transition-shadow duration-300',
+        isOwner && 'cursor-grab',
         isDragging && 'cursor-grabbing shadow-2xl z-20 scale-105',
         isPending && 'opacity-70'
       )}
@@ -81,12 +87,14 @@ export function MessageCard({ message, roomId }: MessageCardProps) {
       onPointerUp={handlePointerUp}
     >
       <CardContent className="relative p-4 flex gap-2">
-        <div
-          className="py-1 text-muted-foreground/50 hover:text-muted-foreground"
-          onPointerDown={handlePointerDown}
-        >
-          <GripVertical className="h-5 w-5" />
-        </div>
+        {isOwner && (
+          <div
+            className="py-1 text-muted-foreground/50 hover:text-muted-foreground"
+            onPointerDown={handlePointerDown}
+          >
+            <GripVertical className="h-5 w-5" />
+          </div>
+        )}
         <div className="flex-1">
           <p className="text-sm text-foreground whitespace-pre-wrap break-words">{message.text}</p>
           <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">

@@ -1,7 +1,4 @@
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { Room } from '@/components/room';
-import { notFound } from 'next/navigation';
 
 type RoomPageProps = {
   params: {
@@ -12,15 +9,11 @@ type RoomPageProps = {
 export default async function RoomPage({ params }: RoomPageProps) {
   const { roomId } = params;
   const upperCaseRoomId = roomId.toUpperCase();
+  
+  // We no longer need to fetch the room here, 
+  // the Room component and its hook will handle it.
+  // This also means we don't need to check for existence here,
+  // the useRoom hook can handle that state.
 
-  // Получаем комнату напрямую по ее ID (который является кодом комнаты).
-  const roomRef = doc(db, 'rooms', upperCaseRoomId);
-  const roomSnap = await getDoc(roomRef);
-
-  if (!roomSnap.exists()) {
-    return notFound();
-  }
-
-  // ID документа комнаты совпадает с ID комнаты из URL.
-  return <Room roomId={upperCaseRoomId} roomDocId={upperCaseRoomId} />;
+  return <Room roomId={upperCaseRoomId} />;
 }

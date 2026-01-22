@@ -7,6 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, PenSquare } from 'lucide-react';
+import { useUser } from '@/firebase/provider';
+import { initiateAnonymousSignIn } from '@/firebase/non-blocking-login';
+import { useAuth } from '@/firebase';
 
 function CreateRoomButton() {
   const { pending } = useFormStatus();
@@ -70,7 +73,6 @@ function JoinRoomForm() {
 
   useEffect(() => {
     if (state.message) {
-      // Показывать ошибки валидации встроенно, а не в тосте
       if (!state.message.toLowerCase().includes('код')) {
         toast({
           title: 'Ошибка',
@@ -78,7 +80,6 @@ function JoinRoomForm() {
           variant: 'destructive',
         });
       }
-      // При ошибке сфокусироваться на поле ввода, чтобы пользователь мог ее исправить
       inputRef.current?.focus();
       inputRef.current?.select();
     }
@@ -112,6 +113,24 @@ function JoinRoomForm() {
 }
 
 export default function Home() {
+  const { user, isUserLoading } = useUser();
+  const auth = useAuth();
+  
+  useEffect(() => {
+    if (!user && !isUserLoading) {
+      initiateAnonymousSignIn(auth);
+    }
+  }, [user, isUserLoading, auth]);
+
+
+  if (isUserLoading || !user) {
+    return (
+      <div className="flex min-h-screen w-full flex-col items-center justify-center">
+        <Loader2 className="h-16 w-16 animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
       <div className="flex flex-col items-center gap-8">

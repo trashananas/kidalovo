@@ -17,6 +17,7 @@ import {
 import { Card, CardContent } from './ui/card';
 import { Send } from 'lucide-react';
 import { useEffect, useRef } from 'react';
+import { useUser } from '@/firebase';
 
 const messageSchema = z.object({
   message: z.string().min(1, 'Сообщение не может быть пустым').max(280),
@@ -29,6 +30,7 @@ type MessageFormProps = {
 export function MessageForm({ roomId }: MessageFormProps) {
   const [state, formAction] = useFormState(sendMessage, { message: '' });
   const formRef = useRef<HTMLFormElement>(null);
+  const { user } = useUser();
 
   const form = useForm<z.infer<typeof messageSchema>>({
     resolver: zodResolver(messageSchema),
@@ -50,6 +52,10 @@ export function MessageForm({ roomId }: MessageFormProps) {
     }
   };
 
+  if (!user) {
+    return null; // Or a loading indicator
+  }
+
   return (
     <Card className="shadow-2xl">
       <CardContent className="p-4">
@@ -61,6 +67,7 @@ export function MessageForm({ roomId }: MessageFormProps) {
             className="flex items-start gap-4"
           >
             <input type="hidden" name="roomId" value={roomId} />
+            <input type="hidden" name="userId" value={user.uid} />
             <FormField
               control={form.control}
               name="message"

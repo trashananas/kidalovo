@@ -2,22 +2,29 @@
 
 import {
   collection,
-  addDoc,
   serverTimestamp,
   doc,
-  updateDoc,
   getDoc,
   setDoc,
+  addDoc,
+  updateDoc,
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { generateRoomCode, getErrorMessage } from './utils';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
+import { getFirestore } from 'firebase/firestore';
+import { initializeFirebase } from '@/firebase';
+
 
 type FormState = {
   message: string;
 };
+
+// Helper function to get the Firestore instance
+function getDb() {
+  return getFirestore(initializeFirebase().firebaseApp);
+}
 
 export async function createRoom(
   prevState: FormState,
@@ -25,6 +32,7 @@ export async function createRoom(
 ): Promise<FormState> {
   let attempts = 0;
   const maxAttempts = 10;
+  const db = getDb();
 
   while (attempts < maxAttempts) {
     attempts++;
@@ -38,25 +46,25 @@ export async function createRoom(
         console.log(`Код комнаты ${roomCode} уже существует. Повторная попытка...`);
         continue;
       }
-
-      // Код комнаты уникален, создаем новую комнату.
+      
       await setDoc(roomRef, {
         code: roomCode,
         createdAt: serverTimestamp(),
+        members: {}, // Add members map
       });
       
-      // Успех, перенаправляем пользователя.
       redirect(`/${roomCode}`);
 
     } catch (error) {
-      // Если есть ошибка (например, права доступа), останавливаемся и сообщаем о ней.
       const errorMessage = getErrorMessage(error);
       console.error(`Ошибка при создании комнаты: ${errorMessage}`);
-      return { message: `Не удалось создать комнату: ${errorMessage}` };
+      // Only return a user-facing error on the last attempt
+      if (attempts === maxAttempts) {
+        return { message: `Не удалось создать комнату: ${errorMessage}` };
+      }
     }
   }
 
-  // Если цикл завершился, значит, мы не смогли найти уникальный код.
   return { message: 'Не удалось создать уникальную комнату после 10 попыток. Пожалуйста, попробуйте еще раз.' };
 }
 
@@ -72,6 +80,7 @@ export async function joinRoom(
   prevState: FormState,
   formData: FormData
 ): Promise<FormState> {
+  const db = getDb();
   try {
     const validatedFields = joinRoomSchema.safeParse({
       code: formData.get('code'),
@@ -84,8 +93,6 @@ export async function joinRoom(
     }
 
     const { code } = validatedFields.data;
-
-    // Проверяем существование комнаты напрямую по ID
     const roomRef = doc(db, 'rooms', code);
     const roomSnap = await getDoc(roomRef);
 
@@ -101,16 +108,19 @@ export async function joinRoom(
 const messageSchema = z.object({
   message: z.string().min(1, 'Сообщение не может быть пустым').max(280),
   roomId: z.string(),
+  userId: z.string(),
 });
 
 export async function sendMessage(
   prevState: FormState,
   formData: FormData
 ): Promise<FormState> {
+  const db = getDb();
   try {
     const validatedFields = messageSchema.safeParse({
       message: formData.get('message'),
       roomId: formData.get('roomId'),
+      userId: formData.get('userId'),
     });
 
     if (!validatedFields.success) {
@@ -119,19 +129,14 @@ export async function sendMessage(
       };
     }
 
-    const { message, roomId } = validatedFields.data;
+    const { message, roomId, userId } = validatedFields.data;
 
-    // ID документа комнаты - это сам ID комнаты (код).
     const roomDocRef = doc(db, 'rooms', roomId);
-    const roomDocSnap = await getDoc(roomDocRef);
-
-    if (!roomDocSnap.exists()) {
-      return { message: 'Комната не найдена.' };
-    }
-
     const messagesColRef = collection(roomDocRef, 'messages');
+    
     await addDoc(messagesColRef, {
       text: message,
+      userId: userId,
       createdAt: serverTimestamp(),
       position: {
         x: Math.random() * 200 + 50,
@@ -151,15 +156,9 @@ export async function updateMessagePosition(
   messageId: string,
   position: { x: number; y: number }
 ) {
+  const db = getDb();
   try {
-    // ID документа комнаты - это сам ID комнаты (код).
     const messageDocRef = doc(db, 'rooms', roomId, 'messages', messageId);
-
-    const messageDoc = await getDoc(messageDocRef);
-    if (!messageDoc.exists()) {
-        throw new Error("Сообщение не найдено");
-    }
-
     await updateDoc(messageDocRef, { position });
     revalidatePath(`/${roomId}`);
   } catch (error) {
