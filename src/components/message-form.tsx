@@ -80,11 +80,13 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    
+    const MAX_FILE_SIZE_BYTES = 750 * 1024; // 750 KB
 
-    if (file.size > 1024 * 1024) { // ~1MB limit
+    if (file.size > MAX_FILE_SIZE_BYTES) {
         toast({ 
             title: 'Файл слишком большой', 
-            description: 'Пожалуйста, выберите файл размером до 1 МБ.', 
+            description: 'Пожалуйста, выберите файл размером до 750 КБ.', 
             variant: 'destructive' 
         });
         if(fileInputRef.current) {
