@@ -37,6 +37,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   const isOwner = user?.uid === message.userId;
 
   useEffect(() => {
+    // This now runs only on the client, after hydration.
     if (message.createdAt) {
       setTimeAgo(formatDistanceToNow(message.createdAt.toDate(), { addSuffix: true, locale: ru }));
     } else {
@@ -272,12 +273,12 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
 
         {!isCollapsed ? (
             <div className="flex-1 min-h-0 flex flex-col">
-                <div className="flex-grow overflow-y-auto">
+                <div className="flex-grow overflow-y-auto min-h-0">
                     <p className="text-sm text-foreground whitespace-pre-wrap break-words">{message.text}</p>
                 </div>
                 <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
                     <span>
-                    {timeAgo}
+                      {timeAgo ? timeAgo : <>&nbsp;</>}
                     </span>
                 </div>
             </div>
