@@ -65,7 +65,13 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
   };
 
   const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.ctrlKey) {
+    if (e.key === 'Enter') {
+      if (e.ctrlKey || e.metaKey) {
+        // New line on Ctrl+Enter or Cmd+Enter (for macOS)
+        return;
+      }
+      
+      // Submit on Enter alone
       e.preventDefault();
       form.handleSubmit(onSubmit)();
     }
