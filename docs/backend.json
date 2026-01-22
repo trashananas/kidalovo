@@ -78,38 +78,54 @@
           "type": "string",
           "description": "The text content of the message."
         },
-        "positionX": {
-          "type": "number",
-          "description": "The x-coordinate of the message's position on the board."
+        "imageUrl": {
+          "type": "string",
+          "description": "A data URI for an attached image."
         },
-        "positionY": {
-          "type": "number",
-          "description": "The y-coordinate of the message's position on the board."
+        "position": {
+          "type": "object",
+          "description": "The coordinates of the message's position on the board.",
+          "properties": {
+            "x": {
+              "type": "number"
+            },
+            "y": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y"
+          ]
+        },
+        "size": {
+          "type": "object",
+          "description": "The dimensions of the message card.",
+          "properties": {
+            "width": {
+              "type": "number"
+            },
+            "height": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "width",
+            "height"
+          ]
         },
         "createdAt": {
           "type": "string",
           "description": "Timestamp indicating when the message was created.",
           "format": "date-time"
-        },
-        "informationScore": {
-          "type": "number",
-          "description": "Score from 0 to 1 indicating how much this message adds information to the board."
-        },
-        "contradictionScore": {
-          "type": "number",
-          "description": "Score from 0 to 1 indicating how much this message contradicts other information on the board."
         }
       },
       "required": [
         "id",
         "roomId",
         "userId",
-        "text",
-        "positionX",
-        "positionY",
-        "createdAt",
-        "informationScore",
-        "contradictionScore"
+        "position",
+        "createdAt"
       ]
     }
   },

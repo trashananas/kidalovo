@@ -2,7 +2,8 @@ import type { Timestamp } from 'firebase/firestore';
 
 export type Message = {
   id: string;
-  text: string;
+  text?: string;
+  imageUrl?: string;
   userId: string;
   createdAt: Timestamp;
   position: {

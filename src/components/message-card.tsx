@@ -10,6 +10,7 @@ import { ru } from 'date-fns/locale';
 import { useUser, useFirestore } from '@/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import Image from 'next/image';
 
 const Spoiler = ({ children }: { children: React.ReactNode }) => {
   const [isVisible, setIsVisible] = useState(false);
@@ -383,6 +384,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   ]);
 
   const handleCopy = () => {
+    if (!message.text) return;
     navigator.clipboard
       .writeText(message.text)
       .then(() => {
@@ -421,6 +423,18 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
         onPointerCancel={handleCardPointerUp}
       >
         <div className="relative p-4 flex flex-col gap-2 flex-grow overflow-y-auto">
+          {message.imageUrl && !isCollapsed && (
+             <div className="relative w-full aspect-video mb-2 rounded-md overflow-hidden">
+                <Image 
+                    src={message.imageUrl} 
+                    alt="Загруженное изображение" 
+                    fill
+                    style={{ objectFit: 'contain' }}
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                />
+             </div>
+          )}
+
           <div className="flex items-start gap-2 h-full">
             {isOwner && (
               <div className="flex flex-col gap-2">
@@ -441,15 +455,15 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
 
             <div className="flex-1 min-w-0 h-full overflow-y-auto">
               {!isCollapsed ? (
-                message.text.trim() === '<3' ? (
+                message.text?.trim() === '<3' && !message.imageUrl ? (
                   <div className="flex h-full w-full items-center justify-center">
                     <span className="text-5xl">❤️</span>
                   </div>
-                ) : (
+                ) : message.text ? (
                   <p className="text-sm text-foreground whitespace-pre-wrap break-words">
                     {renderFormattedText(message.text)}
                   </p>
-                )
+                ) : null
               ) : (
                 <div className="h-full flex items-center justify-center text-xs text-muted-foreground italic">
                   Сообщение свёрнуто...
@@ -457,7 +471,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
               )}
             </div>
 
-            {!isCollapsed && (
+            {!isCollapsed && message.text && (
               <div
                 className="py-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer"
                 onClick={handleCopy}

@@ -14,7 +14,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Card, CardContent } from './ui/card';
-import { Send } from 'lucide-react';
+import { Send, Paperclip, X } from 'lucide-react';
 import { useUser, useFirestore } from '@/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { getErrorMessage } from '@/lib/utils';
@@ -29,10 +29,17 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import Image from 'next/image';
 
-const messageSchema = z.object({
-  message: z.string().min(1, 'Сообщение не может быть пустым'),
-});
+const messageSchema = z
+  .object({
+    message: z.string(),
+    imageUrl: z.string().nullable(),
+  })
+  .refine((data) => data.message.trim().length > 0 || !!data.imageUrl, {
+    message: 'Сообщение не может быть пустым',
+    path: ['message'],
+  });
 
 type MessageFormProps = {
   roomId: string;
@@ -44,25 +51,56 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const selectionRef = useRef<{ start: number; end: number } | null>(null);
 
   const form = useForm<z.infer<typeof messageSchema>>({
     resolver: zodResolver(messageSchema),
     defaultValues: {
       message: '',
+      imageUrl: null,
     },
   });
+  
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+        toast({ title: 'Неверный тип файла', description: 'Пожалуйста, выберите изображение.', variant: 'destructive' });
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        const dataUrl = event.target?.result as string;
+        setImagePreview(dataUrl);
+        form.setValue('imageUrl', dataUrl, { shouldValidate: true });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  const removeImage = () => {
+    setImagePreview(null);
+    form.setValue('imageUrl', null, { shouldValidate: true });
+    if(fileInputRef.current) {
+        fileInputRef.current.value = '';
+    }
+  }
 
   const onSubmit = async (values: z.infer<typeof messageSchema>) => {
     if (!firestore || !user || !roomId) return;
+    if (!values.message && !values.imageUrl) return;
 
     try {
       const messagesColRef = collection(firestore, 'rooms', roomId, 'messages');
       await addDoc(messagesColRef, {
         text: values.message,
+        imageUrl: values.imageUrl,
         userId: user.uid,
         createdAt: serverTimestamp(),
         position: {
@@ -70,11 +108,12 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
           y: Math.random() * (window.innerHeight * 0.4) + 20 - panOffset.y,
         },
         size: {
-          width: 256,
-          height: 128,
+          width: 320, // increased default width for images
+          height: values.imageUrl ? 280 : 128, // increased default height for images
         },
       });
       form.reset();
+      removeImage();
     } catch (error) {
       toast({
         title: 'Ошибка отправки',
@@ -199,8 +238,23 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit(onSubmit)}
-            className="flex items-start gap-4"
+            className="flex flex-col gap-2"
           >
+            {imagePreview && (
+                <div className="relative w-32 h-32 rounded-md overflow-hidden">
+                    <Image src={imagePreview} alt="Image preview" fill style={{objectFit: 'cover'}}/>
+                    <Button
+                        type="button"
+                        variant="destructive"
+                        size="icon"
+                        className="absolute top-1 right-1 h-6 w-6"
+                        onClick={removeImage}
+                    >
+                        <X className="h-4 w-4" />
+                    </Button>
+                </div>
+            )}
+            <div className="flex items-start gap-4">
             <FormField
               control={form.control}
               name="message"
@@ -213,7 +267,7 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
                         field.ref(e);
                         textareaRef.current = e;
                       }}
-                      placeholder="Введите ваше сообщение... (Shift+Enter для новой строки)"
+                      placeholder="Введите ваше сообщение..."
                       className="min-h-0 resize-none"
                       rows={1}
                       onKeyDown={handleTextareaKeyDown}
@@ -224,6 +278,17 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
                 </FormItem>
               )}
             />
+            <input type="file" ref={fileInputRef} onChange={handleImageChange} accept="image/*" hidden/>
+            <Button
+                type='button'
+                size='icon'
+                variant='outline'
+                onClick={() => fileInputRef.current?.click()}
+                disabled={form.formState.isSubmitting}
+            >
+                <Paperclip className="h-4 w-4"/>
+                <span className="sr-only">Прикрепить файл</span>
+            </Button>
             <Button
               type="submit"
               size="icon"
@@ -232,6 +297,7 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
               <Send className="h-4 w-4" />
               <span className="sr-only">Отправить</span>
             </Button>
+            </div>
           </form>
         </Form>
         <Dialog open={isLinkDialogOpen} onOpenChange={setIsLinkDialogOpen}>
