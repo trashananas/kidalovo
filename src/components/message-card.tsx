@@ -213,8 +213,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   const handleCopy = () => {
     navigator.clipboard.writeText(message.text).then(() => {
       toast({
-        title: "Текст скопирован",
-        description: "Сообщение было скопировано в буфер обмена.",
+        title: "Скопировано",
       });
     }).catch(err => {
       console.error('Could not copy text: ', err);
@@ -247,7 +246,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
       onPointerUp={handleCardPointerUp}
       onPointerCancel={handleCardPointerUp}
     >
-      <CardContent className="relative p-4 flex gap-2 items-start flex-grow overflow-hidden">
+      <CardContent className="relative p-4 flex gap-2 items-start flex-grow min-h-0">
         {isOwner && (
           <div
             className="py-1 text-muted-foreground/50 hover:text-muted-foreground touch-none cursor-pointer"
