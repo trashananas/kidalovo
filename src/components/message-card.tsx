@@ -27,6 +27,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [timeAgo, setTimeAgo] = useState('');
   const cardRef = useRef<HTMLDivElement>(null);
 
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -34,6 +35,14 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   const dragOffset = useRef({ x: 0, y: 0 });
 
   const isOwner = user?.uid === message.userId;
+
+  useEffect(() => {
+    if (message.createdAt) {
+      setTimeAgo(formatDistanceToNow(message.createdAt.toDate(), { addSuffix: true, locale: ru }));
+    } else {
+      setTimeAgo('только что');
+    }
+  }, [message.createdAt]);
 
   useEffect(() => {
     // Only update position from props if not currently dragging
@@ -268,7 +277,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
                 </div>
                 <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
                     <span>
-                    {message.createdAt ? formatDistanceToNow(message.createdAt.toDate(), { addSuffix: true, locale: ru }) : 'только что'}
+                    {timeAgo}
                     </span>
                 </div>
             </div>
