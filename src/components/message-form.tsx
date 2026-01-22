@@ -76,7 +76,6 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
 
     form.setValue('file', file, { shouldValidate: true });
 
-    // Create a temporary URL for client-side preview
     const previewUrl = URL.createObjectURL(file);
     setFilePreviewUrl(previewUrl);
   };
@@ -92,17 +91,29 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
     }
   };
 
+  const toBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = (error) => reject(error);
+    });
+
   const onSubmit = async (values: z.infer<typeof messageSchema>) => {
-    if (!firestore || !user || !roomId || !storage) return;
+    if (!firestore || !user || !roomId) return;
 
     const { message, file } = values;
     if (!message && !file) return;
 
-    form.formState.isSubmitting = true;
+    let fileAttachment: { name: string; type: string; url: string } | null = null;
+    let uploadError: Error | null = null;
 
-    try {
-      let fileAttachment = null;
-      if (file) {
+    if (file) {
+      // Primary method: Firebase Storage
+      try {
+        if (!storage) {
+          throw new Error("Firebase Storage не инициализирован.");
+        }
         const filePath = `files/${roomId}/${Date.now()}_${file.name}`;
         const fileStorageRef = storageRef(storage, filePath);
 
@@ -114,8 +125,38 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
           type: file.type,
           url: downloadUrl,
         };
+      } catch (storageError) {
+        console.warn("Ошибка загрузки в Storage. Попытка резервной загрузки:", storageError);
+        
+        // Fallback method: Base64 in Firestore
+        const MAX_SIZE_BYTES = 750 * 1024; // 750 KB
+        if (file.size > MAX_SIZE_BYTES) {
+          uploadError = new Error("Хранилище файлов временно недоступно, а размер файла превышает 750КБ для резервного метода.");
+        } else {
+          try {
+            const dataUrl = await toBase64(file);
+            fileAttachment = {
+              name: file.name,
+              type: file.type,
+              url: dataUrl,
+            };
+          } catch (base64Error) {
+            uploadError = new Error(`Ошибка при подготовке файла для резервной загрузки: ${getErrorMessage(base64Error)}`);
+          }
+        }
       }
+    }
 
+    if (uploadError) {
+      toast({
+        title: 'Ошибка загрузки файла',
+        description: getErrorMessage(uploadError),
+        variant: 'destructive',
+      });
+      return; 
+    }
+
+    try {
       const isImage = file?.type.startsWith('image/');
       const messagesColRef = collection(firestore, 'rooms', roomId, 'messages');
       await addDoc(messagesColRef, {
@@ -134,14 +175,12 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
       });
       form.reset();
       removeFile();
-    } catch (error) {
+    } catch (firestoreError) {
       toast({
-        title: 'Ошибка отправки',
-        description: getErrorMessage(error),
+        title: 'Ошибка отправки сообщения',
+        description: getErrorMessage(firestoreError),
         variant: 'destructive',
       });
-    } finally {
-        form.formState.isSubmitting = false;
     }
   };
 
