@@ -77,7 +77,7 @@ export function UserGuide() {
             <div>
               <h3 className="font-semibold text-md border-t pt-4 mb-2">Форматирование текста</h3>
               <p className="mb-2">
-                Вы можете форматировать текст прямо при вводе сообщения. Выделите нужный фрагмент и используйте горячие клавиши или добавьте символы разметки вручную:
+                Вы можете форматировать текст, используя специальные символы разметки:
               </p>
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
@@ -85,39 +85,32 @@ export function UserGuide() {
                         <tr className="border-b">
                             <th className="py-2 pr-4">Стиль</th>
                             <th className="py-2 pr-4">Разметка</th>
-                            <th className="py-2">Горячая клавиша</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr className="border-b">
                             <td className="py-2 pr-4"><strong>Жирный</strong></td>
                             <td className="py-2 pr-4 font-mono">*текст*</td>
-                            <td className="py-2 font-mono">Ctrl + B</td>
                         </tr>
                         <tr className="border-b">
                             <td className="py-2 pr-4"><em>Курсив</em></td>
                             <td className="py-2 pr-4 font-mono">\текст\</td>
-                            <td className="py-2 font-mono">Ctrl + I</td>
                         </tr>
                         <tr className="border-b">
                             <td className="py-2 pr-4"><u>Подчеркнутый</u></td>
                             <td className="py-2 pr-4 font-mono">_текст_</td>
-                            <td className="py-2 font-mono">Ctrl + U</td>
                         </tr>
                         <tr className="border-b">
                             <td className="py-2 pr-4"><s>Зачеркнутый</s></td>
                             <td className="py-2 pr-4 font-mono">$текст$</td>
-                            <td className="py-2 font-mono">Ctrl + Shift + X</td>
                         </tr>
                         <tr className="border-b">
                             <td className="py-2 pr-4">Скрытый (спойлер)</td>
                             <td className="py-2 pr-4 font-mono">#текст#</td>
-                            <td className="py-2 font-mono">Ctrl + Shift + P</td>
                         </tr>
                         <tr className="border-b">
                             <td className="py-2 pr-4"><a href="#" className="text-blue-500 hover:underline" onClick={(e)=>e.preventDefault()}>Ссылка</a></td>
                             <td className="py-2 pr-4 font-mono">{'@текст@{ссылка}'}</td>
-                            <td className="py-2 font-mono">Ctrl + K</td>
                         </tr>
                     </tbody>
                 </table>
