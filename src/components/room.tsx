@@ -5,11 +5,24 @@ import { MessageCard } from './message-card';
 import { MessageForm } from './message-form';
 import { Badge } from './ui/badge';
 import Link from 'next/link';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
-import { useUser } from '@/firebase';
+import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { useState, useRef } from 'react';
-import { cn } from '@/lib/utils';
+import { cn, getErrorMessage } from '@/lib/utils';
+import { useRouter } from 'next/navigation';
+import { doc, collection, getDocs, writeBatch } from 'firebase/firestore';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { useToast } from '@/hooks/use-toast';
 
 type RoomProps = {
   roomId: string;
@@ -18,14 +31,65 @@ type RoomProps = {
 export function Room({ roomId }: RoomProps) {
   const { user, isUserLoading } = useUser();
   const { messages, loading, error } = useRoom(roomId);
-  
+  const router = useRouter();
+  const firestore = useFirestore();
+  const { toast } = useToast();
+
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const panStart = useRef({ x: 0, y: 0 });
 
+  const roomRef = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return doc(firestore, 'rooms', roomId);
+  }, [firestore, roomId]);
+
+  const { data: roomData } = useDoc(roomRef);
+  const isOwner = roomData?.creatorId === user?.uid;
+
+  const handleDeleteRoom = async () => {
+    if (!firestore || !isOwner || !roomRef) return;
+    
+    setIsDeleting(true);
+    
+    try {
+        const messagesCollectionRef = collection(firestore, 'rooms', roomId, 'messages');
+        const messagesSnapshot = await getDocs(messagesCollectionRef);
+        
+        const batch = writeBatch(firestore);
+        
+        messagesSnapshot.docs.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+        
+        batch.delete(roomRef);
+        
+        await batch.commit();
+        
+        toast({
+            title: 'Комната удалена',
+            description: `Комната ${roomId} и все сообщения были удалены.`,
+        });
+        
+        router.push('/');
+        
+    } catch (error) {
+        console.error("Ошибка при удалении комнаты: ", error);
+        toast({
+            title: 'Ошибка удаления',
+            description: getErrorMessage(error),
+            variant: 'destructive',
+        });
+        setIsDeleting(false);
+        setIsDeleteDialogOpen(false);
+    }
+  };
+
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
-    // Не начинать панорамирование, если клик произошел на карточке, форме или в заголовке
     if (
       target.closest('[data-message-card="true"]') ||
       target.closest('.message-form-container') ||
@@ -88,6 +152,40 @@ export function Room({ roomId }: RoomProps) {
             {roomId}
           </Badge>
         </div>
+        {isOwner && (
+          <>
+            <Button
+                variant="destructive"
+                size="icon"
+                onClick={() => setIsDeleteDialogOpen(true)}
+                disabled={isDeleting}
+                title="Удалить комнату"
+            >
+                {isDeleting ? <Loader2 className="animate-spin" /> : <Trash2 />}
+            </Button>
+             <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Вы уверены?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Это действие невозможно отменить. Это навсегда удалит комнату
+                            и все сообщения в ней.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isDeleting}>Отмена</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleDeleteRoom}
+                            disabled={isDeleting}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                            {isDeleting ? 'Удаление...' : 'Удалить'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+          </>
+        )}
       </header>
       
       <div

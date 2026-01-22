@@ -82,7 +82,7 @@ service cloud.firestore {
         allow read, list: if isRoomMember(roomId);
         allow create: if isRoomMember(roomId) && isMessageCreator();
         allow update: if isMessageOwner() && isExistingDoc();
-        allow delete: if false;
+        allow delete: if isRoomOwner(roomId);
       }
     }
   }
