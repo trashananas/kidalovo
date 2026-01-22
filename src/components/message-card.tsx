@@ -4,11 +4,13 @@ import type { Message } from '@/types';
 import { Card, CardContent } from './ui/card';
 import { cn } from '@/lib/utils';
 import { useState, useEffect, useRef, useTransition } from 'react';
-import { updateMessagePosition } from '@/lib/actions';
 import { GripVertical } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { useUser } from '@/firebase';
+import { useUser, useFirestore } from '@/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
+import { getErrorMessage } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 type MessageCardProps = {
   message: Message;
@@ -17,6 +19,8 @@ type MessageCardProps = {
 
 export function MessageCard({ message, roomId }: MessageCardProps) {
   const { user } = useUser();
+  const firestore = useFirestore();
+  const { toast } = useToast();
   const [position, setPosition] = useState(message.position);
   const [isDragging, setIsDragging] = useState(false);
   const offset = useRef({ x: 0, y: 0 });
@@ -59,13 +63,30 @@ export function MessageCard({ message, roomId }: MessageCardProps) {
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDragging || !isOwner) return;
+    if (!isDragging || !isOwner || !firestore) return;
+    // prevent default to avoid any unwanted side-effects
     e.preventDefault();
     setIsDragging(false);
     cardRef.current?.releasePointerCapture(e.pointerId);
     
-    startTransition(() => {
-        updateMessagePosition(roomId, message.id, position);
+    // Only update if position has changed
+    if (position.x === message.position.x && position.y === message.position.y) {
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        const messageDocRef = doc(firestore, 'rooms', roomId, 'messages', message.id);
+        await updateDoc(messageDocRef, { position });
+      } catch (error) {
+        toast({
+          title: 'Ошибка',
+          description: `Не удалось обновить позицию: ${getErrorMessage(error)}`,
+          variant: 'destructive',
+        });
+        // Revert position visually on error
+        setPosition(message.position);
+      }
     });
   };
 
@@ -85,11 +106,12 @@ export function MessageCard({ message, roomId }: MessageCardProps) {
       }}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp} // Also handle pointer cancel
     >
       <CardContent className="relative p-4 flex gap-2">
         {isOwner && (
           <div
-            className="py-1 text-muted-foreground/50 hover:text-muted-foreground"
+            className="py-1 text-muted-foreground/50 hover:text-muted-foreground touch-none"
             onPointerDown={handlePointerDown}
           >
             <GripVertical className="h-5 w-5" />
