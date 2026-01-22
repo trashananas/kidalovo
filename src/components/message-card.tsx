@@ -12,12 +12,12 @@ import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { getErrorMessage } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -72,16 +72,30 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
     e.preventDefault();
     e.stopPropagation(); // Остановить панорамирование доски
     if (!cardRef.current) return;
+    const pointerId = e.pointerId;
     
-    dragStartPos.current = { x: e.clientX, y: e.clientY };
+    // Определяем, является ли это долгим нажатием для перетаскивания
+    const longPressTimer = setTimeout(() => {
+        dragStartPos.current = { x: e.clientX, y: e.clientY };
 
-    const rect = cardRef.current.getBoundingClientRect();
-    offset.current = {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
+        const rect = cardRef.current!.getBoundingClientRect();
+        offset.current = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+        };
+        setIsDragging(true);
+        cardRef.current!.setPointerCapture(pointerId);
+    }, 200); // 200ms для долгого нажатия
+
+    const handlePointerUpForClick = () => {
+        clearTimeout(longPressTimer);
+        document.removeEventListener('pointerup', handlePointerUpForClick);
+        if (!isDragging && !isEditing) { // Не сворачивать, если редактируем
+            setIsCollapsed(prev => !prev);
+        }
     };
-    setIsDragging(true);
-    cardRef.current.setPointerCapture(e.pointerId);
+
+    document.addEventListener('pointerup', handlePointerUpForClick);
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -103,19 +117,6 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
     e.preventDefault();
     setIsDragging(false);
     cardRef.current?.releasePointerCapture(e.pointerId);
-
-    const distanceMoved = Math.sqrt(
-      Math.pow(e.clientX - dragStartPos.current.x, 2) +
-      Math.pow(e.clientY - dragStartPos.current.y, 2)
-    );
-
-    if (distanceMoved < 5) { // Это клик
-      if (!isEditing) {
-        setIsCollapsed(prev => !prev);
-      }
-      setPosition(message.position); // Сбросить любое незначительное перетаскивание
-      return;
-    }
     
     if (!firestore) return;
     
@@ -205,7 +206,6 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   const cardComponent = (
     <Card
       ref={cardRef}
-      onContextMenu={isOwner ? (e) => e.preventDefault() : undefined}
       className={cn(
         'absolute w-64 rounded-lg shadow-lg transition-shadow duration-300 message-card',
         isOwner && !isEditing && 'cursor-grab',
@@ -281,29 +281,29 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   
   return (
      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
+      <ContextMenu>
+        <ContextMenuTrigger disabled={isEditing}>
           {cardComponent}
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
-          <DropdownMenuItem onClick={handleEdit} disabled={isEditing}>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem onSelect={handleEdit} disabled={isEditing}>
             <Pencil className="mr-2 h-4 w-4" />
             <span>Изменить</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleCopy}>
+          </ContextMenuItem>
+          <ContextMenuItem onSelect={handleCopy}>
             <Copy className="mr-2 h-4 w-4" />
             <span>Скопировать текст</span>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuItem
             className="text-destructive focus:text-destructive"
-            onClick={() => setShowDeleteConfirm(true)}
+            onSelect={() => setShowDeleteConfirm(true)}
           >
             <Trash2 className="mr-2 h-4 w-4" />
             <span>Удалить</span>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
 
       <AlertDialogContent>
         <AlertDialogHeader>
