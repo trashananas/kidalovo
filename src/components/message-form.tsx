@@ -65,16 +65,11 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
   };
 
   const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter') {
-      if (e.ctrlKey || e.metaKey) {
-        // New line on Ctrl+Enter or Cmd+Enter (for macOS)
-        return;
-      }
-      
-      // Submit on Enter alone
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       form.handleSubmit(onSubmit)();
     }
+    // If Shift+Enter is pressed, the condition is false, and the default browser action (new line) occurs.
   };
 
   if (!user) {
@@ -97,7 +92,7 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
                   <FormControl>
                     <Textarea
                       {...field}
-                      placeholder="Введите ваше сообщение... (Ctrl+Enter для новой строки)"
+                      placeholder="Введите ваше сообщение... (Shift+Enter для новой строки)"
                       className="min-h-0 resize-none"
                       rows={1}
                       onKeyDown={handleTextareaKeyDown}
