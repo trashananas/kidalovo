@@ -256,10 +256,10 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
       onPointerUp={handleCardPointerUp}
       onPointerCancel={handleCardPointerUp}
     >
-      <CardContent className="relative p-4 flex gap-2 items-start flex-grow min-h-0">
+      <CardContent className="relative p-4 flex gap-2 items-start flex-grow overflow-y-auto">
         {isOwner && (
           <div
-            className="py-1 text-muted-foreground/50 hover:text-muted-foreground touch-none cursor-pointer"
+            className="sticky top-0 py-1 text-muted-foreground/50 hover:text-muted-foreground touch-none cursor-pointer"
             onPointerDown={handleGripPointerDown}
             onPointerMove={handleGripPointerMove}
             onPointerUp={handleGripPointerUp}
@@ -272,10 +272,8 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
         {!isOwner && !isCollapsed && <div className='w-5 shrink-0'></div>}
 
         {!isCollapsed ? (
-            <div className="flex-1 min-h-0 flex flex-col">
-                <div className="flex-grow overflow-y-auto min-h-0">
-                    <p className="text-sm text-foreground whitespace-pre-wrap break-words">{message.text}</p>
-                </div>
+            <div className="flex-1 flex flex-col">
+                <p className="text-sm text-foreground whitespace-pre-wrap break-words flex-grow">{message.text}</p>
                 <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
                     <span>
                       {timeAgo ? timeAgo : <>&nbsp;</>}
@@ -290,7 +288,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
 
         {!isCollapsed && (
           <div
-            className="py-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer"
+            className="sticky top-0 py-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer"
             onClick={handleCopy}
             title="Скопировать текст"
           >
