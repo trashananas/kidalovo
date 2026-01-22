@@ -22,11 +22,11 @@ export function Room({ roomId, roomDocId }: RoomProps) {
         <Button asChild variant="outline" size="icon">
           <Link href="/">
             <ArrowLeft />
-            <span className="sr-only">Back to home</span>
+            <span className="sr-only">Вернуться на главную</span>
           </Link>
         </Button>
         <div>
-          <h1 className="text-lg font-semibold">Room Code</h1>
+          <h1 className="text-lg font-semibold">Код комнаты</h1>
           <Badge variant="secondary" className="text-base font-bold tracking-widest">
             {roomId}
           </Badge>
@@ -37,8 +37,8 @@ export function Room({ roomId, roomDocId }: RoomProps) {
         {messages.map((msg) => (
           <MessageCard key={msg.id} message={msg} roomId={roomId} />
         ))}
-        {loading && messages.length === 0 && <p className="text-center p-8 text-muted-foreground">Loading messages...</p>}
-        {error && <p className="text-center p-8 text-destructive">Error loading messages.</p>}
+        {loading && messages.length === 0 && <p className="text-center p-8 text-muted-foreground">Загрузка сообщений...</p>}
+        {error && <p className="text-center p-8 text-destructive">Ошибка загрузки сообщений.</p>}
       </div>
 
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-10">

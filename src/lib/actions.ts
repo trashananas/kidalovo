@@ -42,10 +42,10 @@ export async function createRoom(
     }
 
     if (roomExists) {
-      return { message: 'Could not create a unique room. Please try again.' };
+      return { message: 'Не удалось создать уникальную комнату. Пожалуйста, попробуйте еще раз.' };
     }
 
-    const newRoomRef = await addDoc(collection(db, 'rooms'), {
+    await addDoc(collection(db, 'rooms'), {
       code: roomCode!,
       createdAt: serverTimestamp(),
     });
@@ -59,8 +59,8 @@ export async function createRoom(
 const joinRoomSchema = z.object({
   code: z
     .string()
-    .length(4, 'Code must be 4 letters')
-    .regex(/^[A-Z]+$/, 'Code must be uppercase letters'),
+    .length(4, 'Код должен состоять из 4 букв')
+    .regex(/^[A-Z]+$/, 'Код должен состоять из заглавных латинских букв'),
 });
 
 export async function joinRoom(
@@ -85,7 +85,7 @@ export async function joinRoom(
     const querySnapshot = await getDocs(q);
 
     if (querySnapshot.empty) {
-      return { message: 'Room not found. Please check the code.' };
+      return { message: 'Комната не найдена. Пожалуйста, проверьте код.' };
     }
   } catch (error) {
     return { message: getErrorMessage(error) };
@@ -94,7 +94,7 @@ export async function joinRoom(
 }
 
 const messageSchema = z.object({
-  message: z.string().min(1, 'Message cannot be empty').max(280),
+  message: z.string().min(1, 'Сообщение не может быть пустым').max(280),
   roomId: z.string(),
 });
 
@@ -110,7 +110,7 @@ export async function sendMessage(
 
     if (!validatedFields.success) {
       return {
-        message: 'Invalid message data.',
+        message: 'Неверные данные сообщения.',
       };
     }
 
@@ -121,7 +121,7 @@ export async function sendMessage(
     const roomSnapshot = await getDocs(q);
 
     if (roomSnapshot.empty) {
-      return { message: 'Room not found.' };
+      return { message: 'Комната не найдена.' };
     }
     const roomDoc = roomSnapshot.docs[0];
 
@@ -136,7 +136,7 @@ export async function sendMessage(
     });
 
     revalidatePath(`/${roomId}`);
-    return { message: 'Message sent!' };
+    return { message: 'Сообщение отправлено!' };
   } catch (error) {
     return { message: getErrorMessage(error) };
   }
@@ -153,7 +153,7 @@ export async function updateMessagePosition(
     const roomSnapshot = await getDocs(q);
 
     if (roomSnapshot.empty) {
-      throw new Error('Room not found');
+      throw new Error('Комната не найдена');
     }
 
     const roomDocId = roomSnapshot.docs[0].id;
@@ -167,12 +167,12 @@ export async function updateMessagePosition(
     
     const messageDoc = await getDoc(messageDocRef);
     if (!messageDoc.exists()) {
-        throw new Error("Message not found");
+        throw new Error("Сообщение не найдено");
     }
 
     await updateDoc(messageDocRef, { position });
     revalidatePath(`/${roomId}`);
   } catch (error) {
-    console.error('Failed to update message position:', getErrorMessage(error));
+    console.error('Не удалось обновить позицию сообщения:', getErrorMessage(error));
   }
 }

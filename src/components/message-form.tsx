@@ -19,7 +19,7 @@ import { Send } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
 const messageSchema = z.object({
-  message: z.string().min(1, 'Message cannot be empty').max(280),
+  message: z.string().min(1, 'Сообщение не может быть пустым').max(280),
 });
 
 type MessageFormProps = {
@@ -38,7 +38,7 @@ export function MessageForm({ roomId }: MessageFormProps) {
   });
 
   useEffect(() => {
-    if (state?.message === 'Message sent!') {
+    if (state?.message === 'Сообщение отправлено!') {
       form.reset();
     }
   }, [state, form]);
@@ -69,7 +69,7 @@ export function MessageForm({ roomId }: MessageFormProps) {
                   <FormControl>
                     <Textarea
                       {...field}
-                      placeholder="Type your message... (Shift+Enter for new line)"
+                      placeholder="Введите ваше сообщение... (Shift+Enter для новой строки)"
                       className="min-h-0 resize-none"
                       rows={1}
                       onKeyDown={handleTextareaKeyDown}
@@ -81,7 +81,7 @@ export function MessageForm({ roomId }: MessageFormProps) {
             />
             <Button type="submit" size="icon" disabled={form.formState.isSubmitting}>
               <Send className="h-4 w-4" />
-              <span className="sr-only">Send</span>
+              <span className="sr-only">Отправить</span>
             </Button>
           </form>
         </Form>

@@ -21,8 +21,8 @@ import { PenSquare } from 'lucide-react';
 const joinRoomSchema = z.object({
   code: z
     .string()
-    .length(4, 'Code must be 4 letters')
-    .regex(/^[A-Z]+$/, 'Code must be uppercase letters'),
+    .length(4, 'Код должен состоять из 4 букв')
+    .regex(/^[A-Z]+$/, 'Код должен состоять из заглавных латинских букв'),
 });
 
 function CreateRoomForm() {
@@ -32,7 +32,7 @@ function CreateRoomForm() {
   useEffect(() => {
     if (state?.message) {
       toast({
-        title: 'Error',
+        title: 'Ошибка',
         description: state.message,
         variant: 'destructive',
       });
@@ -42,7 +42,7 @@ function CreateRoomForm() {
   return (
     <form action={formAction}>
       <Button size="lg" type="submit">
-        Create a new room
+        Создать новую комнату
       </Button>
     </form>
   );
@@ -63,7 +63,7 @@ function JoinRoomForm() {
   useEffect(() => {
     if (state?.message) {
       toast({
-        title: 'Error',
+        title: 'Ошибка',
         description: state.message,
         variant: 'destructive',
       });
@@ -98,7 +98,7 @@ function JoinRoomForm() {
           )}
         />
         <Button type="submit" size="lg" variant="secondary">
-          Join Room
+          Войти в комнату
         </Button>
       </form>
     </Form>
@@ -112,11 +112,10 @@ export default function Home() {
         <div className="flex flex-col items-center gap-2">
            <PenSquare className="h-16 w-16 text-primary" />
           <h1 className="text-5xl font-bold tracking-tight text-center font-headline">
-            LetterBoard
+            Доска для записок
           </h1>
           <p className="text-muted-foreground text-center max-w-sm">
-            A real-time, collaborative message board. Create a room and share
-            the code, or join an existing one.
+            Совместная доска для сообщений в реальном времени. Создайте комнату и поделитесь кодом или присоединитесь к существующей.
           </p>
         </div>
         <div className="flex flex-col items-center gap-4 rounded-lg border bg-card p-6 shadow-sm">
@@ -126,7 +125,7 @@ export default function Home() {
               <span className="w-full border-t" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">Or</span>
+              <span className="bg-card px-2 text-muted-foreground">Или</span>
             </div>
           </div>
           <JoinRoomForm />

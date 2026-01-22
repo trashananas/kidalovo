@@ -7,6 +7,7 @@ import { useState, useEffect, useRef, useTransition } from 'react';
 import { updateMessagePosition } from '@/lib/actions';
 import { GripVertical } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { ru } from 'date-fns/locale';
 
 type MessageCardProps = {
   message: Message;
@@ -90,7 +91,7 @@ export function MessageCard({ message, roomId }: MessageCardProps) {
           <p className="text-sm text-foreground whitespace-pre-wrap break-words">{message.text}</p>
           <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
             <span>
-              {message.createdAt ? formatDistanceToNow(message.createdAt.toDate(), { addSuffix: true }) : 'just now'}
+              {message.createdAt ? formatDistanceToNow(message.createdAt.toDate(), { addSuffix: true, locale: ru }) : 'только что'}
             </span>
           </div>
         </div>
