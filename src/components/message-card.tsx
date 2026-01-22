@@ -435,7 +435,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
              </div>
           )}
 
-          <div className="flex items-start gap-2 h-full">
+          <div className="flex items-start gap-2">
             {isOwner && (
               <div className="flex flex-col gap-2">
                 <div
@@ -453,10 +453,10 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
 
             {!isOwner && !isCollapsed && <div className="w-9 shrink-0"></div>}
 
-            <div className="flex-1 min-w-0 h-full overflow-y-auto">
+            <div className="flex-1 min-w-0 overflow-y-auto">
               {!isCollapsed ? (
                 message.text?.trim() === '<3' && !message.imageUrl ? (
-                  <div className="flex h-full w-full items-center justify-center">
+                  <div className="flex w-full items-center justify-center">
                     <span className="text-5xl">❤️</span>
                   </div>
                 ) : message.text ? (
@@ -465,7 +465,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
                   </p>
                 ) : null
               ) : (
-                <div className="h-full flex items-center justify-center text-xs text-muted-foreground italic">
+                <div className="flex items-center justify-center text-xs text-muted-foreground italic">
                   Сообщение свёрнуто...
                 </div>
               )}
