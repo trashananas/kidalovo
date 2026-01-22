@@ -1,0 +1,163 @@
+/**
+ * This Firestore Security Ruleset is designed for a real-time collaborative
+ * letter board application.
+ *
+ * Core Philosophy:
+ * The security model is based on explicit membership within a "Room". Access to a
+ * room and its nested messages is granted only to users who are listed as members
+ * in that room's document. A special 'owner' role is designated for the room's
+ * creator, granting them exclusive rights to manage membership and delete the room.
+ * User-specific data (like the user profile) is strictly private to the owner.
+ *
+ * Data Structure:
+ * - /users/{userId}: Stores private user profile information.
+ * - /rooms/{roomId}: Contains public room metadata and a private `members` map
+ *   for access control.
+ * - /rooms/{roomId}/messages/{messageId}: A subcollection storing messages,
+ *   where access is inherited from the parent room's membership.
+ *
+ * Key Security Decisions:
+ * - Denormalization for Authorization: To implement a secure and robust
+ *   membership model, each `/rooms/{roomId}` document is expected to have a
+ *   `creatorId` field (string) and a `members` map (e.g., `{ "user_abc": "owner",
+ *   "user_xyz": "member" }`). This allows rules to grant access without needing
+ *   to query other collections. The room's creator is designated as the 'owner'
+ *   and is the only one who can modify the `members` map.
+ * - Subcollection Security via Parent Document: Rules for the `messages`
+ *   subcollection use a `get()` call on the parent `room` document. This ensures
+ *   that the room's `members` map is the single source of truth for authorization,
+ *   preventing stale or malicious data on a message document from granting
+ *   improper access.
+ * - No Public Room Listing: The `/rooms` collection cannot be listed by any
+ *   user (`allow list: if false;`). This is a critical security measure to prevent
+ *   unauthorized discovery of all existing rooms. A user must know the ID of a
+ *   room to attempt access, which is then gated by membership rules.
+ * - Message Ownership: While any room member can create a message, only the
+ *   original author of a message is permitted to update or delete it.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ------------------------------------------------------------------------
+    // Helper Functions
+    // ------------------------------------------------------------------------
+
+    /**
+     * Returns true if the user is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * Returns true if the authenticated user's UID matches the provided userId.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * Returns true if the document being accessed already exists.
+     * Crucial for protecting against writes on non-existent paths.
+     */
+    function isExistingDoc() {
+      return resource != null;
+    }
+
+    /**
+     * Returns true if the user is a member of the specified room.
+     * Checks the parent room document as the single source of truth.
+     */
+    function isRoomMember(roomId) {
+      return isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/rooms/$(roomId)).data.members;
+    }
+
+    /**
+     * Returns true if the user is the owner of the specified room.
+     * Checks for the 'owner' role in the parent room's members map.
+     */
+    function isRoomOwner(roomId) {
+      let roomData = get(/databases/$(database)/documents/rooms/$(roomId)).data;
+      return isSignedIn() && roomData.members[request.auth.uid] == 'owner';
+    }
+
+    /**
+     * Validates that an incoming message on create has the creator's UID.
+     * Enforces relational integrity.
+     */
+    function isMessageCreator() {
+      return request.resource.data.userId == request.auth.uid;
+    }
+
+    /**
+     * Validates that the current user is the owner of an existing message.
+     * Used for update and delete operations.
+     */
+    function isMessageOwner() {
+      return resource.data.userId == request.auth.uid;
+    }
+
+    // ------------------------------------------------------------------------
+    // Collection Rules
+    // ------------------------------------------------------------------------
+
+    /**
+     * @description Users can create their own profile, and can only read,
+     *   update, or delete their own document. User listing is disabled.
+     * @path /users/{userId}
+     * @allow (create) An authenticated user with UID 'user_abc' creating their
+     *   own profile at `/users/user_abc`.
+     * @deny (get) A user 'user_xyz' trying to read `/users/user_abc`.
+     * @principle Restricts access to a user's own data tree.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) && isExistingDoc();
+      allow delete: if isOwner(userId) && isExistingDoc();
+    }
+
+    /**
+     * @description Rooms can be read by their members. The room's 'owner' can
+     *   update room details (including the members list) and delete the room.
+     *   Listing all rooms is disabled for security.
+     * @path /rooms/{roomId}
+     * @allow (get) User 'user_xyz' who is in the `members` map of room 'room_123'
+     *   reading the document at `/rooms/room_123`.
+     * @deny (list) Any user trying to list the entire `/rooms` collection.
+     * @deny (update) A regular member 'user_xyz' trying to update `/rooms/room_123`.
+     * @principle Implements a shared access model based on a `members` map.
+     */
+    match /rooms/{roomId} {
+      // CRITICAL: The Room entity is missing a 'creatorId' and a `members` map.
+      // These rules assume they exist for authorization.
+      allow get: if isRoomMember(roomId);
+      allow list: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create: if isSignedIn() && request.resource.data.creatorId == request.auth.uid;
+      allow update: if isRoomOwner(roomId) && isExistingDoc();
+      allow delete: if isRoomOwner(roomId) && isExistingDoc();
+    }
+
+    /**
+     * @description Messages can be created, read, and listed by any member of
+     *   the parent room. Only the original author of a message may update or
+     *   delete it.
+     * @path /rooms/{roomId}/messages/{messageId}
+     * @allow (create) A member of room 'room_123' creating a new message.
+     * @deny (get) A user who is not a member of room 'room_123' trying to read
+     *   a message within it.
+     * @deny (delete) A room member trying to delete a message they did not write.
+     * @principle Enforces inherited access from a parent document and document
+     *   ownership for writes.
+     */
+    match /rooms/{roomId}/messages/{messageId} {
+      allow get: if isRoomMember(roomId);
+      allow list: if isRoomMember(roomId);
+      allow create: if isRoomMember(roomId) && isMessageCreator();
+      allow update: if isMessageOwner() && isExistingDoc();
+      allow delete: if isMessageOwner() && isExistingDoc();
+    }
+  }
+}
