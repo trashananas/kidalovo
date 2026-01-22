@@ -118,7 +118,7 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
     const selectedText = textarea.value.substring(start, end) || linkUrl;
     const newText =
       textarea.value.substring(0, start) +
-      `[${selectedText}](${linkUrl})` +
+      `@${selectedText}@{${linkUrl}}` +
       textarea.value.substring(end);
 
     form.setValue('message', newText, { shouldValidate: true });
@@ -128,7 +128,7 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
     setTimeout(() => {
       textarea.focus();
       const newCursorPosition =
-        start + `[${selectedText}](${linkUrl})`.length;
+        start + `@${selectedText}@{${linkUrl}}`.length;
       textarea.setSelectionRange(newCursorPosition, newCursorPosition);
     }, 0);
   };
@@ -147,10 +147,10 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
       if (e.shiftKey) {
         switch (e.key.toUpperCase()) {
           case 'X':
-            handleFormat('~~');
+            handleFormat('$');
             break;
           case 'P':
-            handleFormat('||');
+            handleFormat('#');
             break;
           default:
             handled = false;
@@ -158,13 +158,13 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
       } else {
         switch (e.key.toLowerCase()) {
           case 'b':
-            handleFormat('**');
+            handleFormat('*');
             break;
           case 'i':
-            handleFormat('_');
+            handleFormat('\\');
             break;
           case 'u':
-            handleFormat('__');
+            handleFormat('_');
             break;
           case 'k':
             {

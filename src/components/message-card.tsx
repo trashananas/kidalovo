@@ -4,12 +4,23 @@ import type { Message } from '@/types';
 import { Card, CardContent } from './ui/card';
 import { cn, getErrorMessage } from '@/lib/utils';
 import { useState, useEffect, useRef } from 'react';
-import { GripVertical, Copy } from 'lucide-react';
+import { GripVertical, Copy, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Button } from './ui/button';
 
 const Spoiler = ({ children }: { children: React.ReactNode }) => {
   const [isVisible, setIsVisible] = useState(false);
@@ -35,82 +46,105 @@ const Spoiler = ({ children }: { children: React.ReactNode }) => {
 };
 
 const renderFormattedText = (text: string): React.ReactNode[] => {
-  // Regex for markdown, URL autolinking, and hearts.
+  const nodes: React.ReactNode[] = [];
+  let lastIndex = 0;
   const regex = new RegExp(
-    '(\\[[^\\]]*?\\]\\([^\\)]*?\\))' + // [text](url)
-    '|(\\*\\*.*?\\*\\*)' + // **bold**
-    '|(__.*?__)' + // __underline__
-    '|(~~.*?~~)' + // ~~strikethrough~~
-    '|(_.*?_)' + // _italic_
-    '|(\\|\\|.*?\\|\\|)' + // ||spoiler||
-    '|((?:https?://|www\\.)[^\\s]+)' + // autolink
-    '|(\\s<3\\s)', // <3 heart
+    '(@(.*?)\@\{(.*?)\})' + // 1, 2, 3: @text@{link}
+      '|(\\*(.*?)\\*)' + // 4, 5: *bold*
+      '|(\\\\(.*?)\\\\)' + // 6, 7: \italic\
+      '|(_(.*?)_)' + // 8, 9: _underline_
+      '|(\\$([^$]*?)\\$)' + // 10, 11: $strikethrough$
+      '|(#(.*?)#)' + // 12, 13: #spoiler#
+      '|((?:https?://|www\\.)[^\\s]+)' + // 14: autolink
+      '|(\\s<3\\s)', // 15: <3 heart
     'g'
   );
 
-  const parts = text.split(regex).filter(Boolean);
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    const startIndex = match.index;
+    const fullMatch = match[0];
 
-  return parts.map((part, index) => {
-    // Custom Link: [text](url)
-    let match = part.match(/^\[(.*)\]\((.*)\)$/);
-    if (match) {
-      return (
+    // Add text before the match
+    if (startIndex > lastIndex) {
+      nodes.push(text.substring(lastIndex, startIndex));
+    }
+
+    // Handle link: @text@{url}
+    if (match[2] !== undefined && match[3] !== undefined) {
+      nodes.push(
         <a
-          key={index}
-          href={match[2]}
+          key={lastIndex}
+          href={match[3]}
           target="_blank"
           rel="noopener noreferrer"
           className="text-blue-500 hover:underline dark:text-blue-400"
           onClick={(e) => e.stopPropagation()}
         >
-          {match[1]}
+          {match[2]}
         </a>
       );
     }
-    // Bold: **text**
-    if (part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={index}>{part.slice(2, -2)}</strong>;
+    // Handle bold: *text*
+    else if (match[5] !== undefined) {
+      nodes.push(<strong key={lastIndex}>{match[5]}</strong>);
     }
-    // Underline: __text__
-    if (part.startsWith('__') && part.endsWith('__')) {
-      return <u key={index}>{part.slice(2, -2)}</u>;
+    // Handle italic: \text\
+    else if (match[7] !== undefined) {
+      nodes.push(<em key={lastIndex}>{match[7]}</em>);
     }
-    // Strikethrough: ~~text~~
-    if (part.startsWith('~~') && part.endsWith('~~')) {
-      return <s key={index}>{part.slice(2, -2)}</s>;
+    // Handle underline: _text_
+    else if (match[9] !== undefined) {
+      nodes.push(<u key={lastIndex}>{match[9]}</u>);
     }
-    // Italic: _text_
-    if (part.startsWith('_') && part.endsWith('_')) {
-      return <em key={index}>{part.slice(1, -1)}</em>;
+    // Handle strikethrough: $text$
+    else if (match[11] !== undefined) {
+      nodes.push(<s key={lastIndex}>{match[11]}</s>);
     }
-    // Spoiler: ||text||
-    if (part.startsWith('||') && part.endsWith('||')) {
-      return <Spoiler key={index}>{part.slice(2, -2)}</Spoiler>;
+    // Handle spoiler: #text#
+    else if (match[13] !== undefined) {
+      nodes.push(<Spoiler key={lastIndex}>{match[13]}</Spoiler>);
     }
-    // Autolink
-    if (part.match(/^(https?:\/\/|www\.)/)) {
-      const url = part.startsWith('www.') ? `http://${part}` : part;
-      return (
+    // Handle autolink
+    else if (match[14] !== undefined) {
+      const url = fullMatch.startsWith('www.')
+        ? `http://${fullMatch}`
+        : fullMatch;
+      nodes.push(
         <a
-          key={index}
+          key={lastIndex}
           href={url}
           target="_blank"
           rel="noopener noreferrer"
           className="text-blue-500 hover:underline dark:text-blue-400"
           onClick={(e) => e.stopPropagation()}
         >
-          {part}
+          {fullMatch}
         </a>
       );
     }
-    // Heart: <3
-    if (part.match(/\s<3\s/)) {
-      return <span key={index}> ❤️ </span>;
+    // Handle heart
+    else if (match[15] !== undefined) {
+      nodes.push(<span key={lastIndex}> ❤️ </span>);
     }
-    // Plain text
-    return part;
-  });
+
+    lastIndex = regex.lastIndex;
+  }
+
+  // Add any remaining text after the last match
+  if (lastIndex < text.length) {
+    nodes.push(text.substring(lastIndex));
+  }
+
+  return nodes;
 };
+
+type MessageCardProps = {
+  message: Message;
+  roomId: string;
+  panOffset: { x: number; y: number };
+};
+
 
 export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   const { user } = useUser();
@@ -123,6 +157,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   const [isResizing, setIsResizing] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [timeAgo, setTimeAgo] = useState('');
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   const cardRef = useRef<HTMLDivElement>(null);
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -374,86 +409,145 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
       });
   };
 
+  const handleDelete = async () => {
+    if (!isOwner || !firestore) return;
+
+    try {
+      const messageDocRef = doc(
+        firestore,
+        'rooms',
+        roomId,
+        'messages',
+        message.id
+      );
+      await deleteDoc(messageDocRef);
+      toast({ title: 'Сообщение удалено' });
+    } catch (error) {
+      toast({
+        title: 'Ошибка',
+        description: `Не удалось удалить сообщение: ${getErrorMessage(error)}`,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleteDialogOpen(false);
+    }
+  };
+
+
   return (
-    <Card
-      ref={cardRef}
-      data-message-card="true"
-      className={cn(
-        'absolute rounded-lg shadow-lg transition-shadow duration-300 flex flex-col',
-        isOwner && 'cursor-grab',
-        isDragging && 'cursor-grabbing shadow-2xl z-20 scale-105',
-        isResizing && 'z-20'
-      )}
-      style={{
-        left: `${position.x}px`,
-        top: `${position.y}px`,
-        width: `${size.width}px`,
-        height: `${size.height}px`,
-        touchAction: 'none',
-      }}
-      onPointerMove={handleCardPointerMove}
-      onPointerUp={handleCardPointerUp}
-      onPointerCancel={handleCardPointerUp}
-    >
-      <CardContent className="relative p-4 flex flex-col gap-2 flex-grow overflow-y-auto">
-        <div className="flex items-start gap-2">
-          {isOwner && (
-            <div
-              className="p-1 text-muted-foreground/50 hover:text-muted-foreground touch-none cursor-pointer"
-              onPointerDown={handleGripPointerDown}
-              onPointerMove={handleGripPointerMove}
-              onPointerUp={handleGripPointerUp}
-              onPointerCancel={handleGripPointerUp}
-            >
-              <GripVertical className="h-5 w-5" />
-            </div>
-          )}
-
-          {!isOwner && !isCollapsed && <div className="w-5 shrink-0"></div>}
-
-          <div className="flex-1 min-w-0">
-            {!isCollapsed ? (
-              message.text.trim() === '<3' ? (
-                <div className="flex h-full w-full items-center justify-center">
-                  <span className="text-5xl">❤️</span>
+    <>
+      <Card
+        ref={cardRef}
+        data-message-card="true"
+        className={cn(
+          'absolute rounded-lg shadow-lg transition-shadow duration-300 flex flex-col',
+          isOwner && 'cursor-grab',
+          isDragging && 'cursor-grabbing shadow-2xl z-20 scale-105',
+          isResizing && 'z-20'
+        )}
+        style={{
+          left: `${position.x}px`,
+          top: `${position.y}px`,
+          width: `${size.width}px`,
+          height: `${size.height}px`,
+          touchAction: 'none',
+        }}
+        onPointerMove={handleCardPointerMove}
+        onPointerUp={handleCardPointerUp}
+        onPointerCancel={handleCardPointerUp}
+      >
+        <div className="relative p-4 flex flex-col gap-2 flex-grow overflow-y-auto">
+          <div className="flex items-start gap-2 h-full">
+            {isOwner && (
+              <div className="flex flex-col gap-2">
+                <div
+                  className="p-1 text-muted-foreground/50 hover:text-muted-foreground touch-none cursor-pointer"
+                  onPointerDown={handleGripPointerDown}
+                  onPointerMove={handleGripPointerMove}
+                  onPointerUp={handleGripPointerUp}
+                  onPointerCancel={handleGripPointerUp}
+                  title="Перетащить / Свернуть"
+                >
+                  <GripVertical className="h-5 w-5" />
                 </div>
+                 <div
+                  className="p-1 text-muted-foreground/50 hover:text-destructive cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsDeleteDialogOpen(true);
+                  }}
+                  title="Удалить"
+                >
+                  <Trash2 className="h-5 w-5" />
+                </div>
+              </div>
+            )}
+
+            {!isOwner && !isCollapsed && <div className="w-9 shrink-0"></div>}
+
+            <div className="flex-1 min-w-0 h-full overflow-y-auto">
+              {!isCollapsed ? (
+                message.text.trim() === '<3' ? (
+                  <div className="flex h-full w-full items-center justify-center">
+                    <span className="text-5xl">❤️</span>
+                  </div>
+                ) : (
+                  <p className="text-sm text-foreground whitespace-pre-wrap break-words">
+                    {renderFormattedText(message.text)}
+                  </p>
+                )
               ) : (
-                <p className="text-sm text-foreground whitespace-pre-wrap break-words">
-                  {renderFormattedText(message.text)}
-                </p>
-              )
-            ) : (
-              <div className="h-full flex items-center justify-center text-xs text-muted-foreground italic">
-                Сообщение свёрнуто...
+                <div className="h-full flex items-center justify-center text-xs text-muted-foreground italic">
+                  Сообщение свёрнуто...
+                </div>
+              )}
+            </div>
+
+            {!isCollapsed && (
+              <div
+                className="py-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer"
+                onClick={handleCopy}
+                title="Скопировать текст"
+              >
+                <Copy className="h-5 w-5" />
               </div>
             )}
           </div>
-
-          {!isCollapsed && (
-            <div
-              className="py-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer"
-              onClick={handleCopy}
-              title="Скопировать текст"
-            >
-              <Copy className="h-5 w-5" />
+          {!isCollapsed && timeAgo && (
+            <div className="mt-auto text-xs text-muted-foreground pt-1 border-t shrink-0">
+              <span>{timeAgo}</span>
             </div>
           )}
         </div>
 
-        {!isCollapsed && timeAgo && (
-          <div className="mt-auto text-xs text-muted-foreground pt-1 border-t">
-            <span>{timeAgo}</span>
-          </div>
-        )}
-      </CardContent>
 
-      {isOwner && (
-        <div
-          data-resize-handle="true"
-          className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize bg-primary/20 hover:bg-primary/50 transition-colors rounded-br-lg"
-          onPointerDown={handleResizePointerDown}
-        />
-      )}
-    </Card>
+        {isOwner && (
+          <div
+            data-resize-handle="true"
+            className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize bg-primary/20 hover:bg-primary/50 transition-colors rounded-br-lg"
+            onPointerDown={handleResizePointerDown}
+          />
+        )}
+      </Card>
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Вы уверены?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Это действие нельзя будет отменить. Сообщение будет удалено
+              навсегда.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel asChild>
+                <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>Отмена</Button>
+            </AlertDialogCancel>
+            <AlertDialogAction asChild>
+               <Button variant="destructive" onClick={handleDelete}>Удалить</Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
