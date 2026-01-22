@@ -25,7 +25,12 @@ export function Room({ roomId }: RoomProps) {
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
+<<<<<<< HEAD
     if (target.closest('[data-message-card="true"]')) {
+=======
+    // Не начинать панорамирование, если клик произошел на карточке, форме или в заголовке
+    if (target.closest('.message-card') || target.closest('.message-form-container') || target.closest('.room-header')) {
+>>>>>>> c99791a6028853ccf0442c762b3f54ddfa2e30a0
       return;
     }
     setIsPanning(true);
@@ -70,7 +75,7 @@ export function Room({ roomId }: RoomProps) {
 
   return (
     <div className="relative h-screen w-full overflow-hidden bg-zinc-100 dark:bg-zinc-900 border-4 border-background rounded-lg">
-      <header className="absolute top-4 left-4 z-10 flex items-center gap-4">
+      <header className="absolute top-4 left-4 z-10 flex items-center gap-4 room-header">
         <Button asChild variant="outline" size="icon">
           <Link href="/">
             <ArrowLeft />
@@ -109,7 +114,7 @@ export function Room({ roomId }: RoomProps) {
         {loading && messages.length === 0 && <p className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground">Загрузка сообщений...</p>}
       </div>
 
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-10">
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-10 message-form-container">
         <MessageForm roomId={roomId} panOffset={panOffset} />
       </div>
     </div>

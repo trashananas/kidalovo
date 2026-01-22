@@ -73,6 +73,7 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
       e.preventDefault();
       form.handleSubmit(onSubmit)();
     }
+    // If Shift+Enter is pressed, the condition is false, and the default browser action (new line) occurs.
   };
 
   if (!user) {
