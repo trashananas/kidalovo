@@ -1,0 +1,93 @@
+'use client';
+
+import { useFormState } from 'react-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { sendMessage } from '@/lib/actions';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormMessage,
+} from '@/components/ui/form';
+import { Card, CardContent } from './ui/card';
+import { Send } from 'lucide-react';
+import { useEffect, useRef } from 'react';
+
+const messageSchema = z.object({
+  message: z.string().min(1, 'Message cannot be empty').max(280),
+});
+
+type MessageFormProps = {
+  roomId: string;
+  existingMessages: string[];
+};
+
+export function MessageForm({ roomId, existingMessages }: MessageFormProps) {
+  const [state, formAction] = useFormState(sendMessage, { message: '' });
+  const formRef = useRef<HTMLFormElement>(null);
+
+  const form = useForm<z.infer<typeof messageSchema>>({
+    resolver: zodResolver(messageSchema),
+    defaultValues: {
+      message: '',
+    },
+  });
+
+  useEffect(() => {
+    if (state?.message === 'Message sent!') {
+      form.reset();
+    }
+  }, [state, form]);
+
+  const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      form.handleSubmit(() => formRef.current?.requestSubmit())();
+    }
+  };
+
+  return (
+    <Card className="shadow-2xl">
+      <CardContent className="p-4">
+        <Form {...form}>
+          <form
+            ref={formRef}
+            action={formAction}
+            onSubmit={form.handleSubmit(() => formRef.current?.requestSubmit())}
+            className="flex items-start gap-4"
+          >
+            <input type="hidden" name="roomId" value={roomId} />
+            <input type="hidden" name="existingMessages" value={JSON.stringify(existingMessages)} />
+            <FormField
+              control={form.control}
+              name="message"
+              render={({ field }) => (
+                <FormItem className="flex-grow">
+                  <FormControl>
+                    <Textarea
+                      {...field}
+                      placeholder="Type your message... (Shift+Enter for new line)"
+                      className="min-h-0 resize-none"
+                      rows={1}
+                      onKeyDown={handleTextareaKeyDown}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <Button type="submit" size="icon" disabled={form.formState.isSubmitting}>
+              <Send className="h-4 w-4" />
+              <span className="sr-only">Send</span>
+            </Button>
+          </form>
+        </Form>
+      </CardContent>
+    </Card>
+  );
+}
