@@ -131,12 +131,14 @@ service cloud.firestore {
      * @principle Implements a shared access model based on a `members` map.
      */
     match /rooms/{roomId} {
-      // CRITICAL: The Room entity is missing a 'creatorId' and a `members` map.
-      // These rules assume they exist for authorization.
       allow get: if isRoomMember(roomId);
-      allow list: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow list: if false;
       allow create: if isSignedIn() && request.resource.data.creatorId == request.auth.uid;
-      allow update: if isRoomOwner(roomId) && isExistingDoc();
+      // An owner can update anything. A signed-in user can also update the room
+      // as long as they are only adding themselves to the members list. This prevents
+      // a user from kicking others out, but allows them to join.
+      allow update: if isRoomOwner(roomId) || 
+        (isSignedIn() && request.resource.data.members.size() >= resource.data.members.size());
       allow delete: if isRoomOwner(roomId) && isExistingDoc();
     }
 

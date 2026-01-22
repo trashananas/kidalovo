@@ -18,12 +18,22 @@
           "type": "string",
           "description": "Timestamp indicating when the room was created.",
           "format": "date-time"
+        },
+        "creatorId": {
+          "type": "string",
+          "description": "The UID of the user who created the room."
+        },
+        "members": {
+          "type": "object",
+          "description": "A map of user UIDs to their roles (e.g., 'owner', 'member')."
         }
       },
       "required": [
         "id",
         "code",
-        "createdAt"
+        "createdAt",
+        "creatorId",
+        "members"
       ]
     },
     "User": {
