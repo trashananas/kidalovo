@@ -30,7 +30,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-const MAX_FILE_SIZE_BYTES = 750 * 1024; // 750 KB
+const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100 MB
 
 const messageSchema = z
   .object({
@@ -41,27 +41,14 @@ const messageSchema = z
     message: 'Сообщение не может быть пустым',
     path: ['message'],
   })
-  .refine(
-    (data) => !data.file || data.file.size <= MAX_FILE_SIZE_BYTES,
-    {
-      message: `Файл слишком большой. Максимальный размер: ${MAX_FILE_SIZE_BYTES / 1024} КБ.`,
-      path: ['file'],
-    }
-  );
-  
+  .refine((data) => !data.file || data.file.size <= MAX_FILE_SIZE_BYTES, {
+    message: `Файл слишком большой. Максимальный размер: 100 МБ.`,
+    path: ['file'],
+  });
+
 type MessageFormProps = {
   roomId: string;
   panOffset: { x: number; y: number };
-};
-
-// Helper function to read file as Base64
-const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = (error) => reject(error);
-    });
 };
 
 export function MessageForm({ roomId, panOffset }: MessageFormProps) {
@@ -93,12 +80,12 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
     if (!file) return;
 
     if (file.size > MAX_FILE_SIZE_BYTES) {
-        toast({
-            title: 'Файл слишком большой',
-            description: `Максимальный размер файла — ${MAX_FILE_SIZE_BYTES / 1024} КБ. Хранилище не настроено.`,
-            variant: 'destructive',
-        });
-        return;
+      toast({
+        title: 'Файл слишком большой',
+        description: `Максимальный размер файла — 100 МБ.`,
+        variant: 'destructive',
+      });
+      return;
     }
 
     form.setValue('file', file, { shouldValidate: true });
@@ -120,23 +107,38 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
 
   const onSubmit = async (values: z.infer<typeof messageSchema>) => {
     if (!firestore || !user || !roomId) return;
-    
+
     const { message, file } = values;
 
-    if (!message && !file) return;
+    if (!message.trim() && !file) return;
 
     setIsSubmitting(true);
 
     try {
-        let fileAttachment: { name: string; type: string; url: string } | null = null;
-        if (file) {
-            const fileDataUrl = await fileToBase64(file);
-            fileAttachment = {
-                name: file.name,
-                type: file.type,
-                url: fileDataUrl, // Store the data URL directly
-            };
+      let fileAttachment: { name: string; type: string; url: string } | null =
+        null;
+
+      if (file) {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Не удалось загрузить файл.');
         }
+
+        const result = await response.json();
+        fileAttachment = {
+          name: file.name,
+          type: file.type,
+          url: result.secure_url,
+        };
+      }
 
       const isImage = file?.type.startsWith('image/');
       const messagesColRef = collection(firestore, 'rooms', roomId, 'messages');
@@ -151,15 +153,15 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
         },
         size: {
           width: 320,
-          height: isImage ? 240 : (file ? 160 : 128),
+          height: isImage ? 240 : file ? 160 : 128,
         },
       });
       form.reset();
       removeFile();
-    } catch (firestoreError) {
+    } catch (error) {
       toast({
         title: 'Ошибка отправки сообщения',
-        description: getErrorMessage(firestoreError),
+        description: getErrorMessage(error),
         variant: 'destructive',
       });
     } finally {
@@ -285,28 +287,36 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
             className="flex flex-col gap-2"
           >
             {selectedFile && filePreviewUrl && (
-                <div className="relative p-2 border rounded-md bg-muted/50">
-                     <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute top-1 right-1 z-10 h-6 w-6 flex-shrink-0 bg-background/50 hover:bg-background/80 rounded-full"
-                        onClick={removeFile}
-                    >
-                        <X className="h-4 w-4" />
-                    </Button>
-                    {isImagePreview ? (
-                        <img src={filePreviewUrl} alt="Предпросмотр" className="max-h-28 w-auto rounded-md mx-auto" />
-                    ) : (
-                    <div className="flex items-center gap-3 pr-6">
-                        <FileIcon className="h-8 w-8 text-muted-foreground flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{selectedFile.name}</p>
-                        <p className="text-xs text-muted-foreground">{selectedFile.type || 'unknown'}</p>
-                        </div>
+              <div className="relative p-2 border rounded-md bg-muted/50">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute top-1 right-1 z-10 h-6 w-6 flex-shrink-0 bg-background/50 hover:bg-background/80 rounded-full"
+                  onClick={removeFile}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+                {isImagePreview ? (
+                  <img
+                    src={filePreviewUrl}
+                    alt="Предпросмотр"
+                    className="max-h-28 w-auto rounded-md mx-auto"
+                  />
+                ) : (
+                  <div className="flex items-center gap-3 pr-6">
+                    <FileIcon className="h-8 w-8 text-muted-foreground flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {selectedFile.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {selectedFile.type || 'unknown'}
+                      </p>
                     </div>
-                    )}
-                </div>
+                  </div>
+                )}
+              </div>
             )}
             <div className="flex items-start gap-4">
               <FormField
@@ -353,7 +363,11 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
                 size="icon"
                 disabled={isSubmitting || !form.formState.isValid}
               >
-                {isSubmitting ? <Loader2 className="animate-spin" /> : <Send className="h-4 w-4" />}
+                {isSubmitting ? (
+                  <Loader2 className="animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
                 <span className="sr-only">Отправить</span>
               </Button>
             </div>
