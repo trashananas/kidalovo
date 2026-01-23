@@ -143,7 +143,7 @@ export default function Home() {
   }
 
   return (
-    <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
+    <main className="relative flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
       <div className="flex flex-col items-center gap-8">
         <div className="flex flex-col items-center gap-2 select-none">
           <KidalovoLogo />
@@ -221,6 +221,9 @@ export default function Home() {
 
         </div>
       </div>
+      <footer className="absolute bottom-4 text-xs text-muted-foreground">
+        Powered by Глеб Дюмин
+      </footer>
     </main>
   );
 }
