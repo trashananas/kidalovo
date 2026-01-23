@@ -1,39 +1,46 @@
 // src/app/api/sign-upload/route.ts
-import { v2 as cloudinary } from 'cloudinary';
 import { NextResponse } from 'next/server';
+import crypto from 'crypto';
 
 export async function POST(request: Request) {
-  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
-  const apiKey = process.env.CLOUDINARY_API_KEY;
   const apiSecret = process.env.CLOUDINARY_API_SECRET;
 
-  if (!cloudName || !apiKey || !apiSecret) {
-    console.error('Ошибка конфигурации сервера: ключи Cloudinary отсутствуют.');
+  if (!apiSecret) {
+    console.error('Ошибка конфигурации сервера: CLOUDINARY_API_SECRET отсутствует.');
     return NextResponse.json(
-      { error: 'Ошибка конфигурации сервера: ключи Cloudinary отсутствуют.' },
+      { error: 'Ошибка конфигурации сервера: секретный ключ API отсутствует.' },
       { status: 500 }
     );
   }
 
-  cloudinary.config({
-    cloud_name: cloudName,
-    api_key: apiKey,
-    api_secret: apiSecret,
-  });
-
   const body = await request.json();
   const { paramsToSign } = body;
 
-  try {
-    const signature = cloudinary.utils.api_sign_request(
-      paramsToSign,
-      apiSecret as string
-    );
-    return NextResponse.json({ signature });
-  } catch (error) {
-    console.error('Ошибка при подписи загрузки:', error);
+  if (!paramsToSign) {
     return NextResponse.json(
-      { error: 'Не удалось подписать загрузку' },
+      { error: 'Параметры для подписи не предоставлены.' },
+      { status: 400 }
+    );
+  }
+
+  try {
+    // Логика генерации подписи Cloudinary
+    const sortedParams = Object.keys(paramsToSign)
+      .sort()
+      .map(key => `${key}=${paramsToSign[key]}`)
+      .join('&');
+    
+    const stringToSign = `${sortedParams}${apiSecret}`;
+    
+    const signature = crypto.createHash('sha1').update(stringToSign).digest('hex');
+
+    return NextResponse.json({ signature });
+
+  } catch (error) {
+    console.error('Ошибка при создании подписи:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка';
+    return NextResponse.json(
+      { error: `Не удалось создать подпись: ${errorMessage}` },
       { status: 500 }
     );
   }
