@@ -9,15 +9,17 @@ export function KidalovoLogo({ className, ...props }: React.SVGProps<SVGSVGEleme
       className={cn("h-16 w-16", className)}
       {...props}
     >
-      <g transform="rotate(45 50 50)" className="origin-center">
-        {/* Buns - use primary color from theme */}
-        <circle cx="32.5" cy="32.5" r="16" fill="hsl(var(--primary))" />
-        <circle cx="67.5" cy="67.5" r="16" fill="hsl(var(--primary))" />
-        
-        {/* Yogurts - use secondary color from theme */}
-        <rect x="55" y="17.5" width="25" height="30" rx="8" fill="hsl(var(--secondary))" />
-        <rect x="20" y="52.5" width="25" height="30" rx="8" fill="hsl(var(--secondary))" />
-      </g>
+      {/* Top-left: Circle */}
+      <circle cx="30" cy="30" r="20" fill="hsl(var(--primary))" />
+
+      {/* Top-right: Rounded Square */}
+      <rect x="55" y="10" width="40" height="40" rx="10" fill="hsl(var(--secondary))" />
+
+      {/* Bottom-left: Rounded Square */}
+      <rect x="10" y="55" width="40" height="40" rx="10" fill="hsl(var(--secondary))" />
+
+      {/* Bottom-right: Circle */}
+      <circle cx="75" cy="75" r="20" fill="hsl(var(--primary))" />
     </svg>
   );
 }
