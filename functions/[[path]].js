@@ -1,11 +1,13 @@
-export async function onRequest(context) {
-  // Создаем URL на основе входящего запроса
-  const url = new URL(context.request.url);
+// Simple reverse proxy to Vercel
+// This is the official, recommended way to do this.
 
-  // Меняем хост на ваш рабочий домен в Vercel
+export const onRequest: PagesFunction = async (context) => {
+  const url = new URL(context.request.url);
+  
+  // The origin server
   url.hostname = 'kidalovo.vercel.app';
 
-  // Делаем запрос на Vercel, полностью сохраняя исходный запрос (метод, заголовки, тело),
-  // и сразу же возвращаем ответ оттуда.
+  // Cloudflare will stream the response from the origin to the client.
+  // It automatically handles the Host header and other details.
   return fetch(url.toString(), context.request);
-}
+};
