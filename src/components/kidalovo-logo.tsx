@@ -10,13 +10,13 @@ export function KidalovoLogo({ className, ...props }: React.SVGProps<SVGSVGEleme
       {...props}
     >
       {/* Top-left: Circle */}
-      <circle cx="30" cy="30" r="20" fill="hsl(var(--primary))" />
+      <circle cx="30" cy="35" r="20" fill="hsl(var(--primary))" />
 
       {/* Top-right: Rounded Square */}
-      <rect x="55" y="10" width="40" height="40" rx="10" fill="hsl(var(--secondary))" />
+      <rect x="55" y="10" width="40" height="40" rx="10" fill="hsl(var(--border))" />
 
       {/* Bottom-left: Rounded Square */}
-      <rect x="10" y="55" width="40" height="40" rx="10" fill="hsl(var(--secondary))" />
+      <rect x="10" y="60" width="40" height="40" rx="10" fill="hsl(var(--border))" />
 
       {/* Bottom-right: Circle */}
       <circle cx="75" cy="75" r="20" fill="hsl(var(--primary))" />
