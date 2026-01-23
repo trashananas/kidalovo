@@ -30,7 +30,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100 MB
+const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100 MB for Cloudinary
+const FIRESTORE_UPLOAD_LIMIT = 750 * 1024; // 750 KB for Firestore
 
 const messageSchema = z
   .object({
@@ -50,6 +51,14 @@ type MessageFormProps = {
   roomId: string;
   panOffset: { x: number; y: number };
 };
+
+const fileToDataUrl = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 
 export function MessageForm({ roomId, panOffset }: MessageFormProps) {
   const { user } = useUser();
@@ -119,25 +128,45 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
         null;
 
       if (file) {
-        const formData = new FormData();
-        formData.append('file', file);
+        if (file.size < FIRESTORE_UPLOAD_LIMIT) {
+          // File is small, embed it as a Data URL in Firestore
+          const dataUrl = await fileToDataUrl(file);
+          fileAttachment = {
+            name: file.name,
+            type: file.type,
+            url: dataUrl,
+          };
+          toast({
+            title: 'Загрузка...',
+            description: 'Небольшой файл загружается напрямую.',
+          });
+        } else {
+          // File is large, upload to Cloudinary
+          const formData = new FormData();
+          formData.append('file', file);
+          
+          toast({
+            title: 'Загрузка...',
+            description: 'Большой файл загружается через облачное хранилище.',
+          });
 
-        const response = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData,
-        });
+          const response = await fetch('/api/upload', {
+            method: 'POST',
+            body: formData,
+          });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Не удалось загрузить файл.');
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Не удалось загрузить файл.');
+          }
+
+          const result = await response.json();
+          fileAttachment = {
+            name: file.name,
+            type: file.type,
+            url: result.secure_url,
+          };
         }
-
-        const result = await response.json();
-        fileAttachment = {
-          name: file.name,
-          type: file.type,
-          url: result.secure_url,
-        };
       }
 
       const isImage = file?.type.startsWith('image/');

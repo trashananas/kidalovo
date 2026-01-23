@@ -128,17 +128,6 @@ const renderFormattedText = (text: string): React.ReactNode[] => {
   return nodes;
 };
 
-const getDownloadableUrl = (url: string): string => {
-  if (!url || !url.includes('/upload/')) {
-    return url;
-  }
-  // This adds the `fl_attachment` flag to the Cloudinary URL.
-  // This forces the browser to download the asset. The filename is determined by the
-  // public_id, which we are now setting based on the original filename during upload.
-  return url.replace('/upload/', '/upload/fl_attachment/');
-};
-
-
 type MessageCardProps = {
   message: Message;
   roomId: string;
@@ -169,8 +158,17 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   const dragOffset = useRef({ x: 0, y: 0 });
 
   const isOwner = user?.uid === message.userId;
+  
+  // Logic to handle both Cloudinary URLs and Firestore Data URLs
+  const isDataUrl = message.file?.url.startsWith('data:');
   const isImage = message.file?.type.startsWith('image/');
-  const downloadableUrl = message.file ? getDownloadableUrl(message.file.url) : '';
+  
+  let downloadHref = message.file?.url || '';
+  if (message.file && !isDataUrl) {
+    // It's a Cloudinary URL, so add the attachment flag to force download.
+    downloadHref = downloadHref.replace('/upload/', '/upload/fl_attachment/');
+  }
+
 
   // Effect for updating the 'time ago' string
   useEffect(() => {
@@ -444,7 +442,8 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
                         className="w-full h-auto object-contain max-h-96"
                     />
                     <a 
-                        href={downloadableUrl} 
+                        href={downloadHref} 
+                        download={isDataUrl ? message.file.name : undefined}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="absolute bottom-1 right-1 bg-black/50 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
@@ -460,7 +459,8 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
                 <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{message.file.name}</p>
                      <a
-                        href={downloadableUrl}
+                        href={downloadHref}
+                        download={isDataUrl ? message.file.name : undefined}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-xs text-primary hover:underline flex items-center gap-1"
