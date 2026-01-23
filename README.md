@@ -1,5 +1,25 @@
-# Firebase Studio
+# Kidalovo
 
-This is a NextJS starter in Firebase Studio.
+Это стартовый проект для приложения "Kidalovo" — доски для сообщений в реальном времени, созданной в Firebase Studio.
 
-To get started, take a look at src/app/page.tsx.
+Чтобы начать, взгляните на `src/app/page.tsx`.
+
+## Развёртывание (Deployment)
+
+Рекомендуемый хостинг для этого приложения — **Cloudflare Pages**. Он предлагает отличный бесплатный тариф, глобальную доступность и простой рабочий процесс на основе Git.
+
+### Как развернуть на Cloudflare Pages
+
+1.  **Зарегистрируйтесь на Cloudflare:** Создайте бесплатный аккаунт на [dash.cloudflare.com](https://dash.cloudflare.com/).
+2.  **Перейдите в Pages:** В панели управления выберите **Workers & Pages** > **Create application** > **Pages** > **Connect to Git**.
+3.  **Подключите ваш репозиторий GitHub:** Выберите репозиторий с вашим проектом.
+4.  **Настройте параметры сборки:** Cloudflare, скорее всего, автоматически определит, что это проект Next.js. Настройки по умолчанию должны быть правильными.
+5.  **Добавьте переменные окружения:** Это самый важный шаг. Вы должны добавить следующие переменные окружения, чтобы загрузка файлов работала корректно.
+
+    - `CLOUDINARY_CLOUD_NAME`: Ваше имя облака (Cloud Name) из Cloudinary.
+    - `CLOUDINARY_API_KEY`: Ваш API-ключ из Cloudinary.
+    - `CLOUDINARY_API_SECRET`: Ваш секретный API-ключ из Cloudinary.
+    - `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME`: Ваше имя облака (то же, что и выше).
+    - `NEXT_PUBLIC_CLOUDINARY_API_KEY`: Ваш API-ключ (тот же, что и выше).
+
+6.  **Запустите развёртывание:** Нажмите **Save and Deploy**. Ваш сайт будет доступен через несколько минут.
