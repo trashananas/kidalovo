@@ -26,10 +26,10 @@ export async function POST(request: Request) {
         .upload_stream(
           {
             resource_type: 'auto',
-            // It's good practice to place uploads in a specific folder
             folder: 'note-board-uploads',
-            // Pass the original filename so Cloudinary uses it for the download
-            original_filename: file.name,
+            // These options ensure the downloaded file will have a meaningful name
+            use_filename: true,
+            unique_filename: true, // To avoid overwrites
           },
           (error, result) => {
             if (error) {
