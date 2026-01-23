@@ -141,26 +141,59 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
             description: 'Небольшой файл загружается напрямую.',
           });
         } else {
-          // File is large, upload to Cloudinary
-          const formData = new FormData();
-          formData.append('file', file);
-          
+          // File is large, use signed upload to Cloudinary
           toast({
             title: 'Загрузка...',
             description: 'Большой файл загружается через облачное хранилище.',
           });
+          
+          // 1. Get signature from our server
+          const timestamp = Math.round(new Date().getTime() / 1000);
+          const paramsToSign = {
+            timestamp: timestamp,
+            folder: 'note-board-uploads',
+            use_filename: true,
+            unique_filename: true,
+          };
 
-          const response = await fetch('/api/upload', {
+          const signResponse = await fetch('/api/sign-upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ paramsToSign }),
+          });
+
+          if (!signResponse.ok) {
+            throw new Error('Не удалось получить подпись для загрузки от сервера.');
+          }
+
+          const { signature } = await signResponse.json();
+          if (!signature) {
+             throw new Error('Подпись не была получена от сервера.');
+          }
+
+          // 2. Upload directly to Cloudinary
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('api_key', process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY!);
+          formData.append('timestamp', timestamp.toString());
+          formData.append('signature', signature);
+          formData.append('folder', 'note-board-uploads');
+          formData.append('use_filename', 'true');
+          formData.append('unique_filename', 'true');
+
+          const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/auto/upload`;
+
+          const cloudinaryResponse = await fetch(cloudinaryUrl, {
             method: 'POST',
             body: formData,
           });
 
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Не удалось загрузить файл.');
+          if (!cloudinaryResponse.ok) {
+            const errorData = await cloudinaryResponse.json();
+            throw new Error(errorData.error.message || 'Не удалось загрузить файл в Cloudinary.');
           }
 
-          const result = await response.json();
+          const result = await cloudinaryResponse.json();
           fileAttachment = {
             name: file.name,
             type: file.type,
