@@ -29,6 +29,8 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import type { FileAttachment } from '@/types';
+
 
 const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100 MB for Cloudinary
 
@@ -107,42 +109,86 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
 
   const onSubmit = async (values: z.infer<typeof messageSchema>) => {
     if (!firestore || !user || !roomId) return;
-
+  
     const { message, file } = values;
-
+  
     if (!message.trim() && !file) return;
-
+  
     setIsSubmitting(true);
-
+  
     try {
+      let fileAttachment: FileAttachment | null = null;
+      let size = { width: 320, height: 128 }; // Default size
+  
       if (file) {
-        // This is a temporary diagnostic step. File upload is disabled.
-        toast({
-          title: 'Загрузка файлов временно отключена',
-          description: 'Эта функция отключена на время диагностики проблемы с развертыванием. Пожалуйста, отправляйте только текстовые сообщения.',
-          variant: 'destructive',
-          duration: 5000,
+        // We will perform a signed upload.
+        // First, get the signature from our backend.
+        const signResponse = await fetch('/api/sign-upload', {
+          method: 'POST',
         });
-        setIsSubmitting(false);
-        return;
-      }
-      
-      // If we got here, it means there's no file, only a message.
+  
+        if (!signResponse.ok) {
+          throw new Error('Не удалось получить подпись для загрузки.');
+        }
+  
+        const { signature, timestamp } = await signResponse.json();
+        
+        const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+        const apiKey = process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY;
 
+        if (!cloudName || !apiKey) {
+            throw new Error("Cloudinary конфигурация не найдена.");
+        }
+
+        // Now, upload the file directly to Cloudinary
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('signature', signature);
+        formData.append('timestamp', timestamp);
+        formData.append('api_key', apiKey);
+  
+        const url = `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`;
+  
+        const uploadResponse = await fetch(url, {
+          method: 'POST',
+          body: formData,
+        });
+  
+        if (!uploadResponse.ok) {
+          const errorData = await uploadResponse.json();
+          throw new Error(`Ошибка загрузки в Cloudinary: ${errorData.error.message}`);
+        }
+  
+        const data = await uploadResponse.json();
+  
+        fileAttachment = {
+          name: data.original_filename || file.name,
+          type: data.resource_type, // 'image', 'video', 'raw'
+          url: data.secure_url,
+        };
+        
+        if (data.resource_type === 'image' && data.width && data.height) {
+            const aspectRatio = data.height / data.width;
+            size.width = 320; 
+            size.height = Math.max(128, Math.round(size.width * aspectRatio));
+        } else {
+            size.height = 160;
+        }
+      } else if (message.trim() === '<3') {
+        size = { width: 128, height: 128 };
+      }
+  
       const messagesColRef = collection(firestore, 'rooms', roomId, 'messages');
       await addDoc(messagesColRef, {
         text: message,
-        file: null, // Always null for now
+        file: fileAttachment,
         userId: user.uid,
         createdAt: serverTimestamp(),
         position: {
           x: Math.random() * (window.innerWidth * 0.6) + 20 - panOffset.x,
           y: Math.random() * (window.innerHeight * 0.4) + 20 - panOffset.y,
         },
-        size: {
-          width: 320,
-          height: 128, // a default height without a file
-        },
+        size: size,
       });
       form.reset();
       removeFile();
