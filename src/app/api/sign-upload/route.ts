@@ -1,6 +1,12 @@
 // src/app/api/sign-upload/route.ts
 import { NextResponse } from 'next/server';
-import crypto from 'crypto';
+
+// Helper function to convert buffer to hex
+const bufferToHex = (buffer: ArrayBuffer): string => {
+  return [...new Uint8Array(buffer)]
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+};
 
 export async function POST(request: Request) {
   const apiSecret = process.env.CLOUDINARY_API_SECRET;
@@ -24,7 +30,6 @@ export async function POST(request: Request) {
   }
 
   try {
-    // Логика генерации подписи Cloudinary
     const sortedParams = Object.keys(paramsToSign)
       .sort()
       .map(key => `${key}=${paramsToSign[key]}`)
@@ -32,7 +37,11 @@ export async function POST(request: Request) {
     
     const stringToSign = `${sortedParams}${apiSecret}`;
     
-    const signature = crypto.createHash('sha1').update(stringToSign).digest('hex');
+    // Use Web Crypto API which is compatible with Cloudflare environment
+    const encoder = new TextEncoder();
+    const data = encoder.encode(stringToSign);
+    const hashBuffer = await crypto.subtle.digest('SHA-1', data);
+    const signature = bufferToHex(hashBuffer);
 
     return NextResponse.json({ signature });
 
