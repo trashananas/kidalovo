@@ -1,13 +1,18 @@
-// Simple reverse proxy to Vercel
-// This is the official, recommended way to do this.
-
-export const onRequest: PagesFunction = async (context) => {
+/**
+ * Это прокси-функция Cloudflare Pages.
+ * Она перехватывает все запросы к этому сайту (kidalovo.pages.dev)
+ * и перенаправляет их на основной рабочий сайт (kidalovo.vercel.app),
+ * возвращая пользователю ответ оттуда. Это позволяет обходить блокировки.
+ */
+export async function onRequest(context) {
+  // Создаем новый URL на основе входящего запроса
   const url = new URL(context.request.url);
-  
-  // The origin server
+
+  // Устанавливаем хост, на который мы хотим проксировать запросы
   url.hostname = 'kidalovo.vercel.app';
 
-  // Cloudflare will stream the response from the origin to the client.
-  // It automatically handles the Host header and other details.
-  return fetch(url.toString(), context.request);
-};
+  // Выполняем запрос к целевому серверу, передавая исходный запрос в качестве
+  // второго аргумента, чтобы сохранить метод, заголовки, тело и т.д.
+  // Это канонический способ создания прокси-запроса.
+  return fetch(url, context.request);
+}
