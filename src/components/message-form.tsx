@@ -29,7 +29,8 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { uploadFile } from '@/actions/upload-file';
+
+const MAX_FILE_SIZE_BYTES = 750 * 1024; // 750 KB
 
 const messageSchema = z
   .object({
@@ -39,11 +40,28 @@ const messageSchema = z
   .refine((data) => data.message.trim().length > 0 || !!data.file, {
     message: 'Сообщение не может быть пустым',
     path: ['message'],
-  });
-
+  })
+  .refine(
+    (data) => !data.file || data.file.size <= MAX_FILE_SIZE_BYTES,
+    {
+      message: `Файл слишком большой. Максимальный размер: ${MAX_FILE_SIZE_BYTES / 1024} КБ.`,
+      path: ['file'],
+    }
+  );
+  
 type MessageFormProps = {
   roomId: string;
   panOffset: { x: number; y: number };
+};
+
+// Helper function to read file as Base64
+const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = (error) => reject(error);
+    });
 };
 
 export function MessageForm({ roomId, panOffset }: MessageFormProps) {
@@ -74,6 +92,15 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+        toast({
+            title: 'Файл слишком большой',
+            description: `Максимальный размер файла — ${MAX_FILE_SIZE_BYTES / 1024} КБ. Хранилище не настроено.`,
+            variant: 'destructive',
+        });
+        return;
+    }
+
     form.setValue('file', file, { shouldValidate: true });
 
     const previewUrl = URL.createObjectURL(file);
@@ -101,34 +128,15 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
     setIsSubmitting(true);
 
     try {
-      let fileAttachment: { name: string; type: string; url: string } | null = null;
-      
-      if (file) {
-        try {
-          const formData = new FormData();
-          formData.append('file', file);
-          const result = await uploadFile(formData);
-
-          if (!result.success) {
-            throw new Error(result.error);
-          }
-          
-          fileAttachment = {
-            name: result.data.name,
-            type: result.data.type,
-            url: result.data.url,
-          };
-
-        } catch (uploadError) {
-          toast({
-            title: 'Ошибка загрузки файла',
-            description: getErrorMessage(uploadError),
-            variant: 'destructive',
-          });
-          setIsSubmitting(false);
-          return;
+        let fileAttachment: { name: string; type: string; url: string } | null = null;
+        if (file) {
+            const fileDataUrl = await fileToBase64(file);
+            fileAttachment = {
+                name: file.name,
+                type: file.type,
+                url: fileDataUrl, // Store the data URL directly
+            };
         }
-      }
 
       const isImage = file?.type.startsWith('image/');
       const messagesColRef = collection(firestore, 'rooms', roomId, 'messages');
@@ -349,6 +357,11 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
                 <span className="sr-only">Отправить</span>
               </Button>
             </div>
+            {form.formState.errors.file && (
+              <p className="text-sm font-medium text-destructive">
+                {form.formState.errors.file.message}
+              </p>
+            )}
           </form>
         </Form>
         <Dialog open={isLinkDialogOpen} onOpenChange={setIsLinkDialogOpen}>
