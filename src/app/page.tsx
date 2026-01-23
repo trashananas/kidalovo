@@ -13,6 +13,8 @@ import { generateRoomCode, getErrorMessage } from '@/lib/utils';
 import { z } from 'zod';
 import { UserGuide } from '@/components/user-guide';
 import { KidalovoLogo } from '@/components/kidalovo-logo';
+import { VercelEnvGenerator } from '@/components/vercel-env-generator';
+import { Separator } from '@/components/ui/separator';
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
@@ -154,20 +156,17 @@ export default function Home() {
             и поделитесь кодом или присоединитесь к существующей.
           </p>
         </div>
-        <div className="flex flex-col items-center gap-4 rounded-lg border bg-card p-6 shadow-sm">
-          <div className="flex gap-2">
-            <Button size="lg" onClick={handleCreateRoom} disabled={isCreatingRoom || !user}>
-              {isCreatingRoom ? (
-                <>
-                  <Loader2 className="animate-spin" />
-                  Создание...
-                </>
-              ) : (
-                'Создать новую комнату'
-              )}
-            </Button>
-            <UserGuide />
-          </div>
+        <div className="flex flex-col items-stretch gap-4 rounded-lg border bg-card p-6 shadow-sm w-full max-w-md">
+          <Button size="lg" onClick={handleCreateRoom} disabled={isCreatingRoom || !user}>
+            {isCreatingRoom ? (
+              <>
+                <Loader2 className="animate-spin" />
+                Создание...
+              </>
+            ) : (
+              'Создать новую комнату'
+            )}
+          </Button>
 
           <div className="relative w-full text-center select-none">
             <div className="absolute inset-0 flex items-center">
@@ -179,12 +178,12 @@ export default function Home() {
           </div>
           
           <form onSubmit={handleJoinRoom} className="flex items-start gap-2">
-            <div className="space-y-1">
+            <div className="space-y-1 flex-grow">
               <Input
                 ref={joinCodeRef}
                 name="code"
                 placeholder="A1B2"
-                className="w-40 text-center text-lg font-semibold tracking-widest uppercase"
+                className="w-full text-center text-lg font-semibold tracking-widest uppercase"
                 maxLength={4}
                 onChange={(e) => {
                   e.target.value = e.target.value
@@ -195,7 +194,7 @@ export default function Home() {
                 disabled={isJoiningRoom}
               />
               {joinError && (
-                <p className="text-[0.8rem] font-medium text-destructive">
+                <p className="text-[0.8rem] font-medium text-destructive text-center">
                   {joinError}
                 </p>
               )}
@@ -211,6 +210,16 @@ export default function Home() {
               )}
             </Button>
           </form>
+          
+          <Separator className="my-2" />
+
+          <div className="flex flex-col items-center text-center">
+             <p className="text-sm text-muted-foreground mb-4">Инструменты и помощь</p>
+             <div className="flex gap-2">
+                <VercelEnvGenerator />
+                <UserGuide />
+             </div>
+          </div>
 
         </div>
       </div>

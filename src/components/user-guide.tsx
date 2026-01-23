@@ -16,7 +16,7 @@ export function UserGuide() {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="outline" size="lg">
+        <Button variant="outline">
           <BookOpen />
           Руководство
         </Button>
