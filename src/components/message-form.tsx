@@ -131,7 +131,7 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
         // Fallback method: Base64 in Firestore
         const MAX_SIZE_BYTES = 750 * 1024; // 750 KB
         if (file.size > MAX_SIZE_BYTES) {
-          uploadError = new Error("Хранилище файлов временно недоступно, а размер файла превышает 750КБ для резервного метода.");
+          uploadError = new Error("Не удалось загрузить файл. Хранилище не настроено, а размер файла превышает лимит для резервной загрузки (750 КБ).");
         } else {
           try {
             const dataUrl = await toBase64(file);
