@@ -5,10 +5,10 @@ import { MessageCard } from './message-card';
 import { MessageForm } from './message-form';
 import { Badge } from './ui/badge';
 import Link from 'next/link';
-import { ArrowLeft, Loader2, Trash2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Trash2, Expand, Minimize } from 'lucide-react';
 import { Button } from './ui/button';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { cn, getErrorMessage } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { doc, collection, getDocs, writeBatch } from 'firebase/firestore';
@@ -23,6 +23,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
+import useIsMobile from '@/hooks/use-is-mobile';
 
 type RoomProps = {
   roomId: string;
@@ -34,9 +35,11 @@ export function Room({ roomId }: RoomProps) {
   const router = useRouter();
   const firestore = useFirestore();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
@@ -48,6 +51,46 @@ export function Room({ roomId }: RoomProps) {
   }, [firestore, roomId]);
 
   const { data: roomData } = useDoc(roomRef);
+
+  useEffect(() => {
+    if (isMobile) {
+      document.body.classList.add('no-scroll');
+    }
+    return () => {
+      document.body.classList.remove('no-scroll');
+    };
+  }, [isMobile]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = async () => {
+    if (!document.fullscreenElement) {
+      try {
+        await document.documentElement.requestFullscreen();
+        if (screen.orientation && screen.orientation.lock) {
+          await screen.orientation.lock('portrait-primary').catch(() => {
+            // Ignore errors, not critical if locking fails
+          });
+        }
+      } catch (err) {
+        toast({
+          title: 'Ошибка',
+          description: 'Не удалось перейти в полноэкранный режим.',
+          variant: 'destructive',
+        });
+      }
+    } else {
+      if (document.exitFullscreen) {
+        await document.exitFullscreen();
+      }
+    }
+  };
   
   const handleDeleteRoom = async () => {
     if (!firestore || !user || !roomRef) return;
@@ -153,6 +196,16 @@ export function Room({ roomId }: RoomProps) {
             {roomId}
           </Badge>
         </div>
+        {isMobile && (
+            <Button
+                variant="outline"
+                size="icon"
+                onClick={toggleFullscreen}
+                title={isFullscreen ? "Выйти" : "Во весь экран"}
+            >
+                {isFullscreen ? <Minimize /> : <Expand />}
+            </Button>
+        )}
         {user && (
           <>
             <Button

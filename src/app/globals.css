@@ -56,4 +56,10 @@
   body {
     @apply bg-background text-foreground;
   }
+  body.no-scroll {
+    overflow: hidden;
+    touch-action: none;
+    position: fixed;
+    width: 100%;
+  }
 }
