@@ -13,7 +13,6 @@ import { generateRoomCode, getErrorMessage } from '@/lib/utils';
 import { z } from 'zod';
 import { UserGuide } from '@/components/user-guide';
 import { KidalovoLogo } from '@/components/kidalovo-logo';
-import { VercelEnvGenerator } from '@/components/vercel-env-generator';
 import { Separator } from '@/components/ui/separator';
 
 export default function Home() {
@@ -216,7 +215,6 @@ export default function Home() {
           <div className="flex flex-col items-center text-center">
              <p className="text-sm text-muted-foreground mb-4">Инструменты и помощь</p>
              <div className="flex gap-2">
-                <VercelEnvGenerator />
                 <UserGuide />
              </div>
           </div>
