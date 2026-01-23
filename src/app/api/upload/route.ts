@@ -22,7 +22,7 @@ export async function POST(request: Request) {
       const uploadStream = cloudinary.uploader.upload_stream(
         {
           resource_type: 'auto',
-          folder: 'note-board-uploads',
+          folder: 'kidalovo-uploads',
           // These options ensure the downloaded file will have a meaningful name
           use_filename: true,
           unique_filename: true, // To avoid overwrites

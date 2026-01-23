@@ -8,7 +8,7 @@ import { FirebaseClientProvider } from '@/firebase';
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
 export const metadata: Metadata = {
-  title: 'Доска для записок',
+  title: 'Kidalovo',
   description: 'Совместная доска для сообщений в реальном времени.',
 };
 

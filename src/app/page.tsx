@@ -146,7 +146,7 @@ export default function Home() {
         <div className="flex flex-col items-center gap-2">
           <PenSquare className="h-16 w-16 text-primary" />
           <h1 className="text-5xl font-bold tracking-tight text-center font-headline">
-            Доска для записок
+            Kidalovo
           </h1>
           <p className="text-muted-foreground text-center max-w-sm">
             Совместная доска для сообщений в реальном времени. Создайте комнату

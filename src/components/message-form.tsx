@@ -159,7 +159,7 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
           
           const paramsToSign = {
             timestamp: timestamp,
-            folder: 'note-board-uploads',
+            folder: 'kidalovo-uploads',
             use_filename: true,
             unique_filename: true,
             resource_type: resourceType,
@@ -172,7 +172,8 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
           });
 
           if (!signResponse.ok) {
-            throw new Error('Не удалось получить подпись для загрузки от сервера.');
+            const errorData = await signResponse.json();
+            throw new Error(errorData?.error || 'Не удалось получить подпись для загрузки от сервера.');
           }
 
           const { signature } = await signResponse.json();
@@ -186,7 +187,7 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
           formData.append('api_key', process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY!);
           formData.append('timestamp', timestamp.toString());
           formData.append('signature', signature);
-          formData.append('folder', 'note-board-uploads');
+          formData.append('folder', 'kidalovo-uploads');
           formData.append('use_filename', 'true');
           formData.append('unique_filename', 'true');
           formData.append('resource_type', resourceType);

@@ -23,14 +23,14 @@ export function UserGuide() {
       </DialogTrigger>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Руководство по "Доске для записок"</DialogTitle>
+          <DialogTitle>Руководство по "Kidalovo"</DialogTitle>
         </DialogHeader>
         <ScrollArea className="h-[70vh] pr-6">
           <div className="space-y-6 text-sm text-foreground">
             <div>
               <h2 className="font-semibold text-lg mb-2">Добро пожаловать!</h2>
               <p>
-                "Доска для записок" — это простое приложение для совместной работы с текстовыми заметками и файлами в реальном времени. Создавайте комнаты, приглашайте друзей и обменивайтесь идеями в виде стикеров на виртуальной доске.
+                "Kidalovo" — это простое приложение для совместной работы с текстовыми заметками и файлами в реальном времени. Создавайте комнаты, приглашайте друзей и обменивайтесь идеями в виде стикеров на виртуальной доске.
               </p>
             </div>
 
