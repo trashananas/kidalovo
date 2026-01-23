@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { uploadFile } from '@/actions/upload-file';
 
 const messageSchema = z
   .object({
@@ -52,6 +53,7 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
@@ -89,50 +91,45 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
     }
   };
 
-  const toBase64 = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = (error) => reject(error);
-    });
-
   const onSubmit = async (values: z.infer<typeof messageSchema>) => {
     if (!firestore || !user || !roomId) return;
-
+    
     const { message, file } = values;
 
-    let fileAttachment: { name: string; type: string; url: string } | null = null;
+    if (!message && !file) return;
 
-    if (file) {
-        const MAX_SIZE_BYTES = 750 * 1024; // 750 KB
-        if (file.size > MAX_SIZE_BYTES) {
-            toast({
-                title: 'Файл слишком большой',
-                description: `Размер файла не должен превышать 750 КБ.`,
-                variant: 'destructive',
-            });
-            return;
-        }
-
-        try {
-            const dataUrl = await toBase64(file);
-            fileAttachment = {
-                name: file.name,
-                type: file.type,
-                url: dataUrl,
-            };
-        } catch (base64Error) {
-            toast({
-                title: 'Ошибка подготовки файла',
-                description: getErrorMessage(base64Error),
-                variant: 'destructive',
-            });
-            return;
-        }
-    }
+    setIsSubmitting(true);
 
     try {
+      let fileAttachment: { name: string; type: string; url: string } | null = null;
+      
+      if (file) {
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          const result = await uploadFile(formData);
+
+          if (!result.success) {
+            throw new Error(result.error);
+          }
+          
+          fileAttachment = {
+            name: result.data.name,
+            type: result.data.type,
+            url: result.data.url,
+          };
+
+        } catch (uploadError) {
+          toast({
+            title: 'Ошибка загрузки файла',
+            description: getErrorMessage(uploadError),
+            variant: 'destructive',
+          });
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       const isImage = file?.type.startsWith('image/');
       const messagesColRef = collection(firestore, 'rooms', roomId, 'messages');
       await addDoc(messagesColRef, {
@@ -145,8 +142,8 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
           y: Math.random() * (window.innerHeight * 0.4) + 20 - panOffset.y,
         },
         size: {
-            width: 320,
-            height: isImage ? 240 : (file ? 160 : 128),
+          width: 320,
+          height: isImage ? 240 : (file ? 160 : 128),
         },
       });
       form.reset();
@@ -157,6 +154,8 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
         description: getErrorMessage(firestoreError),
         variant: 'destructive',
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -318,7 +317,7 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
                         className="min-h-0 resize-none"
                         rows={1}
                         onKeyDown={handleTextareaKeyDown}
-                        disabled={form.formState.isSubmitting}
+                        disabled={isSubmitting}
                       />
                     </FormControl>
                     <FormMessage />
@@ -336,7 +335,7 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
                 size="icon"
                 variant="outline"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={form.formState.isSubmitting}
+                disabled={isSubmitting}
               >
                 <Paperclip className="h-4 w-4" />
                 <span className="sr-only">Прикрепить файл</span>
@@ -344,11 +343,9 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
               <Button
                 type="submit"
                 size="icon"
-                disabled={
-                  form.formState.isSubmitting || !form.formState.isValid
-                }
+                disabled={isSubmitting || !form.formState.isValid}
               >
-                {form.formState.isSubmitting ? <Loader2 className="animate-spin" /> : <Send className="h-4 w-4" />}
+                {isSubmitting ? <Loader2 className="animate-spin" /> : <Send className="h-4 w-4" />}
                 <span className="sr-only">Отправить</span>
               </Button>
             </div>
