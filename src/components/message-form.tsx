@@ -51,13 +51,6 @@ type MessageFormProps = {
   panOffset: { x: number; y: number };
 };
 
-const getResourceType = (file: File): 'image' | 'video' | 'raw' => {
-    const type = file.type.split('/')[0];
-    if (type === 'image') return 'image';
-    if (type === 'video') return 'video';
-    return 'raw';
-};
-
 export function MessageForm({ roomId, panOffset }: MessageFormProps) {
   const { user } = useUser();
   const firestore = useFirestore();
@@ -122,79 +115,24 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
     setIsSubmitting(true);
 
     try {
-      let fileAttachment: { name: string; type: string; url: string } | null =
-        null;
-
       if (file) {
+        // This is a temporary diagnostic step. File upload is disabled.
         toast({
-          title: 'Загрузка...',
-          description: 'Файл загружается через облачное хранилище.',
+          title: 'Загрузка файлов временно отключена',
+          description: 'Эта функция отключена на время диагностики проблемы с развертыванием. Пожалуйста, отправляйте только текстовые сообщения.',
+          variant: 'destructive',
+          duration: 5000,
         });
-        
-        const resourceType = getResourceType(file);
-        const timestamp = Math.round(new Date().getTime() / 1000);
-        
-        const paramsToSign = {
-          timestamp: timestamp,
-          folder: 'kidalovo-uploads',
-          use_filename: true,
-          unique_filename: true,
-          resource_type: resourceType,
-        };
-
-        const signResponse = await fetch('/api/sign-upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ paramsToSign }),
-        });
-
-        if (!signResponse.ok) {
-          const errorData = await signResponse.json();
-          throw new Error(errorData?.error || 'Не удалось получить подпись для загрузки от сервера.');
-        }
-
-        const { signature } = await signResponse.json();
-        if (!signature) {
-            throw new Error('Подпись не была получена от сервера.');
-        }
-
-        // Upload directly to Cloudinary
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('api_key', process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY!);
-        formData.append('timestamp', timestamp.toString());
-        formData.append('signature', signature);
-        formData.append('folder', 'kidalovo-uploads');
-        formData.append('use_filename', 'true');
-        formData.append('unique_filename', 'true');
-        formData.append('resource_type', resourceType);
-
-
-        const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`;
-
-        const cloudinaryResponse = await fetch(cloudinaryUrl, {
-          method: 'POST',
-          body: formData,
-        });
-
-        if (!cloudinaryResponse.ok) {
-          const errorData = await cloudinaryResponse.json();
-          throw new Error(errorData.error.message || 'Не удалось загрузить файл в Cloudinary.');
-        }
-
-        const result = await cloudinaryResponse.json();
-        fileAttachment = {
-          name: file.name,
-          type: file.type,
-          url: result.secure_url,
-        };
+        setIsSubmitting(false);
+        return;
       }
+      
+      // If we got here, it means there's no file, only a message.
 
-      const isImage = file?.type.startsWith('image/');
       const messagesColRef = collection(firestore, 'rooms', roomId, 'messages');
       await addDoc(messagesColRef, {
         text: message,
-        file: fileAttachment,
+        file: null, // Always null for now
         userId: user.uid,
         createdAt: serverTimestamp(),
         position: {
@@ -203,7 +141,7 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
         },
         size: {
           width: 320,
-          height: isImage ? 240 : file ? 160 : 128,
+          height: 128, // a default height without a file
         },
       });
       form.reset();
