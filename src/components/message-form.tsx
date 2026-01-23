@@ -60,6 +60,13 @@ const fileToDataUrl = (file: File): Promise<string> =>
     reader.readAsDataURL(file);
   });
 
+const getResourceType = (file: File): 'image' | 'video' | 'raw' => {
+    const type = file.type.split('/')[0];
+    if (type === 'image') return 'image';
+    if (type === 'video') return 'video';
+    return 'raw';
+};
+
 export function MessageForm({ roomId, panOffset }: MessageFormProps) {
   const { user } = useUser();
   const firestore = useFirestore();
@@ -147,13 +154,15 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
             description: 'Большой файл загружается через облачное хранилище.',
           });
           
-          // 1. Get signature from our server
+          const resourceType = getResourceType(file);
           const timestamp = Math.round(new Date().getTime() / 1000);
+          
           const paramsToSign = {
             timestamp: timestamp,
             folder: 'note-board-uploads',
             use_filename: true,
             unique_filename: true,
+            resource_type: resourceType,
           };
 
           const signResponse = await fetch('/api/sign-upload', {
@@ -180,8 +189,10 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
           formData.append('folder', 'note-board-uploads');
           formData.append('use_filename', 'true');
           formData.append('unique_filename', 'true');
+          formData.append('resource_type', resourceType);
 
-          const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/auto/upload`;
+
+          const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`;
 
           const cloudinaryResponse = await fetch(cloudinaryUrl, {
             method: 'POST',
