@@ -1,46 +1,43 @@
-# Kidalovo
+# Kidalovo - Image Upload App
 
-Это стартовый проект для приложения "Kidalovo" — доски для сообщений в реальном времени, созданной в Firebase Studio.
+Это простое веб-приложение для загрузки изображений. Оно построено с использованием Next.js, TypeScript, Tailwind CSS и Cloudinary для хранения изображений.
 
-## Развёртывание (Deployment)
+## Развертывание и запуск
 
-Мы используем сервис **Render** для хостинга. Он предоставляет бесплатный тариф, не требует привязки банковской карты, стабильно работает в России и автоматически обновляется при изменениях в вашем репозитории GitHub.
+Проект развернут с использованием двух сервисов для обхода потенциальных блокировок в России:
 
-### Шаг 1: Развёртывание на Render
+1.  **Vercel**: Основной хостинг для приложения.
+2.  **Cloudflare Pages**: Прокси-сервер, который перенаправляет запросы на Vercel, обеспечивая доступ к приложению, если Vercel заблокирован.
 
-1.  Перейдите на сайт [Render](https://dashboard.render.com/register) и зарегистрируйтесь, используя ваш аккаунт GitHub.
-2.  В личном кабинете нажмите **"New + -> Web Service"**.
-3.  Найдите в списке ваш репозиторий `kidalovo` и нажмите **"Connect"**.
-4.  На странице настроек заполните поля:
-    *   **Name**: `kidalovo` (или любое другое имя на ваш вкус).
-    *   **Region**: Оставьте `Oregon (US West)` или выберите ближайший.
-    *   **Branch**: `main`.
-    *   **Runtime**: `Node`.
-    *   **Build Command**: `npm run build`.
-    *   **Start Command**: `npm run start`.
-    *   **Instance Type**: `Free`.
+**Основная ссылка для доступа (должна работать везде):** [https://kidalovo.pages.dev/](https://kidalovo.pages.dev/)
 
-5.  Прокрутите ниже до секции **"Environment"**. Нажмите **"Add Environment Variable"**. Вам нужно добавить три переменные, используя ваши ключи от Cloudinary.
+### Шаг 1: Настройка Vercel
 
-    *   **Переменная 1:**
-        *   **Key**: `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME`
-        *   **Value**: `ВАШ_CLOUD_NAME`
-    *   **Переменная 2:**
-        *   **Key**: `CLOUDINARY_API_KEY`
-        *   **Value**: `ВАШ_API_KEY`
-    *   **Переменная 3:**
-        *   **Key**: `CLOUDINARY_API_SECRET`
-        *   **Value**: `ВАШ_API_SECRET`
-    
-    > **Важно:** Вы также можете нажать **"Add Secret File"**, указать в качестве имени файла `.env` и вставить в поле содержимого сразу весь текст ниже, заменив значения на ваши. Это может быть удобнее.
-    > ```.env
-    > NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=ВАШ_CLOUD_NAME
-    > CLOUDINARY_API_KEY=ВАШ_API_KEY
-    > CLOUDINARY_API_SECRET=ВАШ_API_SECRET
-    > ```
+1.  Создайте аккаунт на [Vercel](https://vercel.com/).
+2.  Создайте новый проект, импортировав этот репозиторий из вашего GitHub.
+3.  Vercel автоматически определит, что это Next.js проект.
+4.  Перейдите в настройки проекта (**Settings** -> **Environment Variables**).
+5.  Добавьте следующие переменные окружения, используя ваши ключи из Cloudinary:
 
-6.  Прокрутите в самый низ и нажмите **"Create Web Service"**.
+    ```
+    NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=ВАШ_CLOUD_NAME
+    CLOUDINARY_API_KEY=ВАШ_API_KEY
+    CLOUDINARY_API_SECRET=ВАШ_API_SECRET
+    ```
+    Вы можете вставить этот блок текста целиком в поле "Key", и Vercel автоматически создаст три переменные.
 
-Render автоматически начнёт сборку и развёртывание вашего проекта. Первый запуск может занять несколько минут. После завершения ваш сайт будет доступен по ссылке вида `https://kidalovo.onrender.com`.
+6.  Сохраните переменные. Vercel автоматически начнет новое развертывание. После его завершения ваш сайт будет доступен по адресу `.vercel.app`.
 
-**Используйте и делитесь только этой ссылкой (`https://kidalovo.onrender.com`).** Она будет работать везде.
+### Шаг 2: Настройка Cloudflare Pages
+
+1.  Создайте аккаунт на [Cloudflare](https://dash.cloudflare.com/).
+2.  Перейдите в раздел **Workers & Pages**.
+3.  Создайте новый проект (**Create application** -> **Pages** -> **Connect to Git**).
+4.  Выберите тот же репозиторий из вашего GitHub.
+5.  **ВАЖНО!** На шаге **Set up builds and deployments**:
+    *   В поле **Framework preset** выберите **None**.
+    *   Поле **Build command** оставьте **пустым**.
+    *   Поле **Build output directory** оставьте **пустым**.
+6.  Нажмите **Save and Deploy**.
+
+Cloudflare развернет только прокси-функцию из папки `functions`. После завершения развертывания ваш сайт будет доступен по адресу `.pages.dev` и будет работать как зеркало для сайта на Vercel.
