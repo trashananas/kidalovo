@@ -15,9 +15,8 @@ import {
 } from '@/components/ui/form';
 import { Card, CardContent } from './ui/card';
 import { Send, Paperclip, X, File as FileIcon, Loader2 } from 'lucide-react';
-import { useUser, useFirestore, useStorage } from '@/firebase';
+import { useUser, useFirestore } from '@/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { getErrorMessage } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -49,7 +48,6 @@ type MessageFormProps = {
 export function MessageForm({ roomId, panOffset }: MessageFormProps) {
   const { user } = useUser();
   const firestore = useFirestore();
-  const storage = useStorage();
   const { toast } = useToast();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -103,57 +101,35 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
     if (!firestore || !user || !roomId) return;
 
     const { message, file } = values;
-    if (!message && !file) return;
 
     let fileAttachment: { name: string; type: string; url: string } | null = null;
-    let uploadError: Error | null = null;
 
     if (file) {
-      // Primary method: Firebase Storage
-      try {
-        if (!storage) {
-          throw new Error("Firebase Storage не инициализирован.");
-        }
-        const filePath = `files/${roomId}/${Date.now()}_${file.name}`;
-        const fileStorageRef = storageRef(storage, filePath);
-
-        await uploadBytes(fileStorageRef, file);
-        const downloadUrl = await getDownloadURL(fileStorageRef);
-
-        fileAttachment = {
-          name: file.name,
-          type: file.type,
-          url: downloadUrl,
-        };
-      } catch (storageError) {
-        console.warn("Ошибка загрузки в Storage. Попытка резервной загрузки:", storageError);
-        
-        // Fallback method: Base64 in Firestore
         const MAX_SIZE_BYTES = 750 * 1024; // 750 KB
         if (file.size > MAX_SIZE_BYTES) {
-          uploadError = new Error("Не удалось загрузить файл. Хранилище не настроено, а размер файла превышает лимит для резервной загрузки (750 КБ).");
-        } else {
-          try {
+            toast({
+                title: 'Файл слишком большой',
+                description: `Размер файла не должен превышать 750 КБ.`,
+                variant: 'destructive',
+            });
+            return;
+        }
+
+        try {
             const dataUrl = await toBase64(file);
             fileAttachment = {
-              name: file.name,
-              type: file.type,
-              url: dataUrl,
+                name: file.name,
+                type: file.type,
+                url: dataUrl,
             };
-          } catch (base64Error) {
-            uploadError = new Error(`Ошибка при подготовке файла для резервной загрузки: ${getErrorMessage(base64Error)}`);
-          }
+        } catch (base64Error) {
+            toast({
+                title: 'Ошибка подготовки файла',
+                description: getErrorMessage(base64Error),
+                variant: 'destructive',
+            });
+            return;
         }
-      }
-    }
-
-    if (uploadError) {
-      toast({
-        title: 'Ошибка загрузки файла',
-        description: getErrorMessage(uploadError),
-        variant: 'destructive',
-      });
-      return; 
     }
 
     try {
