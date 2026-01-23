@@ -5,25 +5,19 @@
  * возвращая пользователю ответ оттуда. Это позволяет обходить блокировки.
  */
 export async function onRequest(context) {
-  const { request } = context;
-  const url = new URL(request.url);
+  // Создаем новый URL на основе входящего запроса
+  const url = new URL(context.request.url);
 
-  // Целевой URL на Vercel
-  const vercelUrl = new URL('https://kidalovo.vercel.app');
-  vercelUrl.pathname = url.pathname;
-  vercelUrl.search = url.search;
+  // Устанавливаем хост, на который мы хотим проксировать запросы
+  url.hostname = 'kidalovo.vercel.app';
 
-  // Создаем новый объект заголовков, копируя изначальные.
-  const requestHeaders = new Headers(request.headers);
+  // Клонируем исходный запрос, но с новым URL
+  const request = new Request(url, context.request);
   
-  // Устанавливаем правильный заголовок Host. Это критически важно.
-  requestHeaders.set('Host', 'kidalovo.vercel.app');
-  
-  // Перенаправляем запрос на Vercel со всеми данными.
-  return fetch(vercelUrl.toString(), {
-    method: request.method,
-    headers: requestHeaders,
-    body: request.body,
-    redirect: 'manual' // Позволяем клиенту обрабатывать редиректы
-  });
+  // ВАЖНО: Устанавливаем заголовок Host, чтобы он соответствовал целевому домену.
+  // Vercel может отклонять запросы, если этот заголовок не совпадает.
+  request.headers.set('host', url.hostname);
+
+  // Выполняем запрос к целевому серверу (Vercel) и возвращаем его ответ
+  return fetch(request);
 }
