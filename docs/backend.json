@@ -80,7 +80,7 @@
         },
         "file": {
           "type": "object",
-          "description": "An attached file, stored as a URL from Firebase Storage.",
+          "description": "An attached file, stored as a data URI or a URL from a cloud storage provider.",
           "properties": {
             "name": {
               "type": "string",
@@ -92,7 +92,7 @@
             },
             "url": {
               "type": "string",
-              "description": "The URL of the file in Firebase Storage."
+              "description": "The URL or data URI of the file."
             }
           },
           "required": [

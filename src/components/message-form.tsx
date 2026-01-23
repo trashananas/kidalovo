@@ -53,6 +53,30 @@ type MessageFormProps = {
   panOffset: { x: number; y: number };
 };
 
+const readFileAsDataURL = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = (error) => reject(error);
+    reader.readAsDataURL(file);
+  });
+};
+
+const getImageDimensions = (dataUrl: string): Promise<{width: number, height: number}> => {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            resolve({ width: img.width, height: img.height });
+        };
+        img.onerror = () => {
+            // Don't reject, just resolve with a default size so submission doesn't fail
+            console.error("Could not load image to get dimensions from data URL.");
+            resolve({ width: 320, height: 180 });
+        };
+        img.src = dataUrl;
+    });
+}
+
 export function MessageForm({ roomId, panOffset }: MessageFormProps) {
   const { user } = useUser();
   const firestore = useFirestore();
@@ -92,8 +116,13 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
 
     form.setValue('file', file, { shouldValidate: true });
 
-    const previewUrl = URL.createObjectURL(file);
-    setFilePreviewUrl(previewUrl);
+    // For image files, create a temporary URL for the preview.
+    if (file.type.startsWith('image/')) {
+        const previewUrl = URL.createObjectURL(file);
+        setFilePreviewUrl(previewUrl);
+    } else {
+        setFilePreviewUrl(null); // No preview for non-image files
+    }
   };
 
   const removeFile = () => {
@@ -109,95 +138,109 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
 
   const onSubmit = async (values: z.infer<typeof messageSchema>) => {
     if (!firestore || !user || !roomId) return;
-  
+
     const { message, file } = values;
-  
+
     if (!message.trim() && !file) return;
-  
+
     setIsSubmitting(true);
-  
+
     try {
-      let fileAttachment: FileAttachment | null = null;
-      let size = { width: 320, height: 128 }; // Default size
-  
-      if (file) {
-        // We will perform a signed upload.
-        // First, get the signature from our backend.
-        const signResponse = await fetch('/api/sign-upload', {
-          method: 'POST',
-        });
-  
-        if (!signResponse.ok) {
-          const errorBody = await signResponse.json();
-          throw new Error(errorBody.error || 'Не удалось получить подпись для загрузки.');
-        }
-  
-        const { signature, timestamp, apiKey, cloudName } = await signResponse.json();
+        let fileAttachment: FileAttachment | null = null;
+        let size = { width: 320, height: 128 }; // Default size
+        const MAX_FILE_SIZE_FOR_DATA_URI = 1 * 1024 * 1024; // 1MB
 
-        if (!signature || !timestamp || !apiKey || !cloudName) {
-            throw new Error("Ответ от сервера для подписи не содержит всех необходимых данных.");
+        if (file) {
+            if (file.size < MAX_FILE_SIZE_FOR_DATA_URI) {
+                // --- Encode as Data URI for files < 1MB ---
+                const dataUrl = await readFileAsDataURL(file);
+                fileAttachment = {
+                    name: file.name,
+                    type: file.type, // Store the full MIME type
+                    url: dataUrl,
+                };
+                
+                if (file.type.startsWith('image/')) {
+                    const { width, height } = await getImageDimensions(dataUrl);
+                    const aspectRatio = height / width;
+                    size.width = 320;
+                    size.height = Math.max(128, Math.round(size.width * aspectRatio));
+                } else {
+                    size.height = 160; // A bit more space for non-image files
+                }
+
+            } else {
+                // --- Use Cloudinary for files >= 1MB ---
+                const signResponse = await fetch('/api/sign-upload', { method: 'POST' });
+
+                if (!signResponse.ok) {
+                    const errorBody = await signResponse.json();
+                    throw new Error(errorBody.error || 'Не удалось получить подпись для загрузки.');
+                }
+
+                const { signature, timestamp, apiKey, cloudName } = await signResponse.json();
+
+                if (!signature || !timestamp || !apiKey || !cloudName) {
+                    throw new Error("Ответ от сервера для подписи не содержит всех необходимых данных.");
+                }
+
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('signature', signature);
+                formData.append('timestamp', timestamp);
+                formData.append('api_key', apiKey);
+
+                const url = `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`;
+
+                const uploadResponse = await fetch(url, { method: 'POST', body: formData });
+
+                if (!uploadResponse.ok) {
+                    const errorData = await uploadResponse.json();
+                    throw new Error(`Ошибка загрузки в Cloudinary: ${errorData.error.message}`);
+                }
+
+                const data = await uploadResponse.json();
+
+                fileAttachment = {
+                    name: data.original_filename || file.name,
+                    type: data.resource_type, // 'image', 'video', 'raw'
+                    url: data.secure_url,
+                };
+                
+                if (data.resource_type === 'image' && data.width && data.height) {
+                    const aspectRatio = data.height / data.width;
+                    size.width = 320; 
+                    size.height = Math.max(128, Math.round(size.width * aspectRatio));
+                } else {
+                    size.height = 160;
+                }
+            }
+        } else if (message.trim() === '<3') {
+            size = { width: 128, height: 128 };
         }
 
-        // Now, upload the file directly to Cloudinary
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('signature', signature);
-        formData.append('timestamp', timestamp);
-        formData.append('api_key', apiKey);
-  
-        const url = `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`;
-  
-        const uploadResponse = await fetch(url, {
-          method: 'POST',
-          body: formData,
+        const messagesColRef = collection(firestore, 'rooms', roomId, 'messages');
+        await addDoc(messagesColRef, {
+            text: message,
+            file: fileAttachment,
+            userId: user.uid,
+            createdAt: serverTimestamp(),
+            position: {
+                x: Math.random() * (window.innerWidth * 0.6) + 20 - panOffset.x,
+                y: Math.random() * (window.innerHeight * 0.4) + 20 - panOffset.y,
+            },
+            size: size,
         });
-  
-        if (!uploadResponse.ok) {
-          const errorData = await uploadResponse.json();
-          throw new Error(`Ошибка загрузки в Cloudinary: ${errorData.error.message}`);
-        }
-  
-        const data = await uploadResponse.json();
-  
-        fileAttachment = {
-          name: data.original_filename || file.name,
-          type: data.resource_type, // 'image', 'video', 'raw'
-          url: data.secure_url,
-        };
-        
-        if (data.resource_type === 'image' && data.width && data.height) {
-            const aspectRatio = data.height / data.width;
-            size.width = 320; 
-            size.height = Math.max(128, Math.round(size.width * aspectRatio));
-        } else {
-            size.height = 160;
-        }
-      } else if (message.trim() === '<3') {
-        size = { width: 128, height: 128 };
-      }
-  
-      const messagesColRef = collection(firestore, 'rooms', roomId, 'messages');
-      await addDoc(messagesColRef, {
-        text: message,
-        file: fileAttachment,
-        userId: user.uid,
-        createdAt: serverTimestamp(),
-        position: {
-          x: Math.random() * (window.innerWidth * 0.6) + 20 - panOffset.x,
-          y: Math.random() * (window.innerHeight * 0.4) + 20 - panOffset.y,
-        },
-        size: size,
-      });
-      form.reset();
-      removeFile();
+        form.reset();
+        removeFile();
     } catch (error) {
-      toast({
-        title: 'Ошибка отправки сообщения',
-        description: getErrorMessage(error),
-        variant: 'destructive',
-      });
+        toast({
+            title: 'Ошибка отправки сообщения',
+            description: getErrorMessage(error),
+            variant: 'destructive',
+        });
     } finally {
-      setIsSubmitting(false);
+        setIsSubmitting(false);
     }
   };
 
@@ -318,7 +361,7 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
             onSubmit={form.handleSubmit(onSubmit)}
             className="flex flex-col gap-2"
           >
-            {selectedFile && filePreviewUrl && (
+            {selectedFile && (
               <div className="relative p-2 border rounded-md bg-muted/50">
                 <Button
                   type="button"
@@ -329,11 +372,12 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
                 >
                   <X className="h-4 w-4" />
                 </Button>
-                {isImagePreview ? (
+                {isImagePreview && filePreviewUrl ? (
                   <img
                     src={filePreviewUrl}
                     alt="Предпросмотр"
                     className="max-h-28 w-auto rounded-md mx-auto"
+                    onLoad={() => URL.revokeObjectURL(filePreviewUrl)}
                   />
                 ) : (
                   <div className="flex items-center gap-3 pr-6">
@@ -382,7 +426,7 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
                 type="file"
                 ref={fileInputRef}
                 onChange={handleFileChange}
-                hidden
+                className="hidden"
               />
               <Button
                 type="button"

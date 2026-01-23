@@ -159,13 +159,13 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
 
   const isOwner = user?.uid === message.userId;
   
-  // Logic to handle both Cloudinary URLs and Firestore Data URLs
   const isDataUrl = message.file?.url.startsWith('data:');
-  const isImage = message.file?.type.startsWith('image/');
+  // Check for both Cloudinary's 'image' resource_type and standard MIME types like 'image/jpeg'
+  const isImage = message.file?.type.startsWith('image');
   
   let downloadHref = message.file?.url || '';
+  // For Cloudinary URLs, add the attachment flag to force download instead of opening in a new tab.
   if (message.file && !isDataUrl) {
-    // It's a Cloudinary URL, so add the attachment flag to force download.
     downloadHref = downloadHref.replace('/upload/', '/upload/fl_attachment/');
   }
 
