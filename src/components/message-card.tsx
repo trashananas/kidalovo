@@ -128,15 +128,16 @@ const renderFormattedText = (text: string): React.ReactNode[] => {
   return nodes;
 };
 
-const getDownloadableUrl = (url: string): string => {
+const getDownloadableUrl = (url: string, filename: string): string => {
   if (!url || !url.includes('/upload/')) {
     return url;
   }
-  // This adds the `fl_attachment` flag to the Cloudinary URL,
-  // which forces the browser to download the asset instead of displaying it.
-  // It will use the `original_filename` that we passed during upload.
-  return url.replace('/upload/', '/upload/fl_attachment/');
+  // This adds the `fl_attachment:FILENAME` flag to the Cloudinary URL.
+  // This forces the browser to download the asset with the correct original name and extension.
+  const encodedFilename = encodeURIComponent(filename);
+  return url.replace('/upload/', `/upload/fl_attachment:${encodedFilename}/`);
 };
+
 
 type MessageCardProps = {
   message: Message;
@@ -169,7 +170,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
 
   const isOwner = user?.uid === message.userId;
   const isImage = message.file?.type.startsWith('image/');
-  const downloadableUrl = message.file ? getDownloadableUrl(message.file.url) : '';
+  const downloadableUrl = message.file ? getDownloadableUrl(message.file.url, message.file.name) : '';
 
   // Effect for updating the 'time ago' string
   useEffect(() => {
