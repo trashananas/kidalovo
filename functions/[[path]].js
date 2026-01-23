@@ -1,21 +1,29 @@
 /**
  * Это прокси-функция Cloudflare Pages.
- * Она перехватывает все запросы к этому сайту (*.pages.dev)
- * и прозрачно передает их на основной рабочий сайт (*.vercel.app),
+ * Она перехватывает все запросы к этому сайту (kidalovo.pages.dev)
+ * и перенаправляет их на основной рабочий сайт (kidalovo.vercel.app),
  * возвращая пользователю ответ оттуда. Это позволяет обходить блокировки.
- *
- * Этот код работает, только если в настройках проекта Cloudflare Pages
- * в качестве "Framework preset" установлено "None".
  */
 export async function onRequest(context) {
-  // Создаем новый URL на основе входящего запроса
-  const url = new URL(context.request.url);
+  const { request } = context;
+  const url = new URL(request.url);
 
-  // Устанавливаем хост, на который мы хотим проксировать запросы
-  url.hostname = 'kidalovo.vercel.app';
+  // Целевой URL на Vercel
+  const vercelUrl = new URL('https://kidalovo.vercel.app');
+  vercelUrl.pathname = url.pathname;
+  vercelUrl.search = url.search;
 
-  // Выполняем запрос к целевому серверу, полностью сохраняя
-  // исходные данные запроса (метод, заголовки, тело).
-  // Cloudflare's fetch автоматически обрабатывает это как прокси-запрос.
-  return fetch(url.toString(), context.request);
+  // Создаем новый объект заголовков, копируя изначальные.
+  const requestHeaders = new Headers(request.headers);
+  
+  // Устанавливаем правильный заголовок Host. Это критически важно.
+  requestHeaders.set('Host', 'kidalovo.vercel.app');
+  
+  // Перенаправляем запрос на Vercel со всеми данными.
+  return fetch(vercelUrl.toString(), {
+    method: request.method,
+    headers: requestHeaders,
+    body: request.body,
+    redirect: 'manual' // Позволяем клиенту обрабатывать редиректы
+  });
 }
