@@ -2,26 +2,38 @@
 import { v2 as cloudinary } from 'cloudinary';
 import { NextResponse } from 'next/server';
 
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
-
 export async function POST(request: Request) {
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+  const apiKey = process.env.CLOUDINARY_API_KEY;
+  const apiSecret = process.env.CLOUDINARY_API_SECRET;
+
+  if (!cloudName || !apiKey || !apiSecret) {
+    console.error('Ошибка конфигурации сервера: ключи Cloudinary отсутствуют.');
+    return NextResponse.json(
+      { error: 'Ошибка конфигурации сервера: ключи Cloudinary отсутствуют.' },
+      { status: 500 }
+    );
+  }
+
+  cloudinary.config({
+    cloud_name: cloudName,
+    api_key: apiKey,
+    api_secret: apiSecret,
+  });
+
   const body = await request.json();
   const { paramsToSign } = body;
 
   try {
     const signature = cloudinary.utils.api_sign_request(
       paramsToSign,
-      process.env.CLOUDINARY_API_SECRET as string
+      apiSecret as string
     );
     return NextResponse.json({ signature });
   } catch (error) {
-    console.error('Error signing upload:', error);
+    console.error('Ошибка при подписи загрузки:', error);
     return NextResponse.json(
-      { error: 'Failed to sign upload' },
+      { error: 'Не удалось подписать загрузку' },
       { status: 500 }
     );
   }

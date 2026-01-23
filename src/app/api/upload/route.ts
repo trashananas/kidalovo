@@ -3,18 +3,30 @@ import { NextResponse } from 'next/server';
 import { v2 as cloudinary } from 'cloudinary';
 import { getErrorMessage } from '@/lib/utils';
 
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
-
 export async function POST(request: Request) {
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+  const apiKey = process.env.CLOUDINARY_API_KEY;
+  const apiSecret = process.env.CLOUDINARY_API_SECRET;
+
+  if (!cloudName || !apiKey || !apiSecret) {
+    console.error('Ошибка конфигурации сервера: ключи Cloudinary отсутствуют.');
+    return NextResponse.json(
+      { error: 'Ошибка конфигурации сервера: ключи Cloudinary отсутствуют.' },
+      { status: 500 }
+    );
+  }
+
+  cloudinary.config({
+    cloud_name: cloudName,
+    api_key: apiKey,
+    api_secret: apiSecret,
+  });
+
   const formData = await request.formData();
   const file = formData.get('file') as File | null;
 
   if (!file) {
-    return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    return NextResponse.json({ error: 'Файл не предоставлен' }, { status: 400 });
   }
 
   try {
@@ -45,9 +57,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json(uploadResult);
   } catch (error) {
-    console.error('Error uploading to Cloudinary:', error);
+    console.error('Ошибка при загрузке в Cloudinary:', error);
     return NextResponse.json(
-      { error: `Upload failed: ${getErrorMessage(error)}` },
+      { error: `Загрузка не удалась: ${getErrorMessage(error)}` },
       { status: 500 }
     );
   }
