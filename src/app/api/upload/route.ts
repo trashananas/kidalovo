@@ -18,27 +18,29 @@ export async function POST(request: Request) {
   }
 
   try {
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    const uploadResult = await new Promise((resolve, reject) => {
-      cloudinary.uploader
-        .upload_stream(
-          {
-            resource_type: 'auto',
-            folder: 'note-board-uploads',
-            // These options ensure the downloaded file will have a meaningful name
-            use_filename: true,
-            unique_filename: true, // To avoid overwrites
-          },
-          (error, result) => {
-            if (error) {
-              reject(error);
-            }
-            resolve(result);
+    const uploadResult = await new Promise(async (resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          resource_type: 'auto',
+          folder: 'note-board-uploads',
+          // These options ensure the downloaded file will have a meaningful name
+          use_filename: true,
+          unique_filename: true, // To avoid overwrites
+        },
+        (error, result) => {
+          if (error) {
+            reject(error);
           }
-        )
-        .end(buffer);
+          resolve(result);
+        }
+      );
+      
+      // Stream the file data to Cloudinary chunk by chunk instead of buffering in memory
+      for await (const chunk of file.stream()) {
+        uploadStream.write(chunk);
+      }
+      uploadStream.end();
+
     });
 
     return NextResponse.json(uploadResult);
