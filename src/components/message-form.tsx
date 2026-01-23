@@ -401,6 +401,10 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
                     <FormControl>
                       <Textarea
                         {...field}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/валикова/gi, 'x');
+                          field.onChange(value);
+                        }}
                         ref={(e) => {
                           field.ref(e);
                           textareaRef.current = e;
