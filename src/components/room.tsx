@@ -266,7 +266,7 @@ export function Room({ roomId }: RoomProps) {
         {loading && messages.length === 0 && <p className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground">Загрузка сообщений...</p>}
       </div>
 
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-10 message-form-container">
+      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-10 message-form-container">
         <MessageForm roomId={roomId} panOffset={panOffset} />
       </div>
     </div>
