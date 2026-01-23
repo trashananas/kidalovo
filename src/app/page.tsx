@@ -144,7 +144,7 @@ export default function Home() {
   return (
     <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
       <div className="flex flex-col items-center gap-8">
-        <div className="flex flex-col items-center gap-2">
+        <div className="flex flex-col items-center gap-2 select-none">
           <KidalovoLogo />
           <h1 className="text-5xl font-bold tracking-tight text-center font-headline">
             Kidalovo
@@ -169,7 +169,7 @@ export default function Home() {
             <UserGuide />
           </div>
 
-          <div className="relative w-full text-center">
+          <div className="relative w-full text-center select-none">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t" />
             </div>
