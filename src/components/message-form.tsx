@@ -345,7 +345,7 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
                         {selectedFile.name}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {selectedFile.type || 'unknown'}
+                        {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
                       </p>
                     </div>
                   </div>
@@ -362,7 +362,7 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
                       <Textarea
                         {...field}
                         onChange={(e) => {
-                          const value = e.target.value.replace(/валикова/gi, 'x');
+                          const value = e.target.value;
                           field.onChange(value);
                         }}
                         ref={(e) => {
