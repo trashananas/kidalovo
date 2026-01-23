@@ -128,6 +128,16 @@ const renderFormattedText = (text: string): React.ReactNode[] => {
   return nodes;
 };
 
+const getDownloadableUrl = (url: string): string => {
+  if (!url || !url.includes('/upload/')) {
+    return url;
+  }
+  // This adds the `fl_attachment` flag to the Cloudinary URL,
+  // which forces the browser to download the asset instead of displaying it.
+  // It will use the `original_filename` that we passed during upload.
+  return url.replace('/upload/', '/upload/fl_attachment/');
+};
+
 type MessageCardProps = {
   message: Message;
   roomId: string;
@@ -159,6 +169,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
 
   const isOwner = user?.uid === message.userId;
   const isImage = message.file?.type.startsWith('image/');
+  const downloadableUrl = message.file ? getDownloadableUrl(message.file.url) : '';
 
   // Effect for updating the 'time ago' string
   useEffect(() => {
@@ -432,8 +443,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
                         className="w-full h-auto object-contain max-h-96"
                     />
                     <a 
-                        href={message.file.url} 
-                        download={message.file.name}
+                        href={downloadableUrl} 
                         target="_blank"
                         rel="noopener noreferrer"
                         className="absolute bottom-1 right-1 bg-black/50 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
@@ -449,8 +459,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
                 <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{message.file.name}</p>
                      <a
-                        href={message.file.url}
-                        download={message.file.name}
+                        href={downloadableUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-xs text-primary hover:underline flex items-center gap-1"

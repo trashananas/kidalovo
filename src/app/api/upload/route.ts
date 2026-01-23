@@ -28,6 +28,8 @@ export async function POST(request: Request) {
             resource_type: 'auto',
             // It's good practice to place uploads in a specific folder
             folder: 'note-board-uploads',
+            // Pass the original filename so Cloudinary uses it for the download
+            original_filename: file.name,
           },
           (error, result) => {
             if (error) {
