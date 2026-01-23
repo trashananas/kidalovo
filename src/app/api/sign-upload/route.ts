@@ -45,7 +45,12 @@ export async function POST(request: Request) {
       timestamp: timestamp,
     }, API_SECRET);
 
-    return NextResponse.json({ timestamp, signature });
+    return NextResponse.json({
+      timestamp,
+      signature,
+      apiKey: API_KEY,
+      cloudName: CLOUD_NAME,
+    });
 
   } catch (error) {
     console.error('Ошибка при создании подписи Cloudinary:', error);

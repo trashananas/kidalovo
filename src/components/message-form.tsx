@@ -128,16 +128,14 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
         });
   
         if (!signResponse.ok) {
-          throw new Error('Не удалось получить подпись для загрузки.');
+          const errorBody = await signResponse.json();
+          throw new Error(errorBody.error || 'Не удалось получить подпись для загрузки.');
         }
   
-        const { signature, timestamp } = await signResponse.json();
-        
-        const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-        const apiKey = process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY;
+        const { signature, timestamp, apiKey, cloudName } = await signResponse.json();
 
-        if (!cloudName || !apiKey) {
-            throw new Error("Cloudinary конфигурация не найдена.");
+        if (!signature || !timestamp || !apiKey || !cloudName) {
+            throw new Error("Ответ от сервера для подписи не содержит всех необходимых данных.");
         }
 
         // Now, upload the file directly to Cloudinary
