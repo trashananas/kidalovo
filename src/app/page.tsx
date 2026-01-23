@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, PenSquare } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useUser, useAuth, useFirestore } from '@/firebase';
 import { initiateAnonymousSignIn } from '@/firebase/non-blocking-login';
 import { useRouter } from 'next/navigation';
@@ -12,6 +12,7 @@ import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { generateRoomCode, getErrorMessage } from '@/lib/utils';
 import { z } from 'zod';
 import { UserGuide } from '@/components/user-guide';
+import { KidalovoLogo } from '@/components/kidalovo-logo';
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
@@ -144,7 +145,7 @@ export default function Home() {
     <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
       <div className="flex flex-col items-center gap-8">
         <div className="flex flex-col items-center gap-2">
-          <PenSquare className="h-16 w-16 text-primary" />
+          <KidalovoLogo />
           <h1 className="text-5xl font-bold tracking-tight text-center font-headline">
             Kidalovo
           </h1>
