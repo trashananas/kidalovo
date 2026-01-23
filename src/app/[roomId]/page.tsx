@@ -1,3 +1,5 @@
+'use client';
+
 import { Room } from '@/components/room';
 
 type RoomPageProps = {
@@ -6,7 +8,7 @@ type RoomPageProps = {
   };
 };
 
-export default async function RoomPage({ params }: RoomPageProps) {
+export default function RoomPage({ params }: RoomPageProps) {
   const { roomId } = params;
   const upperCaseRoomId = roomId.toUpperCase();
   
