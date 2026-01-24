@@ -49,6 +49,8 @@ const renderFormattedText = (text: string): React.ReactNode[] => {
     'g'
   );
 
+  const replacer = (str: string) => str.replace(/валикова/gi, 'x');
+
   let match;
   while ((match = regex.exec(text)) !== null) {
     const startIndex = match.index;
@@ -56,7 +58,7 @@ const renderFormattedText = (text: string): React.ReactNode[] => {
 
     // Add text before the match
     if (startIndex > lastIndex) {
-      nodes.push(text.substring(lastIndex, startIndex));
+      nodes.push(replacer(text.substring(lastIndex, startIndex)));
     }
 
     // Handle link: @text@{url}
@@ -70,29 +72,29 @@ const renderFormattedText = (text: string): React.ReactNode[] => {
           className="text-blue-500 hover:underline dark:text-blue-400"
           onClick={(e) => e.stopPropagation()}
         >
-          {match[2]}
+          {replacer(match[2])}
         </a>
       );
     }
     // Handle bold: *text*
     else if (match[5] !== undefined) {
-      nodes.push(<strong key={lastIndex}>{match[5]}</strong>);
+      nodes.push(<strong key={lastIndex}>{replacer(match[5])}</strong>);
     }
     // Handle italic: \text\
     else if (match[7] !== undefined) {
-      nodes.push(<em key={lastIndex}>{match[7]}</em>);
+      nodes.push(<em key={lastIndex}>{replacer(match[7])}</em>);
     }
     // Handle underline: _text_
     else if (match[9] !== undefined) {
-      nodes.push(<u key={lastIndex}>{match[9]}</u>);
+      nodes.push(<u key={lastIndex}>{replacer(match[9])}</u>);
     }
     // Handle strikethrough: $text$
     else if (match[11] !== undefined) {
-      nodes.push(<s key={lastIndex}>{match[11]}</s>);
+      nodes.push(<s key={lastIndex}>{replacer(match[11])}</s>);
     }
     // Handle spoiler: #text#
     else if (match[13] !== undefined) {
-      nodes.push(<Spoiler key={lastIndex}>{match[13]}</Spoiler>);
+      nodes.push(<Spoiler key={lastIndex}>{replacer(match[13])}</Spoiler>);
     }
     // Handle autolink
     else if (match[14] !== undefined) {
@@ -108,7 +110,7 @@ const renderFormattedText = (text: string): React.ReactNode[] => {
           className="text-blue-500 hover:underline dark:text-blue-400"
           onClick={(e) => e.stopPropagation()}
         >
-          {fullMatch}
+          {replacer(fullMatch)}
         </a>
       );
     }
@@ -122,7 +124,7 @@ const renderFormattedText = (text: string): React.ReactNode[] => {
 
   // Add any remaining text after the last match
   if (lastIndex < text.length) {
-    nodes.push(text.substring(lastIndex));
+    nodes.push(replacer(text.substring(lastIndex)));
   }
 
   return nodes;
