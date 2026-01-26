@@ -11,6 +11,31 @@ import { useUser, useFirestore } from '@/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
+const GREEK_LOWER = {
+  pi: 'π',
+  alpha: 'α',
+  beta: 'β',
+  gamma: 'γ',
+  delta: 'δ',
+  phi: 'φ',
+  omega: 'ω',
+  theta: 'θ',
+  sigma: 'σ',
+};
+const GREEK_UPPER = {
+  pi: 'Π',
+  alpha: 'Α',
+  beta: 'Β',
+  gamma: 'Γ',
+  delta: 'Δ',
+  phi: 'Φ',
+  omega: 'Ω',
+  theta: 'Θ',
+  sigma: 'Σ',
+};
+const GREEK_WORDS = Object.keys(GREEK_LOWER).join('|');
+const GREEK_REGEX = new RegExp(`(?<![a-zA-Z])(${GREEK_WORDS})(?![a-zA-Z])`, 'gi');
+
 const Spoiler = ({ children }: { children: React.ReactNode }) => {
   const [isVisible, setIsVisible] = useState(false);
 
@@ -49,7 +74,29 @@ const renderFormattedText = (text: string): React.ReactNode[] => {
     'g'
   );
 
-  const replacer = (str: string) => str.replace(/валикова/gi, 'x');
+  const replacer = (str: string) => {
+    let processed = str.replace(/валикова/gi, 'тупая мразота и белобрысая пизда');
+    
+    processed = processed.replace(/_=/g, '≡');
+    processed = processed.replace(GREEK_REGEX, (match) => {
+      const lowerMatch = match.toLowerCase() as keyof typeof GREEK_LOWER;
+      
+      const isTitleCase = match.charAt(0) === match.charAt(0).toUpperCase() && match.slice(1) === lowerMatch.slice(1);
+      const isUpperCase = match === match.toUpperCase();
+
+      if ((isTitleCase || isUpperCase) && GREEK_UPPER[lowerMatch]) {
+        return GREEK_UPPER[lowerMatch];
+      }
+      
+      if (GREEK_LOWER[lowerMatch]) {
+        return GREEK_LOWER[lowerMatch];
+      }
+
+      return match;
+    });
+    
+    return processed;
+  };
 
   let match;
   while ((match = regex.exec(text)) !== null) {
