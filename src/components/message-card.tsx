@@ -62,18 +62,6 @@ const Spoiler = ({ children }: { children: React.ReactNode }) => {
 const renderFormattedText = (text: string): React.ReactNode[] => {
   const nodes: React.ReactNode[] = [];
   let lastIndex = 0;
-  // Regex for formatting. Note the lookarounds to prevent matching inside words.
-  const regex = new RegExp(
-    '(@(.*?)\@\{(.*?)\})' + // 1, 2, 3: @text@{link}
-      '|(?<![\\wа-яА-Я])(\\*.*?\\*)(?![\\wа-яА-Я])' + // 4, 5: *bold*
-      '|(?<![\\wа-яА-Я])(\\\\(.*?)\\\\)(?![\\wа-яА-Я])' + // 6, 7: \italic\
-      '|(?<![\\wа-яА-Я])(_(.*?)_)(?![\\wа-яА-Я])' + // 8, 9: _underline_
-      '|(?<![\\wа-яА-Я])(\\$([^$]*?)\\$)(?![\\wа-яА-Я])' + // 10, 11: $strikethrough$
-      '|(?<![\\wа-яА-Я])(#(.*?)#)(?![\\wа-яА-Я])' + // 12, 13: #spoiler#
-      '|((?:https?://|www\\.)[^\\s]+)' + // 14: autolink
-      '|(\\s<3\\s)', // 15: <3 heart
-    'g'
-  );
 
   const replacer = (str: string) => {
     let processed = str.replace(/валикова/gi, 'x');
@@ -99,24 +87,27 @@ const renderFormattedText = (text: string): React.ReactNode[] => {
     return processed;
   };
 
+  const regex = new RegExp(
+    '(@(.*?)\@\{(.*?)\})' + // 1, 2, 3: Link
+      '|(?<![\\wа-яА-Я])(\\*([^*].*?[^*]|[^\\s*])\\*)(?![\\wа-яА-Я])' + // 4, 5: Bold
+      '|(?<![\\wа-яА-Я])(\\\\([^\\\\]*?)\\\\)(?![\\wа-яА-Я])' + // 6, 7: Italic
+      '|(?<![\\wа-яА-Я])(_([^_]*?)_)(?![\\wа-яА-Я])' + // 8, 9: Underline
+      '|(?<![\\wа-яА-Я])(\\$([^$]*?)\\$)(?![\\wа-яА-Я])' + // 10, 11: Strike
+      '|(?<![\\wа-яА-Я])(#([^#]*?)#)(?![\\wа-яА-Я])' + // 12, 13: Spoiler
+      '|((?:https?://|www\\.)[^\\s]+)' + // 14: Autolink
+      '|(\\s<3\\s)', // 15: Heart
+    'g'
+  );
+
+
   let match;
   while ((match = regex.exec(text)) !== null) {
     const startIndex = match.index;
-    let fullMatch = match[0];
-
+    
     // Add text before the match
     if (startIndex > lastIndex) {
       nodes.push(replacer(text.substring(lastIndex, startIndex)));
     }
-
-    // Since lookarounds can be tricky with how they affect indexing of matches,
-    // we re-run a simpler regex on the matched part to extract content reliably.
-    const boldMatch = /^\*(.*)\*$/.exec(match[4] || '');
-    const italicMatch = /^\\(.*)\\[\\]?$/.exec(match[6] || ''); // Updated to handle trailing slash
-    const underlineMatch = /^_(.*)_$/.exec(match[8] || '');
-    const strikeMatch = /^\$(.*)\$$/.exec(match[10] || '');
-    const spoilerMatch = /^#(.*)#$/.exec(match[12] || '');
-
 
     // Handle link: @text@{url}
     if (match[2] !== undefined && match[3] !== undefined) {
@@ -134,30 +125,30 @@ const renderFormattedText = (text: string): React.ReactNode[] => {
       );
     }
     // Handle bold: *text*
-    else if (boldMatch) {
-      nodes.push(<strong key={lastIndex}>{replacer(boldMatch[1])}</strong>);
+    else if (match[5] !== undefined) {
+      nodes.push(<strong key={lastIndex}>{replacer(match[5])}</strong>);
     }
     // Handle italic: \text\
-    else if (italicMatch) {
-      nodes.push(<em key={lastIndex}>{replacer(italicMatch[1])}</em>);
+    else if (match[7] !== undefined) {
+      nodes.push(<em key={lastIndex}>{replacer(match[7])}</em>);
     }
     // Handle underline: _text_
-    else if (underlineMatch) {
-      nodes.push(<u key={lastIndex}>{replacer(underlineMatch[1])}</u>);
+    else if (match[9] !== undefined) {
+      nodes.push(<u key={lastIndex}>{replacer(match[9])}</u>);
     }
     // Handle strikethrough: $text$
-    else if (strikeMatch) {
-      nodes.push(<s key={lastIndex}>{replacer(strikeMatch[1])}</s>);
+    else if (match[11] !== undefined) {
+      nodes.push(<s key={lastIndex}>{replacer(match[11])}</s>);
     }
     // Handle spoiler: #text#
-    else if (spoilerMatch) {
-      nodes.push(<Spoiler key={lastIndex}>{replacer(spoilerMatch[1])}</Spoiler>);
+    else if (match[13] !== undefined) {
+      nodes.push(<Spoiler key={lastIndex}>{replacer(match[13])}</Spoiler>);
     }
     // Handle autolink
     else if (match[14] !== undefined) {
-      const url = fullMatch.startsWith('www.')
-        ? `http://${fullMatch}`
-        : fullMatch;
+      const url = match[14].startsWith('www.')
+        ? `http://${match[14]}`
+        : match[14];
       nodes.push(
         <a
           key={lastIndex}
@@ -167,7 +158,7 @@ const renderFormattedText = (text: string): React.ReactNode[] => {
           className="text-blue-500 hover:underline dark:text-blue-400"
           onClick={(e) => e.stopPropagation()}
         >
-          {replacer(fullMatch)}
+          {replacer(match[14])}
         </a>
       );
     }
@@ -177,7 +168,7 @@ const renderFormattedText = (text: string): React.ReactNode[] => {
     }
     // If no specific format matched but the main regex did, push the original text
     else {
-      nodes.push(replacer(fullMatch));
+      nodes.push(replacer(match[0]));
     }
 
 
