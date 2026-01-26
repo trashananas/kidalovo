@@ -62,20 +62,21 @@ const Spoiler = ({ children }: { children: React.ReactNode }) => {
 const renderFormattedText = (text: string): React.ReactNode[] => {
   const nodes: React.ReactNode[] = [];
   let lastIndex = 0;
+  // Regex for formatting. Note the lookarounds to prevent matching inside words.
   const regex = new RegExp(
     '(@(.*?)\@\{(.*?)\})' + // 1, 2, 3: @text@{link}
-      '|(\\*(.*?)\\*)' + // 4, 5: *bold*
-      '|(\\\\(.*?)\\\\)' + // 6, 7: \italic\
-      '|(_(.*?)_)' + // 8, 9: _underline_
-      '|(\\$([^$]*?)\\$)' + // 10, 11: $strikethrough$
-      '|(#(.*?)#)' + // 12, 13: #spoiler#
+      '|(?<![\\wа-яА-Я])(\\*.*?\\*)(?![\\wа-яА-Я])' + // 4, 5: *bold*
+      '|(?<![\\wа-яА-Я])(\\\\(.*?)\\\\)(?![\\wа-яА-Я])' + // 6, 7: \italic\
+      '|(?<![\\wа-яА-Я])(_(.*?)_)(?![\\wа-яА-Я])' + // 8, 9: _underline_
+      '|(?<![\\wа-яА-Я])(\\$([^$]*?)\\$)(?![\\wа-яА-Я])' + // 10, 11: $strikethrough$
+      '|(?<![\\wа-яА-Я])(#(.*?)#)(?![\\wа-яА-Я])' + // 12, 13: #spoiler#
       '|((?:https?://|www\\.)[^\\s]+)' + // 14: autolink
       '|(\\s<3\\s)', // 15: <3 heart
     'g'
   );
 
   const replacer = (str: string) => {
-    let processed = str.replace(/валикова/gi, 'тупая мразота и белобрысая пизда');
+    let processed = str.replace(/валикова/gi, 'x');
     
     processed = processed.replace(/_=/g, '≡');
     processed = processed.replace(GREEK_REGEX, (match) => {
@@ -101,12 +102,21 @@ const renderFormattedText = (text: string): React.ReactNode[] => {
   let match;
   while ((match = regex.exec(text)) !== null) {
     const startIndex = match.index;
-    const fullMatch = match[0];
+    let fullMatch = match[0];
 
     // Add text before the match
     if (startIndex > lastIndex) {
       nodes.push(replacer(text.substring(lastIndex, startIndex)));
     }
+
+    // Since lookarounds can be tricky with how they affect indexing of matches,
+    // we re-run a simpler regex on the matched part to extract content reliably.
+    const boldMatch = /^\*(.*)\*$/.exec(match[4] || '');
+    const italicMatch = /^\\(.*)\\[\\]?$/.exec(match[6] || ''); // Updated to handle trailing slash
+    const underlineMatch = /^_(.*)_$/.exec(match[8] || '');
+    const strikeMatch = /^\$(.*)\$$/.exec(match[10] || '');
+    const spoilerMatch = /^#(.*)#$/.exec(match[12] || '');
+
 
     // Handle link: @text@{url}
     if (match[2] !== undefined && match[3] !== undefined) {
@@ -124,24 +134,24 @@ const renderFormattedText = (text: string): React.ReactNode[] => {
       );
     }
     // Handle bold: *text*
-    else if (match[5] !== undefined) {
-      nodes.push(<strong key={lastIndex}>{replacer(match[5])}</strong>);
+    else if (boldMatch) {
+      nodes.push(<strong key={lastIndex}>{replacer(boldMatch[1])}</strong>);
     }
     // Handle italic: \text\
-    else if (match[7] !== undefined) {
-      nodes.push(<em key={lastIndex}>{replacer(match[7])}</em>);
+    else if (italicMatch) {
+      nodes.push(<em key={lastIndex}>{replacer(italicMatch[1])}</em>);
     }
     // Handle underline: _text_
-    else if (match[9] !== undefined) {
-      nodes.push(<u key={lastIndex}>{replacer(match[9])}</u>);
+    else if (underlineMatch) {
+      nodes.push(<u key={lastIndex}>{replacer(underlineMatch[1])}</u>);
     }
     // Handle strikethrough: $text$
-    else if (match[11] !== undefined) {
-      nodes.push(<s key={lastIndex}>{replacer(match[11])}</s>);
+    else if (strikeMatch) {
+      nodes.push(<s key={lastIndex}>{replacer(strikeMatch[1])}</s>);
     }
     // Handle spoiler: #text#
-    else if (match[13] !== undefined) {
-      nodes.push(<Spoiler key={lastIndex}>{replacer(match[13])}</Spoiler>);
+    else if (spoilerMatch) {
+      nodes.push(<Spoiler key={lastIndex}>{replacer(spoilerMatch[1])}</Spoiler>);
     }
     // Handle autolink
     else if (match[14] !== undefined) {
@@ -165,6 +175,11 @@ const renderFormattedText = (text: string): React.ReactNode[] => {
     else if (match[15] !== undefined) {
       nodes.push(<span key={lastIndex}> ❤️ </span>);
     }
+    // If no specific format matched but the main regex did, push the original text
+    else {
+      nodes.push(replacer(fullMatch));
+    }
+
 
     lastIndex = regex.lastIndex;
   }
