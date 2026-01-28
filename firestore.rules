@@ -115,7 +115,7 @@ service cloud.firestore {
         allow read, list: if isRoomMember(roomId);
         allow create: if isRoomMember(roomId) && isDrawingCreator();
         allow delete: if isRoomMember(roomId);
-        allow update: if false;
+        allow update: if isRoomMember(roomId);
       }
     }
   }
