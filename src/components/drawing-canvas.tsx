@@ -139,7 +139,14 @@ const RenderedObject = ({
       return <ellipse cx={cx} cy={cy} rx={rx} ry={ry} {...commonProps} {...interactionProps} />;
     }
     case 'triangle': {
-      if (drawing.points.length < 3) return null;
+      if (!drawing.points || drawing.points.length === 0) return null;
+
+      // WIP triangle with 1 or 2 points. Render as a path for feedback (dot or line).
+      if (drawing.points.length < 3) {
+        return <path d={getSvgPathFromPoints(drawing.points)} {...commonProps} {...interactionProps} />;
+      }
+      
+      // Completed triangle with 3 points.
       const pointsStr = drawing.points.map((p) => `${p.x},${p.y}`).join(' ');
       return <polygon points={pointsStr} {...commonProps} {...interactionProps} />;
     }
@@ -256,12 +263,12 @@ export function DrawingCanvas({
     if (e.target === svgRef.current) {
         setSelectedObjectId(null);
     }
+    // If it's not a drawing action, or not on the canvas, or a non-drawing tool, exit.
     if (!isDrawing || e.target !== svgRef.current || drawingTool === 'select' || drawingTool === 'pan' || drawingTool === 'eraser') return;
-
-    e.currentTarget.setPointerCapture(e.pointerId);
-    setIsInteracting(true);
+    
     const point = getPointInWorld(e);
 
+    // Special handling for multi-click triangle tool
     if (drawingTool === 'triangle') {
       const currentPoints = wipDrawing?.points || [];
       const newPoints = [...currentPoints, point];
@@ -283,11 +290,15 @@ export function DrawingCanvas({
           });
         }
         setWipDrawing(null);
-        setIsInteracting(false);
       }
-    } else {
-      setWipDrawing({ type: drawingTool, points: [point], color, strokeWidth });
+      // For triangle, we don't set isInteracting, because it's a multi-click tool, not a drag tool.
+      return; 
     }
+
+    // For all other "drag-to-draw" tools (path, rectangle, etc.)
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setIsInteracting(true);
+    setWipDrawing({ type: drawingTool, points: [point], color, strokeWidth });
   };
 
   const handleCanvasPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
@@ -305,8 +316,7 @@ export function DrawingCanvas({
     }
 
     if (!isDrawing || !isInteracting || drawingTool === 'pan' || drawingTool === 'select' || drawingTool === 'eraser') return;
-    if (drawingTool === 'triangle' || !wipDrawing) return;
-
+    
     if (e.buttons !== 1) return;
     const point = getPointInWorld(e);
 
@@ -363,8 +373,7 @@ export function DrawingCanvas({
       wipDrawing &&
       wipDrawing.points &&
       wipDrawing.points.length > 0 &&
-      wipDrawing.type &&
-      wipDrawing.type !== 'triangle'
+      wipDrawing.type
     ) {
       if (user) {
         saveDrawing({
