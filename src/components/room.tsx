@@ -167,8 +167,7 @@ export function Room({ roomId }: RoomProps) {
       !canPan ||
       target.closest('[data-message-card="true"]') ||
       target.closest('.message-form-container') ||
-      target.closest('.room-header') ||
-      target.closest('[data-drawing-canvas="true"]')
+      target.closest('.room-header')
     ) {
       return;
     }

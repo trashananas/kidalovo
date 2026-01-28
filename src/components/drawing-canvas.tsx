@@ -510,7 +510,7 @@ export function DrawingCanvas({
       case 'pan': return isInteracting ? 'cursor-grabbing' : 'cursor-grab';
       case 'select': return 'cursor-default';
       case 'eraser': return 'cursor-cell';
-      case 'pen':
+      case 'path':
       case 'arrow':
       case 'rectangle':
       case 'ellipse':
@@ -544,7 +544,7 @@ export function DrawingCanvas({
       data-drawing-canvas="true"
       className={cn(
         'absolute inset-0 w-full h-full',
-        isDrawing && cursorClass()
+        cursorClass()
       )}
       onPointerDown={handleCanvasPointerDown}
       onPointerMove={handleCanvasPointerMove}
