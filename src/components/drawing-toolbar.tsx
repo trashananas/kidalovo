@@ -8,6 +8,7 @@ import {
   RectangleHorizontal,
   Circle,
   Triangle,
+  MousePointer2,
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Slider } from './ui/slider';
@@ -19,8 +20,8 @@ type DrawingToolbarProps = {
   setColor: (color: string) => void;
   strokeWidth: number;
   setStrokeWidth: (width: number) => void;
-  drawingTool: DrawingShape | 'pan' | 'eraser';
-  setDrawingTool: (tool: DrawingShape | 'pan' | 'eraser') => void;
+  drawingTool: DrawingShape | 'pan' | 'eraser' | 'select';
+  setDrawingTool: (tool: DrawingShape | 'pan' | 'eraser' | 'select') => void;
 };
 
 export function DrawingToolbar({
@@ -41,10 +42,11 @@ export function DrawingToolbar({
   ];
 
   const tools: {
-    id: DrawingShape | 'pan' | 'eraser';
+    id: DrawingShape | 'pan' | 'eraser' | 'select';
     icon: React.ElementType;
     title: string;
   }[] = [
+    { id: 'select', icon: MousePointer2, title: 'Выделить' },
     { id: 'pan', icon: Hand, title: 'Перемещение' },
     { id: 'pen', icon: Pen, title: 'Ручка' },
     { id: 'arrow', icon: ArrowUpRight, title: 'Стрелка' },
@@ -56,9 +58,8 @@ export function DrawingToolbar({
 
   const handleColorClick = (c: string) => {
     setColor(c);
-    if (drawingTool === 'pan' || drawingTool === 'eraser') {
-      setDrawingTool('pen');
-    }
+    // Automatically switch to the pen tool when a color is selected
+    setDrawingTool('pen');
   };
 
   return (
@@ -92,7 +93,7 @@ export function DrawingToolbar({
               style={{ backgroundColor: c }}
               className={cn(
                 'w-8 h-8 rounded-md border-2 transition-all',
-                drawingTool !== 'pan' && drawingTool !== 'eraser' && color === c
+                drawingTool !== 'pan' && drawingTool !== 'eraser' && drawingTool !== 'select' && color === c
                   ? 'ring-2 ring-ring ring-offset-2 ring-offset-background'
                   : 'border-card',
                 c === '#FFFFFF' && 'border-muted'

@@ -12,6 +12,7 @@ import {
   Expand,
   Minimize,
   Pen,
+  MousePointer2,
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
@@ -56,7 +57,7 @@ export function Room({ roomId }: RoomProps) {
   const panStart = useRef({ x: 0, y: 0 });
 
   const [isDrawing, setIsDrawing] = useState(false);
-  const [drawingTool, setDrawingTool] = useState<DrawingShape | 'pan' | 'eraser'>('pan');
+  const [drawingTool, setDrawingTool] = useState<DrawingShape | 'pan' | 'eraser' | 'select'>('pan');
   const [drawColor, setDrawColor] = useState('#EF4444'); // Tailwind red-500
   const [strokeWidth, setStrokeWidth] = useState(4);
 
@@ -193,8 +194,10 @@ export function Room({ roomId }: RoomProps) {
   const toggleDrawing = () => {
     const newIsDrawing = !isDrawing;
     setIsDrawing(newIsDrawing);
-    if (!newIsDrawing) {
-      setDrawingTool('pan');
+    if (newIsDrawing) {
+        setDrawingTool('select');
+    } else {
+        setDrawingTool('pan');
     }
   };
 
@@ -226,6 +229,7 @@ export function Room({ roomId }: RoomProps) {
   const boardCursorClass = () => {
     if (!isDrawing) return isPanning ? 'cursor-grabbing' : 'cursor-grab';
     if (drawingTool === 'pan') return isPanning ? 'cursor-grabbing' : 'cursor-grab';
+    if (drawingTool === 'select') return 'cursor-default';
     return '';
   }
 
@@ -256,7 +260,7 @@ export function Room({ roomId }: RoomProps) {
             onClick={toggleDrawing}
             title="Режим рисования"
           >
-            <Pen />
+            {isDrawing ? <MousePointer2 /> : <Pen />}
           </Button>
           {isMobile && (
             <Button

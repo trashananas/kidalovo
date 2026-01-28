@@ -1,18 +1,21 @@
 'use client';
 
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import type { Point, DrawingObject, DrawingShape } from '@/types';
-import { useUser, useFirestore } from '@/firebase';
+import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import {
   collection,
   addDoc,
   serverTimestamp,
   doc,
   deleteDoc,
+  updateDoc,
 } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { getErrorMessage } from '@/lib/utils';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 type DrawingCanvasProps = {
   roomId: string;
@@ -21,9 +24,39 @@ type DrawingCanvasProps = {
   strokeWidth: number;
   panOffset: { x: number; y: number };
   drawings: DrawingObject[];
-  drawingTool: DrawingShape | 'pan' | 'eraser';
-  setDrawingTool: (tool: DrawingShape | 'pan' | 'eraser') => void;
+  drawingTool: DrawingShape | 'pan' | 'eraser' | 'select';
+  setDrawingTool: (tool: DrawingShape | 'pan' | 'eraser' | 'select') => void;
 };
+
+function getBoundingBox(object: DrawingObject): {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+} {
+  if (!object.points || object.points.length === 0) {
+    return { x: 0, y: 0, width: 0, height: 0 };
+  }
+
+  if (object.type === 'rectangle' || object.type === 'ellipse') {
+    if (object.points.length < 2) return { x: 0, y: 0, width: 0, height: 0 };
+    const [p1, p2] = object.points;
+    const x = Math.min(p1.x, p2.x);
+    const y = Math.min(p1.y, p2.y);
+    const width = Math.abs(p1.x - p2.x);
+    const height = Math.abs(p1.y - p2.y);
+    return { x, y, width, height };
+  }
+
+  const xCoords = object.points.map((p) => p.x);
+  const yCoords = object.points.map((p) => p.y);
+  const minX = Math.min(...xCoords);
+  const minY = Math.min(...yCoords);
+  const maxX = Math.max(...xCoords);
+  const maxY = Math.max(...yCoords);
+
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
 
 /**
  * Converts an array of points into an SVG path string.
@@ -48,12 +81,14 @@ function getSvgPathFromPoints(points: Point[]): string {
 
 const RenderedObject = ({
   drawing,
+  onPointerDown,
+  isSelected,
   drawingTool,
-  onDelete,
 }: {
   drawing: DrawingObject;
+  onPointerDown: (e: React.PointerEvent) => void;
+  isSelected: boolean;
   drawingTool: DrawingCanvasProps['drawingTool'];
-  onDelete: (id: string) => void;
 }) => {
   const commonProps = {
     stroke: drawing.color,
@@ -66,6 +101,7 @@ const RenderedObject = ({
   const interactionProps = {
     className: cn(
       'transition-all',
+      (drawingTool === 'select') && 'cursor-move',
       drawingTool === 'eraser' &&
         'cursor-pointer stroke-destructive/50 hover:stroke-destructive'
     ),
@@ -73,23 +109,12 @@ const RenderedObject = ({
       drawingTool === 'eraser'
         ? { strokeWidth: commonProps.strokeWidth + 10 }
         : {},
-    onPointerDown: (e: React.PointerEvent) => {
-      if (drawingTool === 'eraser') {
-        e.stopPropagation();
-        onDelete(drawing.id);
-      }
-    },
+    onPointerDown,
   };
 
   switch (drawing.type) {
     case 'path':
-      return (
-        <path
-          d={getSvgPathFromPoints(drawing.points)}
-          {...commonProps}
-          {...interactionProps}
-        />
-      );
+      return <path d={getSvgPathFromPoints(drawing.points)} {...commonProps} {...interactionProps} />;
     case 'arrow':
       return (
         <path
@@ -101,46 +126,22 @@ const RenderedObject = ({
       );
     case 'rectangle': {
       if (drawing.points.length < 2) return null;
-      const [p1, p2] = drawing.points;
-      const x = Math.min(p1.x, p2.x);
-      const y = Math.min(p1.y, p2.y);
-      const width = Math.abs(p1.x - p2.x);
-      const height = Math.abs(p1.y - p2.y);
-      return (
-        <rect
-          x={x}
-          y={y}
-          width={width}
-          height={height}
-          {...commonProps}
-          {...interactionProps}
-        />
-      );
+      const { x, y, width, height } = getBoundingBox(drawing);
+      return <rect x={x} y={y} width={width} height={height} {...commonProps} {...interactionProps} />;
     }
     case 'ellipse': {
       if (drawing.points.length < 2) return null;
-      const [p1, p2] = drawing.points;
-      const cx = (p1.x + p2.x) / 2;
-      const cy = (p1.y + p2.y) / 2;
-      const rx = Math.abs(p1.x - p2.x) / 2;
-      const ry = Math.abs(p1.y - p2.y) / 2;
-      return (
-        <ellipse
-          cx={cx}
-          cy={cy}
-          rx={rx}
-          ry={ry}
-          {...commonProps}
-          {...interactionProps}
-        />
-      );
+      const { x, y, width, height } = getBoundingBox(drawing);
+      const cx = x + width / 2;
+      const cy = y + height / 2;
+      const rx = width / 2;
+      const ry = height / 2;
+      return <ellipse cx={cx} cy={cy} rx={rx} ry={ry} {...commonProps} {...interactionProps} />;
     }
     case 'triangle': {
       if (drawing.points.length < 3) return null;
       const pointsStr = drawing.points.map((p) => `${p.x},${p.y}`).join(' ');
-      return (
-        <polygon points={pointsStr} {...commonProps} {...interactionProps} />
-      );
+      return <polygon points={pointsStr} {...commonProps} {...interactionProps} />;
     }
     default:
       return null;
@@ -161,11 +162,24 @@ export function DrawingCanvas({
   const firestore = useFirestore();
   const { toast } = useToast();
 
-  const [wipDrawing, setWipDrawing] = useState<Partial<DrawingObject> | null>(
-    null
-  );
+  const [wipDrawing, setWipDrawing] = useState<Partial<DrawingObject> | null>(null);
   const [isInteracting, setIsInteracting] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
+
+  const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
+  const [isMoving, setIsMoving] = useState(false);
+  const moveStartRef = useRef<{ x: number; y: number, object: DrawingObject } | null>(null);
+
+  const selectedObject = useMemo(() => {
+    if (!selectedObjectId) return null;
+    return drawings.find((d) => d.id === selectedObjectId) || null;
+  }, [selectedObjectId, drawings]);
+  
+  useEffect(() => {
+    if (drawingTool !== 'select') {
+      setSelectedObjectId(null);
+    }
+  }, [drawingTool]);
 
   const getPointInWorld = (e: React.PointerEvent<SVGSVGElement>): Point => {
     const svg = svgRef.current!;
@@ -184,45 +198,69 @@ export function DrawingCanvas({
     };
   };
 
-  const saveDrawing = async (drawing: Omit<DrawingObject, 'id' | 'createdAt'>) => {
+  const saveDrawing = (drawing: Omit<DrawingObject, 'id' | 'createdAt'>) => {
     if (!firestore || !user) return;
     const drawingsColRef = collection(firestore, 'rooms', roomId, 'drawings');
-    try {
-      await addDoc(drawingsColRef, {
-        ...drawing,
-        createdAt: serverTimestamp(),
-      });
-    } catch (error) {
-      toast({
-        title: 'Ошибка',
-        description: `Не удалось сохранить рисунок: ${getErrorMessage(error)}`,
-        variant: 'destructive',
-      });
-    }
+    addDoc(drawingsColRef, {
+      ...drawing,
+      createdAt: serverTimestamp(),
+    }).catch(error => {
+       errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: drawingsColRef.path,
+            operation: 'create',
+            requestResourceData: drawing,
+        }));
+        toast({
+            title: 'Ошибка',
+            description: `Не удалось сохранить рисунок: ${getErrorMessage(error)}`,
+            variant: 'destructive',
+        });
+    });
   };
 
-  const deleteDrawing = async (drawingId: string) => {
+  const deleteDrawing = (drawingId: string) => {
     if (!firestore || !roomId) return;
     const drawingRef = doc(firestore, 'rooms', roomId, 'drawings', drawingId);
-    try {
-      await deleteDoc(drawingRef);
-    } catch (error) {
-      toast({
-        title: 'Ошибка',
-        description: `Не удалось удалить рисунок: ${getErrorMessage(error)}`,
-        variant: 'destructive',
-      });
-    }
+    deleteDoc(drawingRef).catch(error => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: drawingRef.path,
+            operation: 'delete',
+        }));
+        toast({
+            title: 'Ошибка',
+            description: `Не удалось удалить рисунок: ${getErrorMessage(error)}`,
+            variant: 'destructive',
+        });
+    });
   };
 
-  const handlePointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!isDrawing || e.target !== svgRef.current) return;
+  const handleObjectPointerDown = (e: React.PointerEvent, drawing: DrawingObject) => {
+      e.stopPropagation();
+
+      if (drawingTool === 'select') {
+          setSelectedObjectId(drawing.id);
+          setIsMoving(true);
+          setWipDrawing(drawing);
+          moveStartRef.current = {
+              x: e.clientX,
+              y: e.clientY,
+              object: drawing,
+          };
+          (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      } else if (drawingTool === 'eraser') {
+          deleteDrawing(drawing.id);
+      }
+  }
+
+  const handleCanvasPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (e.target === svgRef.current) {
+        setSelectedObjectId(null);
+    }
+    if (!isDrawing || e.target !== svgRef.current || drawingTool === 'select' || drawingTool === 'pan' || drawingTool === 'eraser') return;
 
     e.currentTarget.setPointerCapture(e.pointerId);
     setIsInteracting(true);
     const point = getPointInWorld(e);
-
-    if (drawingTool === 'pan') return;
 
     if (drawingTool === 'triangle') {
       const currentPoints = wipDrawing?.points || [];
@@ -252,8 +290,21 @@ export function DrawingCanvas({
     }
   };
 
-  const handlePointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!isDrawing || !isInteracting || drawingTool === 'pan') return;
+  const handleCanvasPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (isMoving && moveStartRef.current && selectedObject) {
+        const dx = e.clientX - moveStartRef.current.x;
+        const dy = e.clientY - moveStartRef.current.y;
+
+        const newPoints = moveStartRef.current.object.points.map(p => ({
+            x: p.x + dx,
+            y: p.y + dy,
+        }));
+        
+        setWipDrawing({ ...selectedObject, points: newPoints });
+        return;
+    }
+
+    if (!isDrawing || !isInteracting || drawingTool === 'pan' || drawingTool === 'select' || drawingTool === 'eraser') return;
     if (drawingTool === 'triangle' || !wipDrawing) return;
 
     if (e.buttons !== 1) return;
@@ -275,8 +326,32 @@ export function DrawingCanvas({
     }
   };
 
-  const handlePointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!isDrawing || !isInteracting || drawingTool === 'pan') {
+  const handleCanvasPointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (isMoving && selectedObject && wipDrawing) {
+        (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+        setIsMoving(false);
+
+        const objectRef = doc(firestore, 'rooms', roomId, 'drawings', selectedObject.id);
+        updateDoc(objectRef, { points: wipDrawing.points })
+            .catch(error => {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({
+                    path: objectRef.path,
+                    operation: 'update',
+                    requestResourceData: { points: wipDrawing.points },
+                }));
+                toast({
+                    title: 'Ошибка',
+                    description: `Не удалось переместить объект: ${getErrorMessage(error)}`,
+                    variant: 'destructive',
+                });
+            });
+        
+        setWipDrawing(null);
+        moveStartRef.current = null;
+        return;
+    }
+
+    if (!isDrawing || !isInteracting || drawingTool === 'pan' || drawingTool === 'select' || drawingTool === 'eraser') {
        if (isInteracting) setIsInteracting(false);
        return;
     }
@@ -304,29 +379,24 @@ export function DrawingCanvas({
     setWipDrawing(null);
   };
   
-   const handleBoardPan = (e: React.PointerEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLElement;
-     if (
-      isDrawing &&
-      drawingTool !== 'pan' &&
-      !target.closest('[data-pan-initiator]')
-    ) {
-      return;
+  const cursorClass = () => {
+    if (!isDrawing) return 'pointer-events-none';
+    
+    switch(drawingTool) {
+      case 'pan': return isInteracting ? 'cursor-grabbing' : 'cursor-grab';
+      case 'select': return 'cursor-default';
+      case 'eraser': return 'cursor-cell';
+      case 'pen':
+      case 'arrow':
+      case 'rectangle':
+      case 'ellipse':
+      case 'triangle':
+        return 'cursor-crosshair';
+      default:
+        return 'pointer-events-none';
     }
-    // The rest of your pan logic goes here
-  };
+  }
 
-
-  const cursorClass =
-    {
-      pen: 'cursor-crosshair',
-      arrow: 'cursor-crosshair',
-      rectangle: 'cursor-crosshair',
-      ellipse: 'cursor-crosshair',
-      triangle: 'cursor-crosshair',
-      eraser: 'cursor-cell',
-      pan: isInteracting ? 'cursor-grabbing' : 'cursor-grab',
-    }[drawingTool] || 'cursor-default';
 
   const uniqueColors = useMemo(() => {
     const colors = new Set<string>();
@@ -342,12 +412,12 @@ export function DrawingCanvas({
       data-drawing-canvas="true"
       className={cn(
         'absolute inset-0 w-full h-full',
-        isDrawing ? cursorClass : 'pointer-events-none'
+        isDrawing && cursorClass()
       )}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerLeave={handlePointerUp}
+      onPointerDown={handleCanvasPointerDown}
+      onPointerMove={handleCanvasPointerMove}
+      onPointerUp={handleCanvasPointerUp}
+      onPointerLeave={handleCanvasPointerUp}
       style={{ transform: `translate(${panOffset.x}px, ${panOffset.y}px)` }}
     >
       <defs>
@@ -369,21 +439,43 @@ export function DrawingCanvas({
       </defs>
       <g>
         {drawings.map((drawing) => (
-          <RenderedObject
-            key={drawing.id}
-            drawing={drawing}
-            drawingTool={drawingTool}
-            onDelete={deleteDrawing}
-          />
+          // Hide the original object while it is being moved
+          isMoving && drawing.id === selectedObjectId ? null : (
+            <RenderedObject
+              key={drawing.id}
+              drawing={drawing}
+              drawingTool={drawingTool}
+              isSelected={drawing.id === selectedObjectId}
+              onPointerDown={(e) => handleObjectPointerDown(e, drawing)}
+            />
+          )
         ))}
 
         {wipDrawing && wipDrawing.points && (
           <RenderedObject
             drawing={wipDrawing as DrawingObject}
-            drawingTool={drawingTool}
-            onDelete={() => {}}
+            drawingTool={wipDrawing.type as DrawingShape}
+            isSelected={false}
+            onPointerDown={() => {}}
           />
         )}
+
+        {selectedObject && !isMoving && (() => {
+          const bbox = getBoundingBox(selectedObject);
+          return (
+            <rect
+              x={bbox.x}
+              y={bbox.y}
+              width={bbox.width}
+              height={bbox.height}
+              fill="none"
+              stroke="#3B82F6"
+              strokeWidth={1}
+              strokeDasharray="4 2"
+              className="pointer-events-none"
+            />
+          );
+        })()}
       </g>
     </svg>
   );
