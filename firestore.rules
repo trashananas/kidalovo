@@ -121,7 +121,7 @@ service cloud.firestore {
       match /paths/{pathId} {
         allow read, list: if isRoomMember(roomId);
         allow create: if isRoomMember(roomId) && isPathCreator();
-        allow delete: if isRoomMember(roomId) && isPathOwner() && isExistingDoc();
+        allow delete: if isRoomMember(roomId);
         allow update: if false;
       }
     }

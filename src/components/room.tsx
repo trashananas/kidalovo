@@ -5,7 +5,14 @@ import { MessageCard } from './message-card';
 import { MessageForm } from './message-form';
 import { Badge } from './ui/badge';
 import Link from 'next/link';
-import { ArrowLeft, Loader2, Trash2, Expand, Minimize, Pen } from 'lucide-react';
+import {
+  ArrowLeft,
+  Loader2,
+  Trash2,
+  Expand,
+  Minimize,
+  Pen,
+} from 'lucide-react';
 import { Button } from './ui/button';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { useState, useRef, useEffect } from 'react';
@@ -48,6 +55,7 @@ export function Room({ roomId }: RoomProps) {
   const panStart = useRef({ x: 0, y: 0 });
 
   const [isDrawing, setIsDrawing] = useState(false);
+  const [drawingTool, setDrawingTool] = useState('pen');
   const [drawColor, setDrawColor] = useState('#EF4444'); // Tailwind red-500
   const [strokeWidth, setStrokeWidth] = useState(4);
 
@@ -72,7 +80,8 @@ export function Room({ roomId }: RoomProps) {
       setIsFullscreen(!!document.fullscreenElement);
     };
     document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    return () =>
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
   const toggleFullscreen = async () => {
@@ -97,50 +106,57 @@ export function Room({ roomId }: RoomProps) {
       }
     }
   };
-  
+
   const handleDeleteRoom = async () => {
     if (!firestore || !user || !roomRef) return;
-    
+
     setIsDeleting(true);
-    
+
     try {
-        const messagesCollectionRef = collection(firestore, 'rooms', roomId, 'messages');
-        const pathsCollectionRef = collection(firestore, 'rooms', roomId, 'paths');
-        
-        const [messagesSnapshot, pathsSnapshot] = await Promise.all([
-            getDocs(messagesCollectionRef),
-            getDocs(pathsCollectionRef)
-        ]);
-        
-        const batch = writeBatch(firestore);
-        
-        messagesSnapshot.docs.forEach(doc => batch.delete(doc.ref));
-        pathsSnapshot.docs.forEach(doc => batch.delete(doc.ref));
-        
-        batch.delete(roomRef);
-        
-        await batch.commit();
-        
-        toast({
-            title: 'Комната удалена',
-            description: `Комната ${roomId} и всё её содержимое были удалены.`,
-        });
-        
-        router.push('/');
-        
+      const messagesCollectionRef = collection(
+        firestore,
+        'rooms',
+        roomId,
+        'messages'
+      );
+      const pathsCollectionRef = collection(firestore, 'rooms', roomId, 'paths');
+
+      const [messagesSnapshot, pathsSnapshot] = await Promise.all([
+        getDocs(messagesCollectionRef),
+        getDocs(pathsCollectionRef),
+      ]);
+
+      const batch = writeBatch(firestore);
+
+      messagesSnapshot.docs.forEach((doc) => batch.delete(doc.ref));
+      pathsSnapshot.docs.forEach((doc) => batch.delete(doc.ref));
+
+      batch.delete(roomRef);
+
+      await batch.commit();
+
+      toast({
+        title: 'Комната удалена',
+        description: `Комната ${roomId} и всё её содержимое были удалены.`,
+      });
+
+      router.push('/');
     } catch (error) {
-        console.error("Ошибка при удалении комнаты: ", error);
-        toast({
-            title: 'Ошибка удаления',
-            description: 'Удалить комнату может только последний участник. ' + getErrorMessage(error),
-            variant: 'destructive',
-        });
-        setIsDeleting(false);
-        setIsDeleteDialogOpen(false);
+      console.error('Ошибка при удалении комнаты: ', error);
+      toast({
+        title: 'Ошибка удаления',
+        description:
+          'Удалить комнату может только последний участник. ' +
+          getErrorMessage(error),
+        variant: 'destructive',
+      });
+      setIsDeleting(false);
+      setIsDeleteDialogOpen(false);
     }
   };
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    // This pan handler should only work when NOT in drawing mode.
     if (isDrawing) return;
 
     const target = e.target as HTMLElement;
@@ -168,7 +184,16 @@ export function Room({ roomId }: RoomProps) {
     setIsPanning(false);
     e.currentTarget.releasePointerCapture(e.pointerId);
   };
-  
+
+  const toggleDrawing = () => {
+    const newIsDrawing = !isDrawing;
+    setIsDrawing(newIsDrawing);
+    // If turning drawing mode OFF, reset tool to pen for next time.
+    if (!newIsDrawing) {
+      setDrawingTool('pen');
+    }
+  };
+
   if (isUserLoading || (!user && !error)) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
@@ -176,15 +201,18 @@ export function Room({ roomId }: RoomProps) {
       </div>
     );
   }
-  
+
   if (error) {
-     return (
+    return (
       <div className="flex h-screen w-full flex-col items-center justify-center gap-4 text-center">
-        <h2 className="text-2xl font-bold text-destructive">Ошибка загрузки комнаты</h2>
+        <h2 className="text-2xl font-bold text-destructive">
+          Ошибка загрузки комнаты
+        </h2>
         <p className="max-w-md text-muted-foreground">
-         Не удалось загрузить данные комнаты. Возможно, вы ввели неверный код или у вас нет прав доступа. Проверьте код и попробуйте снова.
+          Не удалось загрузить данные комнаты. Возможно, вы ввели неверный код
+          или у вас нет прав доступа. Проверьте код и попробуйте снова.
         </p>
-         <Button asChild>
+        <Button asChild>
           <Link href="/">Вернуться на главную</Link>
         </Button>
       </div>
@@ -202,84 +230,94 @@ export function Room({ roomId }: RoomProps) {
         </Button>
         <div>
           <h1 className="text-lg font-semibold hidden sm:block">Код комнаты</h1>
-          <Badge variant="secondary" className="text-base font-bold tracking-widest">
+          <Badge
+            variant="secondary"
+            className="text-base font-bold tracking-widest"
+          >
             {roomId}
           </Badge>
         </div>
-        
+
         <div className="flex items-center gap-2 rounded-full border bg-card p-1 shadow-sm">
+          <Button
+            variant={isDrawing ? 'secondary' : 'ghost'}
+            size="icon"
+            onClick={toggleDrawing}
+            title="Режим рисования"
+          >
+            <Pen />
+          </Button>
+          {isMobile && (
             <Button
-                variant={isDrawing ? 'secondary' : 'ghost'}
-                size="icon"
-                onClick={() => setIsDrawing(!isDrawing)}
-                title="Режим рисования"
+              variant="ghost"
+              size="icon"
+              onClick={toggleFullscreen}
+              title={isFullscreen ? 'Выйти' : 'Во весь экран'}
             >
-                <Pen />
+              {isFullscreen ? <Minimize /> : <Expand />}
             </Button>
-            {isMobile && (
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={toggleFullscreen}
-                    title={isFullscreen ? "Выйти" : "Во весь экран"}
-                >
-                    {isFullscreen ? <Minimize /> : <Expand />}
-                </Button>
-            )}
-            {user && (
+          )}
+          {user && (
             <>
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-destructive-foreground bg-destructive/80 hover:bg-destructive"
-                    onClick={() => setIsDeleteDialogOpen(true)}
-                    disabled={isDeleting}
-                    title="Удалить комнату (только для последнего участника)"
-                >
-                    {isDeleting ? <Loader2 className="animate-spin" /> : <Trash2 />}
-                </Button>
-                <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>Вы уверены?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                Это действие навсегда удалит комнату и всё её содержимое (сообщения и рисунки).
-                                Действие сработает, только если вы последний участник в комнате.
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel disabled={isDeleting}>Отмена</AlertDialogCancel>
-                            <AlertDialogAction
-                                onClick={handleDeleteRoom}
-                                disabled={isDeleting}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            >
-                                {isDeleting ? 'Удаление...' : 'Удалить'}
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-destructive-foreground bg-destructive/80 hover:bg-destructive"
+                onClick={() => setIsDeleteDialogOpen(true)}
+                disabled={isDeleting}
+                title="Удалить комнату (только для последнего участника)"
+              >
+                {isDeleting ? <Loader2 className="animate-spin" /> : <Trash2 />}
+              </Button>
+              <AlertDialog
+                open={isDeleteDialogOpen}
+                onOpenChange={setIsDeleteDialogOpen}
+              >
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Вы уверены?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Это действие навсегда удалит комнату и всё её содержимое
+                      (сообщения и рисунки). Действие сработает, только если вы
+                      последний участник в комнате.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isDeleting}>
+                      Отмена
+                    </AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDeleteRoom}
+                      disabled={isDeleting}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      {isDeleting ? 'Удаление...' : 'Удалить'}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </>
-            )}
+          )}
         </div>
       </header>
-      
+
       {isDrawing && (
         <DrawingToolbar
           color={drawColor}
           setColor={setDrawColor}
           strokeWidth={strokeWidth}
           setStrokeWidth={setStrokeWidth}
-          roomId={roomId}
+          drawingTool={drawingTool}
+          setDrawingTool={setDrawingTool}
         />
       )}
-      
+
       <div
         id="board"
         className={cn(
-            'absolute inset-0',
-            isPanning && 'cursor-grabbing',
-            !isPanning && !isDrawing && 'cursor-grab'
+          'absolute inset-0',
+          isPanning && 'cursor-grabbing',
+          !isPanning && !isDrawing && 'cursor-grab'
         )}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -294,20 +332,31 @@ export function Room({ roomId }: RoomProps) {
           }}
         >
           {messages.map((msg) => (
-            <MessageCard key={msg.id} message={msg} roomId={roomId} panOffset={panOffset} />
+            <MessageCard
+              key={msg.id}
+              message={msg}
+              roomId={roomId}
+              panOffset={panOffset}
+            />
           ))}
         </div>
-        
+
         <DrawingCanvas
           roomId={roomId}
           isDrawing={isDrawing}
           color={drawColor}
           strokeWidth={strokeWidth}
           panOffset={panOffset}
+          setPanOffset={setPanOffset}
           paths={paths}
+          drawingTool={drawingTool}
         />
-        
-        {loading && messages.length === 0 && <p className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground">Загрузка сообщений...</p>}
+
+        {loading && messages.length === 0 && (
+          <p className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground">
+            Загрузка сообщений...
+          </p>
+        )}
       </div>
 
       <div className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-20 message-form-container">
