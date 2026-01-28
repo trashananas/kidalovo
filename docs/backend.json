@@ -190,6 +190,10 @@
         "strokeWidth": {
           "type": "number"
         },
+        "rotation": {
+          "type": "number",
+          "description": "The rotation of the object in degrees."
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time"

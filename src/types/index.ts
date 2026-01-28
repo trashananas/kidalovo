@@ -36,5 +36,6 @@ export type DrawingObject = {
   points: Point[];
   color: string;
   strokeWidth: number;
+  rotation?: number;
   createdAt: Timestamp;
 };

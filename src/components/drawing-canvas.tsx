@@ -176,7 +176,10 @@ export function DrawingCanvas({
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [isMoving, setIsMoving] = useState(false);
   const [editingVertex, setEditingVertex] = useState<{pointIndex: number} | null>(null);
+  const [isRotating, setIsRotating] = useState(false);
   const moveStartRef = useRef<{ x: number; y: number, object: DrawingObject } | null>(null);
+  const rotationStartRef = useRef<{ objectInitialRotation: number; pivot: Point; startAngle: number; } | null>(null);
+
 
   const selectedObject = useMemo(() => {
     if (!selectedObjectId) return null;
@@ -250,6 +253,30 @@ export function DrawingCanvas({
     setWipDrawing(selectedObject); // Start editing from the current state
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
   }
+  
+  const handleRotationPointerDown = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    if (drawingTool !== 'select' || !selectedObject) return;
+
+    setIsRotating(true);
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    
+    const pointerPos = getPointInWorld(e as any);
+    const bbox = getBoundingBox(selectedObject);
+    const pivot = {
+        x: bbox.x + bbox.width / 2,
+        y: bbox.y + bbox.height / 2,
+    };
+
+    const startAngle = Math.atan2(pointerPos.y - pivot.y, pointerPos.x - pivot.x);
+
+    rotationStartRef.current = {
+        objectInitialRotation: selectedObject.rotation || 0,
+        pivot: pivot,
+        startAngle: startAngle,
+    };
+    setWipDrawing(selectedObject);
+};
 
   const handleObjectPointerDown = (e: React.PointerEvent, drawing: DrawingObject) => {
       e.stopPropagation();
@@ -287,6 +314,7 @@ export function DrawingCanvas({
         points: newPoints,
         color,
         strokeWidth,
+        rotation: 0,
       });
 
       if (newPoints.length === 3) {
@@ -297,6 +325,7 @@ export function DrawingCanvas({
             points: newPoints,
             color,
             strokeWidth,
+            rotation: 0,
           });
         }
         setWipDrawing(null);
@@ -308,10 +337,23 @@ export function DrawingCanvas({
     // For all other "drag-to-draw" tools (path, rectangle, etc.)
     e.currentTarget.setPointerCapture(e.pointerId);
     setIsInteracting(true);
-    setWipDrawing({ type: drawingTool, points: [point], color, strokeWidth });
+    setWipDrawing({ type: drawingTool, points: [point], color, strokeWidth, rotation: 0 });
   };
 
   const handleCanvasPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    // --- Rotation ---
+    if (isRotating && rotationStartRef.current && wipDrawing) {
+        const pointerPos = getPointInWorld(e);
+        const { pivot, startAngle, objectInitialRotation } = rotationStartRef.current;
+
+        const currentAngle = Math.atan2(pointerPos.y - pivot.y, pointerPos.x - pivot.x);
+        const angleDelta = currentAngle - startAngle; // in radians
+        const angleDeltaDegrees = angleDelta * (180 / Math.PI);
+
+        const newRotation = objectInitialRotation + angleDeltaDegrees;
+        setWipDrawing({ ...wipDrawing, rotation: newRotation });
+        return;
+    }
     // --- Vertex Editing ---
     if (editingVertex && wipDrawing) {
         const newPoint = getPointInWorld(e);
@@ -366,15 +408,29 @@ export function DrawingCanvas({
 
   const handleCanvasPointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
     const saveEditedObject = () => {
-        if (!selectedObject || !wipDrawing || !wipDrawing.points) return;
+        if (!selectedObject || !wipDrawing) return;
         
         const objectRef = doc(firestore, 'rooms', roomId, 'drawings', selectedObject.id);
-        updateDoc(objectRef, { points: wipDrawing.points })
+
+        const updatePayload: Partial<DrawingObject> = {};
+        const hasPointsChanged = wipDrawing.points && JSON.stringify(wipDrawing.points) !== JSON.stringify(selectedObject.points);
+        const hasRotationChanged = wipDrawing.rotation !== undefined && wipDrawing.rotation !== (selectedObject.rotation || 0);
+
+        if (hasPointsChanged) {
+            updatePayload.points = wipDrawing.points;
+        }
+        if (hasRotationChanged) {
+            updatePayload.rotation = wipDrawing.rotation;
+        }
+        
+        if (Object.keys(updatePayload).length === 0) return;
+
+        updateDoc(objectRef, updatePayload)
             .catch(error => {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({
                     path: objectRef.path,
                     operation: 'update',
-                    requestResourceData: { points: wipDrawing.points },
+                    requestResourceData: updatePayload,
                 }));
                 toast({
                     title: 'Ошибка',
@@ -384,6 +440,15 @@ export function DrawingCanvas({
             });
     }
 
+    // --- Rotation Finished ---
+    if (isRotating) {
+        (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+        setIsRotating(false);
+        saveEditedObject();
+        setWipDrawing(null);
+        rotationStartRef.current = null;
+        return;
+    }
     // --- Vertex Editing Finished ---
     if (editingVertex) {
         (e.target as HTMLElement).releasePointerCapture(e.pointerId);
@@ -431,6 +496,7 @@ export function DrawingCanvas({
             points: wipDrawing.points,
             color: wipDrawing.color || color,
             strokeWidth: wipDrawing.strokeWidth || strokeWidth,
+            rotation: wipDrawing.rotation || 0,
         });
       }
     }
@@ -465,11 +531,11 @@ export function DrawingCanvas({
 
   // Determine which object to display: the one being edited/moved, or the original
   const displayedDrawings = useMemo(() => {
-    if (wipDrawing && (isMoving || editingVertex)) {
+    if (wipDrawing && (isMoving || editingVertex || isRotating)) {
       return drawings.map(d => d.id === wipDrawing.id ? (wipDrawing as DrawingObject) : d);
     }
     return drawings;
-  }, [drawings, wipDrawing, isMoving, editingVertex]);
+  }, [drawings, wipDrawing, isMoving, editingVertex, isRotating]);
 
 
   return (
@@ -504,15 +570,23 @@ export function DrawingCanvas({
         ))}
       </defs>
       <g>
-        {displayedDrawings.map((drawing) => (
-            <RenderedObject
-              key={drawing.id}
-              drawing={drawing}
-              drawingTool={drawingTool}
-              isSelected={drawing.id === selectedObjectId}
-              onPointerDown={(e) => handleObjectPointerDown(e, drawing)}
-            />
-        ))}
+        {displayedDrawings.map((drawing) => {
+            const { x, y, width, height } = getBoundingBox(drawing);
+            const centerX = x + width / 2;
+            const centerY = y + height / 2;
+            
+            return (
+                <g key={drawing.id} transform={`rotate(${drawing.rotation || 0} ${centerX} ${centerY})`}>
+                    <RenderedObject
+                      key={drawing.id}
+                      drawing={drawing}
+                      drawingTool={drawingTool}
+                      isSelected={drawing.id === selectedObjectId}
+                      onPointerDown={(e) => handleObjectPointerDown(e, drawing)}
+                    />
+                </g>
+            );
+        })}
 
         {wipDrawing && isInteracting && wipDrawing.points && (
           <RenderedObject
@@ -523,39 +597,60 @@ export function DrawingCanvas({
           />
         )}
 
-        {selectedObject && !isMoving && !editingVertex && (
-        <>
-            {(() => {
-                const bbox = getBoundingBox(selectedObject);
+        {selectedObject && !isMoving && !editingVertex && !isRotating && (
+        (() => {
+                const { x, y, width, height } = getBoundingBox(selectedObject);
+                const centerX = x + width / 2;
+                const centerY = y + height / 2;
+                const rotation = selectedObject.rotation || 0;
+                
                 return (
-                    <rect
-                        x={bbox.x}
-                        y={bbox.y}
-                        width={bbox.width}
-                        height={bbox.height}
-                        fill="none"
-                        stroke="#3B82F6"
-                        strokeWidth={1}
-                        strokeDasharray="4 2"
-                        className="pointer-events-none"
-                    />
-                );
-            })()}
-
-            {selectedObject.points.map((p, index) => (
-                <circle
-                    key={`handle-${index}`}
-                    cx={p.x}
-                    cy={p.y}
-                    r={5 / (svgRef.current?.getScreenCTM()?.a || 1)}
-                    fill="#3B82F6"
-                    stroke="white"
-                    strokeWidth={1.5 / (svgRef.current?.getScreenCTM()?.a || 1)}
-                    className="cursor-move"
-                    onPointerDown={(e) => handleVertexPointerDown(e, index)}
-                />
-            ))}
-        </>
+                    <g transform={`rotate(${rotation} ${centerX} ${centerY})`}>
+                        <rect
+                            x={x}
+                            y={y}
+                            width={width}
+                            height={height}
+                            fill="none"
+                            stroke="#3B82F6"
+                            strokeWidth={1}
+                            strokeDasharray="4 2"
+                            className="pointer-events-none"
+                        />
+                         {selectedObject.points.map((p, index) => (
+                            <circle
+                                key={`handle-${index}`}
+                                cx={p.x}
+                                cy={p.y}
+                                r={5 / (svgRef.current?.getScreenCTM()?.a || 1)}
+                                fill="#3B82F6"
+                                stroke="white"
+                                strokeWidth={1.5 / (svgRef.current?.getScreenCTM()?.a || 1)}
+                                className="cursor-move"
+                                onPointerDown={(e) => handleVertexPointerDown(e, index)}
+                            />
+                        ))}
+                         <g>
+                            <line 
+                                x1={centerX} y1={y} 
+                                x2={centerX} y2={y - 20} 
+                                stroke="#3B82F6" 
+                                strokeWidth={1.5 / (svgRef.current?.getScreenCTM()?.a || 1)} 
+                            />
+                            <circle
+                                cx={centerX}
+                                cy={y - 25}
+                                r={5 / (svgRef.current?.getScreenCTM()?.a || 1)}
+                                fill="#3B82F6"
+                                stroke="white"
+                                strokeWidth={1.5 / (svgRef.current?.getScreenCTM()?.a || 1)}
+                                className="cursor-alias"
+                                onPointerDown={handleRotationPointerDown}
+                            />
+                        </g>
+                    </g>
+                )
+            })()
         )}
       </g>
     </svg>
