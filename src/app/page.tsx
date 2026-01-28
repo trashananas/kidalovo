@@ -142,6 +142,25 @@ export default function Home() {
     );
   }
 
+  const handleCodeInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rusToEngMap: { [key: string]: string } = {
+        'й': 'q', 'ц': 'w', 'у': 'e', 'к': 'r', 'е': 't', 'н': 'y', 'г': 'u', 'ш': 'i', 'щ': 'o', 'з': 'p',
+        'ф': 'a', 'ы': 's', 'в': 'd', 'а': 'f', 'п': 'g', 'р': 'h', 'о': 'j', 'л': 'k', 'д': 'l',
+        'я': 'z', 'ч': 'x', 'с': 'c', 'м': 'v', 'и': 'b', 'т': 'n', 'ь': 'm',
+    };
+    
+    let value = e.target.value;
+    let translatedValue = '';
+    for (let i = 0; i < value.length; i++) {
+        const char = value[i].toLowerCase();
+        translatedValue += rusToEngMap[char] || value[i];
+    }
+    
+    e.target.value = translatedValue
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '');
+  };
+
   return (
     <main className="relative flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
       <div className="flex flex-col items-center gap-8">
@@ -184,11 +203,7 @@ export default function Home() {
                 placeholder="A1B2"
                 className="w-full text-center text-lg font-semibold tracking-widest uppercase"
                 maxLength={4}
-                onChange={(e) => {
-                  e.target.value = e.target.value
-                    .toUpperCase()
-                    .replace(/[^A-Z0-9]/g, '');
-                }}
+                onChange={handleCodeInputChange}
                 required
                 disabled={isJoiningRoom}
               />
