@@ -33,7 +33,7 @@ type RoomProps = {
 
 export function Room({ roomId }: RoomProps) {
   const { user, isUserLoading } = useUser();
-  const { messages, loading, error } = useRoom(roomId);
+  const { messages, paths, loading, error } = useRoom(roomId);
   const router = useRouter();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -304,6 +304,7 @@ export function Room({ roomId }: RoomProps) {
           color={drawColor}
           strokeWidth={strokeWidth}
           panOffset={panOffset}
+          paths={paths}
         />
         
         {loading && messages.length === 0 && <p className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground">Загрузка сообщений...</p>}

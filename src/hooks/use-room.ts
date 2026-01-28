@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { collection, query, orderBy, doc, updateDoc } from 'firebase/firestore';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
-import type { Message } from '@/types';
+import type { Message, Path } from '@/types';
 
 export function useRoom(roomId: string) {
   const firestore = useFirestore();
@@ -52,12 +52,22 @@ export function useRoom(roomId: string) {
     );
   }, [firestore, roomId, isJoinAttemptComplete, joinError]);
 
+  const pathsQuery = useMemoFirebase(() => {
+    // Only construct the query if the join attempt is complete and was successful.
+    if (!firestore || !roomId || !isJoinAttemptComplete || joinError) return null;
+    return query(
+      collection(firestore, 'rooms', roomId, 'paths'),
+      orderBy('createdAt', 'asc')
+    );
+  }, [firestore, roomId, isJoinAttemptComplete, joinError]);
+
   const { data: messages, isLoading: messagesLoading, error: messagesError } = useCollection<Message>(messagesQuery);
+  const { data: paths, isLoading: pathsLoading, error: pathsError } = useCollection<Path>(pathsQuery);
   
-  const finalError = joinError || messagesError;
+  const finalError = joinError || messagesError || pathsError;
 
-  // The overall loading state is true until the join is complete AND message loading is complete (if applicable).
-  const finalLoading = !isJoinAttemptComplete || (messagesQuery ? messagesLoading : false);
+  // The overall loading state is true until the join is complete AND data loading is complete.
+  const finalLoading = !isJoinAttemptComplete || (messagesQuery ? messagesLoading : false) || (pathsQuery ? pathsLoading : false);
 
-  return { messages: messages ?? [], loading: finalLoading, error: finalError };
+  return { messages: messages ?? [], paths: paths ?? [], loading: finalLoading, error: finalError };
 }

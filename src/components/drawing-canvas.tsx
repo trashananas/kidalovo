@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { usePaths } from '@/hooks/use-paths';
-import type { Point } from '@/types';
+import type { Point, Path } from '@/types';
 import { useUser, useFirestore } from '@/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
@@ -15,6 +14,7 @@ type DrawingCanvasProps = {
   color: string;
   strokeWidth: number;
   panOffset: { x: number; y: number };
+  paths: Path[];
 };
 
 /**
@@ -46,11 +46,11 @@ export function DrawingCanvas({
   color,
   strokeWidth,
   panOffset,
+  paths,
 }: DrawingCanvasProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
-  const { paths } = usePaths(roomId);
   const [currentPoints, setCurrentPoints] = useState<Point[]>([]);
 
   const svgRef = useRef<SVGSVGElement>(null);
