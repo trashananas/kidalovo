@@ -146,6 +146,52 @@
         "position",
         "createdAt"
       ]
+    },
+    "Path": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Path",
+      "type": "object",
+      "description": "Represents a single continuous path drawn on the board.",
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "points": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "x",
+              "y"
+            ]
+          }
+        },
+        "color": {
+          "type": "string"
+        },
+        "strokeWidth": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "userId",
+        "points",
+        "color",
+        "strokeWidth",
+        "createdAt"
+      ]
     }
   },
   "auth": {
@@ -172,6 +218,12 @@
         "$ref": "#/backend/entities/Message"
       },
       "description": "Stores messages within a room. Includes denormalized 'roomId' for authorization independence."
+    },
+    "/rooms/{roomId}/paths/{pathId}": {
+      "schema": {
+        "$ref": "#/backend/entities/Path"
+      },
+      "description": "Stores individual drawing paths within a room."
     }
   }
 }

@@ -21,3 +21,17 @@ export type Message = {
     height: number;
   };
 };
+
+export type Point = {
+  x: number;
+  y: number;
+};
+
+export type Path = {
+  id: string;
+  userId: string;
+  points: Point[];
+  color: string;
+  strokeWidth: number;
+  createdAt: Timestamp;
+};

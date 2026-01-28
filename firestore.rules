@@ -57,6 +57,20 @@ service cloud.firestore {
     function isMessageCreator() {
       return request.resource.data.userId == request.auth.uid;
     }
+    
+    /**
+     * Validates that an incoming path on create has the creator's UID.
+     */
+    function isPathCreator() {
+      return request.resource.data.userId == request.auth.uid;
+    }
+
+    /**
+     * Validates that the current user is the owner of an existing path.
+     */
+    function isPathOwner() {
+      return resource.data.userId == request.auth.uid;
+    }
 
     /**
      * Validates that an incoming message has content (text or a file).
@@ -102,6 +116,13 @@ service cloud.firestore {
         allow update: if isMessageOwner() && isExistingDoc();
         // Messages can be deleted only by the last member of the room (as part of room deletion).
         allow delete: if isLastMember(roomId);
+      }
+      
+      match /paths/{pathId} {
+        allow read, list: if isRoomMember(roomId);
+        allow create: if isRoomMember(roomId) && isPathCreator();
+        allow delete: if isRoomMember(roomId) && isPathOwner() && isExistingDoc();
+        allow update: if false;
       }
     }
   }
