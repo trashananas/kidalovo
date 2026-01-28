@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import type { Point, Path } from '@/types';
+import { useState, useRef, useMemo } from 'react';
+import type { Point, DrawingObject, DrawingShape } from '@/types';
 import { useUser, useFirestore } from '@/firebase';
 import {
   collection,
@@ -20,9 +20,9 @@ type DrawingCanvasProps = {
   color: string;
   strokeWidth: number;
   panOffset: { x: number; y: number };
-  setPanOffset: (offset: { x: number; y: number }) => void;
-  paths: Path[];
-  drawingTool: string;
+  drawings: DrawingObject[];
+  drawingTool: DrawingShape | 'pan' | 'eraser';
+  setDrawingTool: (tool: DrawingShape | 'pan' | 'eraser') => void;
 };
 
 /**
@@ -46,24 +46,125 @@ function getSvgPathFromPoints(points: Point[]): string {
   return d;
 }
 
+const RenderedObject = ({
+  drawing,
+  drawingTool,
+  onDelete,
+}: {
+  drawing: DrawingObject;
+  drawingTool: DrawingCanvasProps['drawingTool'];
+  onDelete: (id: string) => void;
+}) => {
+  const commonProps = {
+    stroke: drawing.color,
+    strokeWidth: drawing.strokeWidth,
+    fill: 'none',
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+  };
+
+  const interactionProps = {
+    className: cn(
+      'transition-all',
+      drawingTool === 'eraser' &&
+        'cursor-pointer stroke-destructive/50 hover:stroke-destructive'
+    ),
+    style:
+      drawingTool === 'eraser'
+        ? { strokeWidth: commonProps.strokeWidth + 10 }
+        : {},
+    onPointerDown: (e: React.PointerEvent) => {
+      if (drawingTool === 'eraser') {
+        e.stopPropagation();
+        onDelete(drawing.id);
+      }
+    },
+  };
+
+  switch (drawing.type) {
+    case 'path':
+      return (
+        <path
+          d={getSvgPathFromPoints(drawing.points)}
+          {...commonProps}
+          {...interactionProps}
+        />
+      );
+    case 'arrow':
+      return (
+        <path
+          d={getSvgPathFromPoints(drawing.points)}
+          markerEnd={`url(#arrowhead-${drawing.color.replace('#', '')})`}
+          {...commonProps}
+          {...interactionProps}
+        />
+      );
+    case 'rectangle': {
+      if (drawing.points.length < 2) return null;
+      const [p1, p2] = drawing.points;
+      const x = Math.min(p1.x, p2.x);
+      const y = Math.min(p1.y, p2.y);
+      const width = Math.abs(p1.x - p2.x);
+      const height = Math.abs(p1.y - p2.y);
+      return (
+        <rect
+          x={x}
+          y={y}
+          width={width}
+          height={height}
+          {...commonProps}
+          {...interactionProps}
+        />
+      );
+    }
+    case 'ellipse': {
+      if (drawing.points.length < 2) return null;
+      const [p1, p2] = drawing.points;
+      const cx = (p1.x + p2.x) / 2;
+      const cy = (p1.y + p2.y) / 2;
+      const rx = Math.abs(p1.x - p2.x) / 2;
+      const ry = Math.abs(p1.y - p2.y) / 2;
+      return (
+        <ellipse
+          cx={cx}
+          cy={cy}
+          rx={rx}
+          ry={ry}
+          {...commonProps}
+          {...interactionProps}
+        />
+      );
+    }
+    case 'triangle': {
+      if (drawing.points.length < 3) return null;
+      const pointsStr = drawing.points.map((p) => `${p.x},${p.y}`).join(' ');
+      return (
+        <polygon points={pointsStr} {...commonProps} {...interactionProps} />
+      );
+    }
+    default:
+      return null;
+  }
+};
+
 export function DrawingCanvas({
   roomId,
   isDrawing,
   color,
   strokeWidth,
   panOffset,
-  setPanOffset,
-  paths,
+  drawings,
   drawingTool,
+  setDrawingTool,
 }: DrawingCanvasProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
 
-  const [currentPoints, setCurrentPoints] = useState<Point[]>([]);
+  const [wipDrawing, setWipDrawing] = useState<Partial<DrawingObject> | null>(
+    null
+  );
   const [isInteracting, setIsInteracting] = useState(false);
-  const interactionStartRef = useRef({ x: 0, y: 0 });
-
   const svgRef = useRef<SVGSVGElement>(null);
 
   const getPointInWorld = (e: React.PointerEvent<SVGSVGElement>): Point => {
@@ -78,16 +179,33 @@ export function DrawingCanvas({
     const svgPoint = point.matrixTransform(invertedMatrix);
 
     return {
-      x: svgPoint.x - panOffset.x,
-      y: svgPoint.y - panOffset.y,
+      x: svgPoint.x,
+      y: svgPoint.y,
     };
   };
 
-  const deletePath = async (pathId: string) => {
-    if (!firestore || !roomId) return;
-    const pathRef = doc(firestore, 'rooms', roomId, 'paths', pathId);
+  const saveDrawing = async (drawing: Omit<DrawingObject, 'id' | 'createdAt'>) => {
+    if (!firestore || !user) return;
+    const drawingsColRef = collection(firestore, 'rooms', roomId, 'drawings');
     try {
-      await deleteDoc(pathRef);
+      await addDoc(drawingsColRef, {
+        ...drawing,
+        createdAt: serverTimestamp(),
+      });
+    } catch (error) {
+      toast({
+        title: 'Ошибка',
+        description: `Не удалось сохранить рисунок: ${getErrorMessage(error)}`,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const deleteDrawing = async (drawingId: string) => {
+    if (!firestore || !roomId) return;
+    const drawingRef = doc(firestore, 'rooms', roomId, 'drawings', drawingId);
+    try {
+      await deleteDoc(drawingRef);
     } catch (error) {
       toast({
         title: 'Ошибка',
@@ -102,83 +220,121 @@ export function DrawingCanvas({
 
     e.currentTarget.setPointerCapture(e.pointerId);
     setIsInteracting(true);
+    const point = getPointInWorld(e);
 
-    switch (drawingTool) {
-      case 'pen':
-        const point = getPointInWorld(e);
-        setCurrentPoints([point]);
-        break;
-      case 'pan':
-        interactionStartRef.current = {
-          x: e.clientX - panOffset.x,
-          y: e.clientY - panOffset.y,
-        };
-        break;
+    if (drawingTool === 'pan') return;
+
+    if (drawingTool === 'triangle') {
+      const currentPoints = wipDrawing?.points || [];
+      const newPoints = [...currentPoints, point];
+      setWipDrawing({
+        type: 'triangle',
+        points: newPoints,
+        color,
+        strokeWidth,
+      });
+
+      if (newPoints.length === 3) {
+        if (user) {
+          saveDrawing({
+            userId: user.uid,
+            type: 'triangle',
+            points: newPoints,
+            color,
+            strokeWidth,
+          });
+        }
+        setWipDrawing(null);
+        setIsInteracting(false);
+      }
+    } else {
+      setWipDrawing({ type: drawingTool, points: [point], color, strokeWidth });
     }
   };
 
   const handlePointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!isDrawing || !isInteracting) return;
+    if (!isDrawing || !isInteracting || drawingTool === 'pan') return;
+    if (drawingTool === 'triangle' || !wipDrawing) return;
 
-    switch (drawingTool) {
-      case 'pen':
-        if (e.buttons !== 1) return;
-        const point = getPointInWorld(e);
-        setCurrentPoints((prev) => [...prev, point]);
-        break;
-      case 'pan':
-        const newX = e.clientX - interactionStartRef.current.x;
-        const newY = e.clientY - interactionStartRef.current.y;
-        setPanOffset({ x: newX, y: newY });
-        break;
+    if (e.buttons !== 1) return;
+    const point = getPointInWorld(e);
+
+    if (drawingTool === 'path' || drawingTool === 'arrow') {
+      setWipDrawing((prev) => ({
+        ...prev,
+        points: [...(prev?.points || []), point],
+      }));
+    } else if (
+      drawingTool === 'rectangle' ||
+      drawingTool === 'ellipse'
+    ) {
+      setWipDrawing((prev) => ({
+        ...prev,
+        points: [prev?.points?.[0] || point, point],
+      }));
     }
   };
 
-  const handlePointerUp = async (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!isDrawing || !isInteracting) return;
-    
+  const handlePointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (!isDrawing || !isInteracting || drawingTool === 'pan') {
+       if (isInteracting) setIsInteracting(false);
+       return;
+    }
+
     e.currentTarget.releasePointerCapture(e.pointerId);
     setIsInteracting(false);
 
-    switch (drawingTool) {
-      case 'pen':
-        if (!firestore || !user || currentPoints.length === 0) {
-          setCurrentPoints([]);
-          return;
-        }
-
-        const pathsColRef = collection(firestore, 'rooms', roomId, 'paths');
-        try {
-          await addDoc(pathsColRef, {
+    if (
+      wipDrawing &&
+      wipDrawing.points &&
+      wipDrawing.points.length > 0 &&
+      wipDrawing.type &&
+      wipDrawing.type !== 'triangle'
+    ) {
+      if (user) {
+        saveDrawing({
             userId: user.uid,
-            points: currentPoints,
-            color: color,
-            strokeWidth: strokeWidth,
-            createdAt: serverTimestamp(),
-          });
-        } catch (error) {
-          toast({
-            title: 'Ошибка',
-            description: `Не удалось сохранить рисунок: ${getErrorMessage(
-              error
-            )}`,
-            variant: 'destructive',
-          });
-        }
-        setCurrentPoints([]);
-        break;
-      case 'pan':
-        // Panning is finished, nothing to save.
-        break;
+            type: wipDrawing.type,
+            points: wipDrawing.points,
+            color: wipDrawing.color || color,
+            strokeWidth: wipDrawing.strokeWidth || strokeWidth,
+        });
+      }
     }
+    setWipDrawing(null);
   };
+  
+   const handleBoardPan = (e: React.PointerEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+     if (
+      isDrawing &&
+      drawingTool !== 'pan' &&
+      !target.closest('[data-pan-initiator]')
+    ) {
+      return;
+    }
+    // The rest of your pan logic goes here
+  };
+
 
   const cursorClass =
     {
       pen: 'cursor-crosshair',
+      arrow: 'cursor-crosshair',
+      rectangle: 'cursor-crosshair',
+      ellipse: 'cursor-crosshair',
+      triangle: 'cursor-crosshair',
       eraser: 'cursor-cell',
       pan: isInteracting ? 'cursor-grabbing' : 'cursor-grab',
     }[drawingTool] || 'cursor-default';
+
+  const uniqueColors = useMemo(() => {
+    const colors = new Set<string>();
+    drawings.forEach(d => colors.add(d.color));
+    if (wipDrawing?.color) colors.add(wipDrawing.color);
+    return Array.from(colors);
+  }, [drawings, wipDrawing]);
+
 
   return (
     <svg
@@ -192,39 +348,40 @@ export function DrawingCanvas({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerUp}
+      style={{ transform: `translate(${panOffset.x}px, ${panOffset.y}px)` }}
     >
-      <g transform={`translate(${panOffset.x}, ${panOffset.y})`}>
-        {paths.map((path) => (
-          <path
-            key={path.id}
-            d={getSvgPathFromPoints(path.points)}
-            stroke={path.color}
-            strokeWidth={path.strokeWidth + (drawingTool === 'eraser' ? 10 : 0)}
-            fill="none"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className={cn(
-              'transition-all',
-              drawingTool === 'eraser' &&
-                'cursor-pointer stroke-destructive/50 hover:stroke-destructive'
-            )}
-            onPointerDown={(e) => {
-              if (drawingTool === 'eraser') {
-                e.stopPropagation();
-                deletePath(path.id);
-              }
-            }}
+      <defs>
+        {uniqueColors.map(c => (
+            <marker
+                key={c}
+                id={`arrowhead-${c.replace('#', '')}`}
+                viewBox="0 0 10 10"
+                refX="8"
+                refY="5"
+                markerUnits="strokeWidth"
+                markerWidth="8"
+                markerHeight="6"
+                orient="auto"
+            >
+                <path d="M 0 0 L 10 5 L 0 10 z" fill={c} />
+            </marker>
+        ))}
+      </defs>
+      <g>
+        {drawings.map((drawing) => (
+          <RenderedObject
+            key={drawing.id}
+            drawing={drawing}
+            drawingTool={drawingTool}
+            onDelete={deleteDrawing}
           />
         ))}
 
-        {currentPoints.length > 0 && drawingTool === 'pen' && (
-          <path
-            d={getSvgPathFromPoints(currentPoints)}
-            stroke={color}
-            strokeWidth={strokeWidth}
-            fill="none"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+        {wipDrawing && wipDrawing.points && (
+          <RenderedObject
+            drawing={wipDrawing as DrawingObject}
+            drawingTool={drawingTool}
+            onDelete={() => {}}
           />
         )}
       </g>

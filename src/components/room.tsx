@@ -33,6 +33,7 @@ import { useToast } from '@/hooks/use-toast';
 import useIsMobile from '@/hooks/use-is-mobile';
 import { DrawingToolbar } from './drawing-toolbar';
 import { DrawingCanvas } from './drawing-canvas';
+import type { DrawingShape } from '@/types';
 
 type RoomProps = {
   roomId: string;
@@ -40,7 +41,7 @@ type RoomProps = {
 
 export function Room({ roomId }: RoomProps) {
   const { user, isUserLoading } = useUser();
-  const { messages, paths, loading, error } = useRoom(roomId);
+  const { messages, drawings, loading, error } = useRoom(roomId);
   const router = useRouter();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -55,7 +56,7 @@ export function Room({ roomId }: RoomProps) {
   const panStart = useRef({ x: 0, y: 0 });
 
   const [isDrawing, setIsDrawing] = useState(false);
-  const [drawingTool, setDrawingTool] = useState('pen');
+  const [drawingTool, setDrawingTool] = useState<DrawingShape | 'pan' | 'eraser'>('pan');
   const [drawColor, setDrawColor] = useState('#EF4444'); // Tailwind red-500
   const [strokeWidth, setStrokeWidth] = useState(4);
 
@@ -64,7 +65,7 @@ export function Room({ roomId }: RoomProps) {
     return doc(firestore, 'rooms', roomId);
   }, [firestore, roomId]);
 
-  const { data: roomData } = useDoc(roomRef);
+  useDoc(roomRef);
 
   useEffect(() => {
     if (isMobile) {
@@ -119,17 +120,17 @@ export function Room({ roomId }: RoomProps) {
         roomId,
         'messages'
       );
-      const pathsCollectionRef = collection(firestore, 'rooms', roomId, 'paths');
+      const drawingsCollectionRef = collection(firestore, 'rooms', roomId, 'drawings');
 
-      const [messagesSnapshot, pathsSnapshot] = await Promise.all([
+      const [messagesSnapshot, drawingsSnapshot] = await Promise.all([
         getDocs(messagesCollectionRef),
-        getDocs(pathsCollectionRef),
+        getDocs(drawingsCollectionRef),
       ]);
 
       const batch = writeBatch(firestore);
 
       messagesSnapshot.docs.forEach((doc) => batch.delete(doc.ref));
-      pathsSnapshot.docs.forEach((doc) => batch.delete(doc.ref));
+      drawingsSnapshot.docs.forEach((doc) => batch.delete(doc.ref));
 
       batch.delete(roomRef);
 
@@ -156,17 +157,21 @@ export function Room({ roomId }: RoomProps) {
   };
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    // This pan handler should only work when NOT in drawing mode.
-    if (isDrawing) return;
-
     const target = e.target as HTMLElement;
+    
+    // Allow panning only if the drawing tool is 'pan' or if drawing mode is off
+    const canPan = (isDrawing && drawingTool === 'pan') || !isDrawing;
+    
     if (
+      !canPan ||
       target.closest('[data-message-card="true"]') ||
       target.closest('.message-form-container') ||
-      target.closest('.room-header')
+      target.closest('.room-header') ||
+      target.closest('[data-drawing-canvas="true"]')
     ) {
       return;
     }
+    
     setIsPanning(true);
     panStart.current = { x: e.clientX - panOffset.x, y: e.clientY - panOffset.y };
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -188,9 +193,8 @@ export function Room({ roomId }: RoomProps) {
   const toggleDrawing = () => {
     const newIsDrawing = !isDrawing;
     setIsDrawing(newIsDrawing);
-    // If turning drawing mode OFF, reset tool to pen for next time.
     if (!newIsDrawing) {
-      setDrawingTool('pen');
+      setDrawingTool('pan');
     }
   };
 
@@ -218,6 +222,13 @@ export function Room({ roomId }: RoomProps) {
       </div>
     );
   }
+  
+  const boardCursorClass = () => {
+    if (!isDrawing) return isPanning ? 'cursor-grabbing' : 'cursor-grab';
+    if (drawingTool === 'pan') return isPanning ? 'cursor-grabbing' : 'cursor-grab';
+    return '';
+  }
+
 
   return (
     <div className="relative h-screen w-full overflow-hidden bg-zinc-100 dark:bg-zinc-900 border-4 border-background rounded-lg">
@@ -316,8 +327,7 @@ export function Room({ roomId }: RoomProps) {
         id="board"
         className={cn(
           'absolute inset-0',
-          isPanning && 'cursor-grabbing',
-          !isPanning && !isDrawing && 'cursor-grab'
+           boardCursorClass()
         )}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -347,9 +357,9 @@ export function Room({ roomId }: RoomProps) {
           color={drawColor}
           strokeWidth={strokeWidth}
           panOffset={panOffset}
-          setPanOffset={setPanOffset}
-          paths={paths}
+          drawings={drawings}
           drawingTool={drawingTool}
+          setDrawingTool={setDrawingTool}
         />
 
         {loading && messages.length === 0 && (

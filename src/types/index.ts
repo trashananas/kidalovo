@@ -27,9 +27,12 @@ export type Point = {
   y: number;
 };
 
-export type Path = {
+export type DrawingShape = 'path' | 'arrow' | 'rectangle' | 'ellipse' | 'triangle';
+
+export type DrawingObject = {
   id: string;
   userId: string;
+  type: DrawingShape;
   points: Point[];
   color: string;
   strokeWidth: number;

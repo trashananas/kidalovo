@@ -147,14 +147,24 @@
         "createdAt"
       ]
     },
-    "Path": {
+    "DrawingObject": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Path",
+      "title": "DrawingObject",
       "type": "object",
-      "description": "Represents a single continuous path drawn on the board.",
+      "description": "Represents a single object drawn on the board, like a path, arrow, or shape.",
       "properties": {
         "userId": {
           "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "path",
+            "arrow",
+            "rectangle",
+            "ellipse",
+            "triangle"
+          ]
         },
         "points": {
           "type": "array",
@@ -187,6 +197,7 @@
       },
       "required": [
         "userId",
+        "type",
         "points",
         "color",
         "strokeWidth",
@@ -219,11 +230,11 @@
       },
       "description": "Stores messages within a room. Includes denormalized 'roomId' for authorization independence."
     },
-    "/rooms/{roomId}/paths/{pathId}": {
+    "/rooms/{roomId}/drawings/{drawingId}": {
       "schema": {
-        "$ref": "#/backend/entities/Path"
+        "$ref": "#/backend/entities/DrawingObject"
       },
-      "description": "Stores individual drawing paths within a room."
+      "description": "Stores individual drawing objects within a room."
     }
   }
 }

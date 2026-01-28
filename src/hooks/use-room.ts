@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { collection, query, orderBy, doc, updateDoc } from 'firebase/firestore';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
-import type { Message, Path } from '@/types';
+import type { Message, DrawingObject } from '@/types';
 
 export function useRoom(roomId: string) {
   const firestore = useFirestore();
@@ -52,22 +52,22 @@ export function useRoom(roomId: string) {
     );
   }, [firestore, roomId, isJoinAttemptComplete, joinError]);
 
-  const pathsQuery = useMemoFirebase(() => {
+  const drawingsQuery = useMemoFirebase(() => {
     // Only construct the query if the join attempt is complete and was successful.
     if (!firestore || !roomId || !isJoinAttemptComplete || joinError) return null;
     return query(
-      collection(firestore, 'rooms', roomId, 'paths'),
+      collection(firestore, 'rooms', roomId, 'drawings'),
       orderBy('createdAt', 'asc')
     );
   }, [firestore, roomId, isJoinAttemptComplete, joinError]);
 
   const { data: messages, isLoading: messagesLoading, error: messagesError } = useCollection<Message>(messagesQuery);
-  const { data: paths, isLoading: pathsLoading, error: pathsError } = useCollection<Path>(pathsQuery);
+  const { data: drawings, isLoading: drawingsLoading, error: drawingsError } = useCollection<DrawingObject>(drawingsQuery);
   
-  const finalError = joinError || messagesError || pathsError;
+  const finalError = joinError || messagesError || drawingsError;
 
   // The overall loading state is true until the join is complete AND data loading is complete.
-  const finalLoading = !isJoinAttemptComplete || (messagesQuery ? messagesLoading : false) || (pathsQuery ? pathsLoading : false);
+  const finalLoading = !isJoinAttemptComplete || (messagesQuery ? messagesLoading : false) || (drawingsQuery ? drawingsLoading : false);
 
-  return { messages: messages ?? [], paths: paths ?? [], loading: finalLoading, error: finalError };
+  return { messages: messages ?? [], drawings: drawings ?? [], loading: finalLoading, error: finalError };
 }

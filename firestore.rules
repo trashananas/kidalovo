@@ -59,17 +59,10 @@ service cloud.firestore {
     }
     
     /**
-     * Validates that an incoming path on create has the creator's UID.
+     * Validates that an incoming drawing object on create has the creator's UID.
      */
-    function isPathCreator() {
+    function isDrawingCreator() {
       return request.resource.data.userId == request.auth.uid;
-    }
-
-    /**
-     * Validates that the current user is the owner of an existing path.
-     */
-    function isPathOwner() {
-      return resource.data.userId == request.auth.uid;
     }
 
     /**
@@ -118,9 +111,9 @@ service cloud.firestore {
         allow delete: if isLastMember(roomId);
       }
       
-      match /paths/{pathId} {
+      match /drawings/{drawingId} {
         allow read, list: if isRoomMember(roomId);
-        allow create: if isRoomMember(roomId) && isPathCreator();
+        allow create: if isRoomMember(roomId) && isDrawingCreator();
         allow delete: if isRoomMember(roomId);
         allow update: if false;
       }
