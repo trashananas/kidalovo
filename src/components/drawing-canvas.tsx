@@ -175,6 +175,7 @@ export function DrawingCanvas({
 
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [isMoving, setIsMoving] = useState(false);
+  const [editingVertex, setEditingVertex] = useState<{pointIndex: number} | null>(null);
   const moveStartRef = useRef<{ x: number; y: number, object: DrawingObject } | null>(null);
 
   const selectedObject = useMemo(() => {
@@ -240,6 +241,15 @@ export function DrawingCanvas({
         });
     });
   };
+  
+  const handleVertexPointerDown = (e: React.PointerEvent, pointIndex: number) => {
+    e.stopPropagation();
+    if (drawingTool !== 'select' || !selectedObject) return;
+    
+    setEditingVertex({ pointIndex });
+    setWipDrawing(selectedObject); // Start editing from the current state
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  }
 
   const handleObjectPointerDown = (e: React.PointerEvent, drawing: DrawingObject) => {
       e.stopPropagation();
@@ -302,9 +312,26 @@ export function DrawingCanvas({
   };
 
   const handleCanvasPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    // --- Vertex Editing ---
+    if (editingVertex && wipDrawing) {
+        const newPoint = getPointInWorld(e);
+        const newPoints = [...wipDrawing.points!];
+        newPoints[editingVertex.pointIndex] = newPoint;
+        setWipDrawing({ ...wipDrawing, points: newPoints });
+        return;
+    }
+    
+    // --- Object Moving ---
     if (isMoving && moveStartRef.current && selectedObject) {
-        const dx = e.clientX - moveStartRef.current.x;
-        const dy = e.clientY - moveStartRef.current.y;
+        const svg = svgRef.current;
+        if (!svg) return;
+
+        const CTM = svg.getScreenCTM();
+        if (!CTM) return;
+        
+        // We calculate the delta in screen space, then apply it to the points
+        const dx = (e.clientX - moveStartRef.current.x) / CTM.a;
+        const dy = (e.clientY - moveStartRef.current.y) / CTM.d;
 
         const newPoints = moveStartRef.current.object.points.map(p => ({
             x: p.x + dx,
@@ -314,7 +341,8 @@ export function DrawingCanvas({
         setWipDrawing({ ...selectedObject, points: newPoints });
         return;
     }
-
+    
+    // --- Object Creation ---
     if (!isDrawing || !isInteracting || drawingTool === 'pan' || drawingTool === 'select' || drawingTool === 'eraser') return;
     
     if (e.buttons !== 1) return;
@@ -337,10 +365,9 @@ export function DrawingCanvas({
   };
 
   const handleCanvasPointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (isMoving && selectedObject && wipDrawing) {
-        (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-        setIsMoving(false);
-
+    const saveEditedObject = () => {
+        if (!selectedObject || !wipDrawing || !wipDrawing.points) return;
+        
         const objectRef = doc(firestore, 'rooms', roomId, 'drawings', selectedObject.id);
         updateDoc(objectRef, { points: wipDrawing.points })
             .catch(error => {
@@ -351,16 +378,38 @@ export function DrawingCanvas({
                 }));
                 toast({
                     title: 'Ошибка',
-                    description: `Не удалось переместить объект: ${getErrorMessage(error)}`,
+                    description: `Не удалось изменить объект: ${getErrorMessage(error)}`,
                     variant: 'destructive',
                 });
             });
-        
+    }
+
+    // --- Vertex Editing Finished ---
+    if (editingVertex) {
+        (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+        saveEditedObject();
+        setEditingVertex(null);
+        setWipDrawing(null);
+        return;
+    }
+    
+    // --- Object Moving Finished ---
+    if (isMoving && selectedObject && wipDrawing) {
+        (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+        setIsMoving(false);
+
+        // Update the reference object for the next move operation
+        if (moveStartRef.current) {
+            moveStartRef.current.object.points = wipDrawing.points!;
+        }
+
+        saveEditedObject();
         setWipDrawing(null);
         moveStartRef.current = null;
         return;
     }
-
+    
+    // --- Object Creation Finished ---
     if (!isDrawing || !isInteracting || drawingTool === 'pan' || drawingTool === 'select' || drawingTool === 'eraser') {
        if (isInteracting) setIsInteracting(false);
        return;
@@ -414,6 +463,14 @@ export function DrawingCanvas({
     return Array.from(colors);
   }, [drawings, wipDrawing]);
 
+  // Determine which object to display: the one being edited/moved, or the original
+  const displayedDrawings = useMemo(() => {
+    if (wipDrawing && (isMoving || editingVertex)) {
+      return drawings.map(d => d.id === wipDrawing.id ? (wipDrawing as DrawingObject) : d);
+    }
+    return drawings;
+  }, [drawings, wipDrawing, isMoving, editingVertex]);
+
 
   return (
     <svg
@@ -447,9 +504,7 @@ export function DrawingCanvas({
         ))}
       </defs>
       <g>
-        {drawings.map((drawing) => (
-          // Hide the original object while it is being moved
-          isMoving && drawing.id === selectedObjectId ? null : (
+        {displayedDrawings.map((drawing) => (
             <RenderedObject
               key={drawing.id}
               drawing={drawing}
@@ -457,10 +512,9 @@ export function DrawingCanvas({
               isSelected={drawing.id === selectedObjectId}
               onPointerDown={(e) => handleObjectPointerDown(e, drawing)}
             />
-          )
         ))}
 
-        {wipDrawing && wipDrawing.points && (
+        {wipDrawing && isInteracting && wipDrawing.points && (
           <RenderedObject
             drawing={wipDrawing as DrawingObject}
             drawingTool={wipDrawing.type as DrawingShape}
@@ -469,22 +523,40 @@ export function DrawingCanvas({
           />
         )}
 
-        {selectedObject && !isMoving && (() => {
-          const bbox = getBoundingBox(selectedObject);
-          return (
-            <rect
-              x={bbox.x}
-              y={bbox.y}
-              width={bbox.width}
-              height={bbox.height}
-              fill="none"
-              stroke="#3B82F6"
-              strokeWidth={1}
-              strokeDasharray="4 2"
-              className="pointer-events-none"
-            />
-          );
-        })()}
+        {selectedObject && !isMoving && !editingVertex && (
+        <>
+            {(() => {
+                const bbox = getBoundingBox(selectedObject);
+                return (
+                    <rect
+                        x={bbox.x}
+                        y={bbox.y}
+                        width={bbox.width}
+                        height={bbox.height}
+                        fill="none"
+                        stroke="#3B82F6"
+                        strokeWidth={1}
+                        strokeDasharray="4 2"
+                        className="pointer-events-none"
+                    />
+                );
+            })()}
+
+            {selectedObject.points.map((p, index) => (
+                <circle
+                    key={`handle-${index}`}
+                    cx={p.x}
+                    cy={p.y}
+                    r={5 / (svgRef.current?.getScreenCTM()?.a || 1)}
+                    fill="#3B82F6"
+                    stroke="white"
+                    strokeWidth={1.5 / (svgRef.current?.getScreenCTM()?.a || 1)}
+                    className="cursor-move"
+                    onPointerDown={(e) => handleVertexPointerDown(e, index)}
+                />
+            ))}
+        </>
+        )}
       </g>
     </svg>
   );
