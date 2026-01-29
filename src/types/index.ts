@@ -12,6 +12,7 @@ export type Message = {
   file?: FileAttachment;
   userId: string;
   createdAt: Timestamp;
+  updatedAt?: Timestamp;
   position: {
     x: number;
     y: number;

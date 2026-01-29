@@ -2,14 +2,19 @@
 
 import type { Message } from '@/types';
 import { Card } from './ui/card';
+import { Button } from './ui/button';
+import { Textarea } from './ui/textarea';
 import { cn, getErrorMessage } from '@/lib/utils';
 import { useState, useEffect, useRef } from 'react';
-import { GripVertical, Copy, File as FileIcon, Download } from 'lucide-react';
+import { GripVertical, Copy, File as FileIcon, Download, Pencil, Loader2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
+
 
 const GREEK_LOWER = {
   pi: 'π',
@@ -201,6 +206,12 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   const [isResizing, setIsResizing] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [timeAgo, setTimeAgo] = useState('');
+  const [updatedAgo, setUpdatedAgo] = useState('');
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editText, setEditText] = useState(message.text || '');
+
 
   const cardRef = useRef<HTMLDivElement>(null);
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -215,46 +226,47 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   const isOwner = user?.uid === message.userId;
   
   const isDataUrl = message.file?.url.startsWith('data:');
-  // Check for both Cloudinary's 'image' resource_type and standard MIME types like 'image/jpeg'
   const isImage = message.file?.type.startsWith('image');
   
   let downloadHref = message.file?.url || '';
-  // For Cloudinary URLs, add the attachment flag to force download instead of opening in a new tab.
   if (message.file && !isDataUrl) {
     downloadHref = downloadHref.replace('/upload/', '/upload/fl_attachment/');
   }
 
 
-  // Effect for updating the 'time ago' string
   useEffect(() => {
     if (!message.createdAt) {
       setTimeAgo('только что');
       return;
     }
-
     const update = () => {
-      setTimeAgo(
-        formatDistanceToNow(message.createdAt.toDate(), {
-          addSuffix: true,
-          locale: ru,
-        })
-      );
+      setTimeAgo(formatDistanceToNow(message.createdAt.toDate(), { addSuffix: true, locale: ru }));
     };
-
     update();
     const intervalId = setInterval(update, 60000);
-
     return () => clearInterval(intervalId);
   }, [message.createdAt]);
 
-  // Effect for syncing position from props
+  useEffect(() => {
+    if (!message.updatedAt) {
+      setUpdatedAgo('');
+      return;
+    }
+    const update = () => {
+      setUpdatedAgo(formatDistanceToNow(message.updatedAt.toDate(), { addSuffix: true, locale: ru }));
+    };
+    update();
+    const intervalId = setInterval(update, 60000);
+    return () => clearInterval(intervalId);
+  }, [message.updatedAt]);
+
+
   useEffect(() => {
     if (!isDragging) {
       setPosition(message.position);
     }
   }, [message.position, isDragging]);
 
-  // Effect for syncing size from props
   useEffect(() => {
     if (!isResizing) {
       setSize(message.size || { width: 256, height: 128 });
@@ -464,6 +476,47 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
       });
   };
 
+  const handleSaveEdit = () => {
+    if (!firestore || !isOwner) return;
+
+    if (editText.trim() === (message.text || '').trim()) {
+      setIsEditing(false);
+      return;
+    }
+
+    setIsSavingEdit(true);
+
+    const messageDocRef = doc(firestore, 'rooms', roomId, 'messages', message.id);
+    const payload = {
+      text: editText,
+      updatedAt: serverTimestamp(),
+    };
+
+    updateDoc(messageDocRef, payload)
+      .then(() => {
+        setIsEditing(false);
+      })
+      .catch((error) => {
+        const errorPayload = { text: editText };
+        errorEmitter.emit(
+          'permission-error',
+          new FirestorePermissionError({
+            path: messageDocRef.path,
+            operation: 'update',
+            requestResourceData: errorPayload,
+          })
+        );
+        toast({
+          title: 'Ошибка',
+          description: `Не удалось обновить сообщение: ${getErrorMessage(error)}`,
+          variant: 'destructive',
+        });
+      })
+      .finally(() => {
+        setIsSavingEdit(false);
+      });
+  };
+
 
   return (
     <>
@@ -472,7 +525,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
         data-message-card="true"
         className={cn(
           'absolute rounded-lg shadow-lg transition-shadow duration-300 flex flex-col pointer-events-auto',
-          isOwner && 'cursor-grab',
+          isOwner && !isEditing && 'cursor-grab',
           isDragging && 'cursor-grabbing shadow-2xl z-30 scale-105',
           isResizing && 'z-30'
         )}
@@ -480,7 +533,8 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
           left: `${position.x}px`,
           top: `${position.y}px`,
           width: `${size.width}px`,
-          height: `${size.height}px`,
+          height: isEditing ? 'auto' : `${size.height}px`,
+          minHeight: isEditing ? '150px' : 'auto',
           touchAction: 'none',
         }}
         onPointerMove={handleCardPointerMove}
@@ -529,8 +583,8 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
             )
           )}
 
-          <div className="flex items-start gap-2">
-            {isOwner && (
+          <div className="flex items-start gap-2 flex-grow">
+            {isOwner && !isEditing && (
               <div className="flex flex-col gap-2">
                 <div
                   className="p-1 text-muted-foreground/50 hover:text-muted-foreground touch-none cursor-pointer"
@@ -545,10 +599,35 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
               </div>
             )}
 
-            {!isOwner && !isCollapsed && <div className="w-9 shrink-0"></div>}
+            {!isOwner && !isCollapsed && !isEditing && <div className="w-9 shrink-0"></div>}
 
-            <div className="flex-1 min-w-0 overflow-y-auto">
-              {!isCollapsed ? (
+            <div className="flex-1 min-w-0 overflow-y-auto flex flex-col">
+              {!isCollapsed && isEditing ? (
+                  <div className="flex-1 min-w-0 flex flex-col gap-2">
+                      <Textarea 
+                          value={editText}
+                          onChange={(e) => setEditText(e.target.value)}
+                          className="text-sm flex-grow"
+                          autoFocus
+                          onKeyDown={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                  e.preventDefault();
+                                  handleSaveEdit();
+                              }
+                              if (e.key === 'Escape') {
+                                  e.preventDefault();
+                                  setIsEditing(false);
+                              }
+                          }}
+                      />
+                      <div className="flex justify-end gap-2">
+                          <Button variant="ghost" size="sm" onClick={() => setIsEditing(false)} disabled={isSavingEdit}>Отмена</Button>
+                          <Button size="sm" onClick={handleSaveEdit} disabled={isSavingEdit || editText.trim() === (message.text || '').trim()}>
+                              {isSavingEdit ? <Loader2 className="animate-spin" /> : 'Сохранить'}
+                          </Button>
+                      </div>
+                  </div>
+              ) : !isCollapsed ? (
                 message.text?.trim() === '<3' && !message.file ? (
                   <div className="flex w-full items-center justify-center">
                     <span className="text-5xl">❤️</span>
@@ -565,19 +644,38 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
               )}
             </div>
 
-            {!isCollapsed && message.text && (
-              <div
-                className="py-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer"
-                onClick={handleCopy}
-                title="Скопировать текст"
-              >
-                <Copy className="h-5 w-5" />
+            {!isCollapsed && !isEditing && message.text && (
+              <div className="flex-shrink-0 flex items-center">
+                {isOwner && (
+                    <div
+                        className="p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer"
+                        onClick={() => {
+                            setEditText(message.text || '');
+                            setIsEditing(true);
+                        }}
+                        title="Редактировать"
+                    >
+                        <Pencil className="h-5 w-5" />
+                    </div>
+                )}
+                <div
+                    className="p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer"
+                    onClick={handleCopy}
+                    title="Скопировать текст"
+                >
+                    <Copy className="h-5 w-5" />
+                </div>
               </div>
             )}
           </div>
-          {!isCollapsed && timeAgo && (
-            <div className="mt-auto text-xs text-muted-foreground pt-1 border-t shrink-0">
-              <span>{timeAgo}</span>
+          {!isCollapsed && !isEditing && timeAgo && (
+            <div className="mt-auto text-xs text-muted-foreground pt-1 border-t shrink-0 flex justify-between items-center">
+              <span title={message.createdAt.toDate().toLocaleString()}>{timeAgo}</span>
+              {updatedAgo && (
+                <span className="italic" title={message.updatedAt?.toDate().toLocaleString()}>
+                  (отред. {updatedAgo})
+                </span>
+              )}
             </div>
           )}
         </div>

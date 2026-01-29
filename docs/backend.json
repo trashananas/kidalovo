@@ -137,6 +137,11 @@
           "type": "string",
           "description": "Timestamp indicating when the message was created.",
           "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the message was last updated.",
+          "format": "date-time"
         }
       },
       "required": [

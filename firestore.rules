@@ -81,6 +81,25 @@ service cloud.firestore {
       return resource.data.userId == request.auth.uid;
     }
 
+    /**
+     * Validates that immutable fields of a message are not changed on update.
+     * Allow only 'text', 'position', 'size', and 'updatedAt' to be changed.
+     */
+    function isMessageUpdateValid() {
+      let incoming = request.resource.data;
+      let existing = resource.data;
+      
+      let fileUnchanged = (existing.file == null && incoming.file == null) || 
+                          (existing.file.name == incoming.file.name && 
+                           existing.file.type == incoming.file.type && 
+                           existing.file.url == incoming.file.url);
+                           
+      return incoming.userId == existing.userId &&
+             incoming.roomId == existing.roomId &&
+             incoming.createdAt == existing.createdAt &&
+             fileUnchanged;
+    }
+
     // ------------------------------------------------------------------------
     // Collection Rules
     // ------------------------------------------------------------------------
@@ -106,7 +125,7 @@ service cloud.firestore {
       match /messages/{messageId} {
         allow read, list: if isRoomMember(roomId);
         allow create: if isRoomMember(roomId) && isMessageCreator() && hasContent();
-        allow update: if isMessageOwner() && isExistingDoc();
+        allow update: if isMessageOwner() && isExistingDoc() && isMessageUpdateValid();
         // Messages can be deleted only by the last member of the room (as part of room deletion).
         allow delete: if isLastMember(roomId);
       }
