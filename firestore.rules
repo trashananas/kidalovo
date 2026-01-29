@@ -126,8 +126,7 @@ service cloud.firestore {
         allow read, list: if isRoomMember(roomId);
         allow create: if isRoomMember(roomId) && isMessageCreator() && hasContent();
         allow update: if isMessageOwner() && isExistingDoc() && isMessageUpdateValid();
-        // Messages can be deleted only by the last member of the room (as part of room deletion).
-        allow delete: if isLastMember(roomId);
+        allow delete: if isMessageOwner() || isLastMember(roomId);
       }
       
       match /drawings/{drawingId} {

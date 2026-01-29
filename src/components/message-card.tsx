@@ -6,14 +6,24 @@ import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { cn, getErrorMessage } from '@/lib/utils';
 import { useState, useEffect, useRef } from 'react';
-import { GripVertical, Copy, File as FileIcon, Download, Pencil, Loader2 } from 'lucide-react';
+import { GripVertical, Copy, File as FileIcon, Download, Pencil, Loader2, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 
 const GREEK_LOWER = {
@@ -211,6 +221,9 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editText, setEditText] = useState(message.text || '');
+
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
 
   const cardRef = useRef<HTMLDivElement>(null);
@@ -517,9 +530,56 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
       });
   };
 
+  const handleDelete = async () => {
+    if (!firestore || !isOwner) return;
+
+    setIsDeleting(true);
+    const messageDocRef = doc(firestore, 'rooms', roomId, 'messages', message.id);
+    
+    deleteDoc(messageDocRef)
+      .catch((error) => {
+        errorEmitter.emit(
+          'permission-error',
+          new FirestorePermissionError({
+            path: messageDocRef.path,
+            operation: 'delete',
+          })
+        );
+        toast({
+          title: 'Ошибка удаления',
+          description: `Не удалось удалить сообщение: ${getErrorMessage(error)}`,
+          variant: 'destructive',
+        });
+      })
+      .finally(() => {
+        setIsDeleting(false);
+      });
+  };
+
 
   return (
     <>
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Вы уверены?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Это действие навсегда удалит сообщение с доски. Его нельзя будет восстановить.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isDeleting}
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? <Loader2 className="animate-spin" /> : 'Удалить'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <Card
         ref={cardRef}
         data-message-card="true"
@@ -644,27 +704,38 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
               )}
             </div>
 
-            {!isCollapsed && !isEditing && message.text && (
+            {!isCollapsed && !isEditing && (
               <div className="flex-shrink-0 flex items-center">
-                {isOwner && (
-                    <div
-                        className="p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer"
-                        onClick={() => {
-                            setEditText(message.text || '');
-                            setIsEditing(true);
-                        }}
-                        title="Редактировать"
-                    >
-                        <Pencil className="h-5 w-5" />
-                    </div>
+                {isOwner && message.text && (
+                  <div
+                    className="p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer"
+                    onClick={() => {
+                      setEditText(message.text || '');
+                      setIsEditing(true);
+                    }}
+                    title="Редактировать"
+                  >
+                    <Pencil className="h-5 w-5" />
+                  </div>
                 )}
-                <div
+                {message.text && (
+                  <div
                     className="p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer"
                     onClick={handleCopy}
                     title="Скопировать текст"
-                >
+                  >
                     <Copy className="h-5 w-5" />
-                </div>
+                  </div>
+                )}
+                {isOwner && (
+                  <div
+                    className="p-1 text-destructive/70 hover:text-destructive cursor-pointer"
+                    onClick={() => setIsDeleteDialogOpen(true)}
+                    title="Удалить"
+                  >
+                    <Trash2 className="h-5 w-5" />
+                  </div>
+                )}
               </div>
             )}
           </div>
