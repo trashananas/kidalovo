@@ -159,10 +159,10 @@ export function Room({ roomId }: RoomProps) {
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
-    
-    // Allow panning only if the drawing tool is 'pan' or if drawing mode is off
+
+    // Pan if drawing tool is 'pan' OR drawing is disabled
     const canPan = (isDrawing && drawingTool === 'pan') || !isDrawing;
-    
+
     if (
       !canPan ||
       target.closest('[data-message-card="true"]') ||
@@ -171,7 +171,7 @@ export function Room({ roomId }: RoomProps) {
     ) {
       return;
     }
-    
+
     setIsPanning(true);
     panStart.current = { x: e.clientX - panOffset.x, y: e.clientY - panOffset.y };
     e.currentTarget.setPointerCapture(e.pointerId);
