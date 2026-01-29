@@ -141,12 +141,10 @@ const RenderedObject = ({
     case 'triangle': {
       if (!drawing.points || drawing.points.length === 0) return null;
 
-      // WIP triangle with 1 or 2 points. Render as a path for feedback (dot or line).
       if (drawing.points.length < 3) {
         return <path d={getSvgPathFromPoints(drawing.points)} {...commonProps} {...interactionProps} />;
       }
       
-      // Completed triangle with 3 points.
       const pointsStr = drawing.points.map((p) => `${p.x},${p.y}`).join(' ');
       return <polygon points={pointsStr} {...commonProps} {...interactionProps} />;
     }
@@ -250,7 +248,7 @@ export function DrawingCanvas({
     if (drawingTool !== 'select' || !selectedObject) return;
     
     setEditingVertex({ pointIndex });
-    setWipDrawing(selectedObject); // Start editing from the current state
+    setWipDrawing(selectedObject);
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
   }
   
@@ -302,16 +300,15 @@ export function DrawingCanvas({
     }
     
     const isDrawingToolActive = ['path', 'arrow', 'rectangle', 'ellipse', 'triangle'].includes(drawingTool);
-    if (!isDrawing || e.target !== svgRef.current || !isDrawingToolActive) {
+
+    if (!isDrawing || !isDrawingToolActive) {
       return;
     }
 
-    // This event is for starting a new drawing. Stop it from bubbling to the parent pan handler.
     e.stopPropagation();
     
     const point = getPointInWorld(e);
 
-    // Special handling for multi-click triangle tool
     if (drawingTool === 'triangle') {
       const currentPoints = wipDrawing?.points || [];
       const newPoints = [...currentPoints, point];
@@ -336,31 +333,27 @@ export function DrawingCanvas({
         }
         setWipDrawing(null);
       }
-      // For triangle, we don't set isInteracting, because it's a multi-click tool, not a drag tool.
       return; 
     }
 
-    // For all other "drag-to-draw" tools (path, rectangle, etc.)
     e.currentTarget.setPointerCapture(e.pointerId);
     setIsInteracting(true);
-    setWipDrawing({ type: drawingTool, points: [point], color, strokeWidth, rotation: 0 });
+    setWipDrawing({ type: drawingTool as DrawingShape, points: [point], color, strokeWidth, rotation: 0 });
   };
 
   const handleCanvasPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
-    // --- Rotation ---
     if (isRotating && rotationStartRef.current && wipDrawing) {
         const pointerPos = getPointInWorld(e);
         const { pivot, startAngle, objectInitialRotation } = rotationStartRef.current;
 
         const currentAngle = Math.atan2(pointerPos.y - pivot.y, pointerPos.x - pivot.x);
-        const angleDelta = currentAngle - startAngle; // in radians
+        const angleDelta = currentAngle - startAngle;
         const angleDeltaDegrees = angleDelta * (180 / Math.PI);
 
         const newRotation = objectInitialRotation + angleDeltaDegrees;
         setWipDrawing({ ...wipDrawing, rotation: newRotation });
         return;
     }
-    // --- Vertex Editing ---
     if (editingVertex && wipDrawing) {
         const newPoint = getPointInWorld(e);
         const newPoints = [...wipDrawing.points!];
@@ -369,7 +362,6 @@ export function DrawingCanvas({
         return;
     }
     
-    // --- Object Moving ---
     if (isMoving && moveStartRef.current && selectedObject) {
         const svg = svgRef.current;
         if (!svg) return;
@@ -377,7 +369,6 @@ export function DrawingCanvas({
         const CTM = svg.getScreenCTM();
         if (!CTM) return;
         
-        // We calculate the delta in screen space, then apply it to the points
         const dx = (e.clientX - moveStartRef.current.x) / CTM.a;
         const dy = (e.clientY - moveStartRef.current.y) / CTM.d;
 
@@ -390,7 +381,6 @@ export function DrawingCanvas({
         return;
     }
     
-    // --- Object Creation ---
     if (!isDrawing || !isInteracting || drawingTool === 'pan' || drawingTool === 'select' || drawingTool === 'eraser') return;
     
     if (e.buttons !== 1) return;
@@ -414,7 +404,7 @@ export function DrawingCanvas({
 
   const handleCanvasPointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
     const saveEditedObject = () => {
-        if (!selectedObject || !wipDrawing) return;
+        if (!selectedObject || !wipDrawing || !firestore) return;
         
         const objectRef = doc(firestore, 'rooms', roomId, 'drawings', selectedObject.id);
 
@@ -446,7 +436,6 @@ export function DrawingCanvas({
             });
     }
 
-    // --- Rotation Finished ---
     if (isRotating) {
         (e.target as HTMLElement).releasePointerCapture(e.pointerId);
         setIsRotating(false);
@@ -455,7 +444,6 @@ export function DrawingCanvas({
         rotationStartRef.current = null;
         return;
     }
-    // --- Vertex Editing Finished ---
     if (editingVertex) {
         (e.target as HTMLElement).releasePointerCapture(e.pointerId);
         saveEditedObject();
@@ -464,12 +452,10 @@ export function DrawingCanvas({
         return;
     }
     
-    // --- Object Moving Finished ---
     if (isMoving && selectedObject && wipDrawing) {
         (e.target as HTMLElement).releasePointerCapture(e.pointerId);
         setIsMoving(false);
 
-        // Update the reference object for the next move operation
         if (moveStartRef.current) {
             moveStartRef.current.object.points = wipDrawing.points!;
         }
@@ -480,7 +466,6 @@ export function DrawingCanvas({
         return;
     }
     
-    // --- Object Creation Finished ---
     if (!isDrawing || !isInteracting || drawingTool === 'pan' || drawingTool === 'select' || drawingTool === 'eraser') {
        if (isInteracting) setIsInteracting(false);
        return;
@@ -498,7 +483,7 @@ export function DrawingCanvas({
       if (user) {
         saveDrawing({
             userId: user.uid,
-            type: wipDrawing.type,
+            type: wipDrawing.type as DrawingShape,
             points: wipDrawing.points,
             color: wipDrawing.color || color,
             strokeWidth: wipDrawing.strokeWidth || strokeWidth,
@@ -538,7 +523,6 @@ export function DrawingCanvas({
     return Array.from(colors);
   }, [drawings, wipDrawing]);
 
-  // Determine which object to display: the one being edited/moved, or the original
   const displayedDrawings = useMemo(() => {
     if (wipDrawing && (isMoving || editingVertex || isRotating)) {
       return drawings.map(d => d.id === wipDrawing.id ? (wipDrawing as DrawingObject) : d);
@@ -597,13 +581,22 @@ export function DrawingCanvas({
             );
         })}
 
-        {wipDrawing && isInteracting && wipDrawing.points && (
+        {(wipDrawing && isInteracting && wipDrawing.points) && (
           <RenderedObject
             drawing={wipDrawing as DrawingObject}
             drawingTool={wipDrawing.type as DrawingShape}
             isSelected={false}
             onPointerDown={() => {}}
           />
+        )}
+        
+        {(wipDrawing && drawingTool === 'triangle' && wipDrawing.points) && (
+             <RenderedObject
+                drawing={wipDrawing as DrawingObject}
+                drawingTool={wipDrawing.type as DrawingShape}
+                isSelected={false}
+                onPointerDown={() => {}}
+            />
         )}
 
         {selectedObject && !isMoving && !editingVertex && !isRotating && (
