@@ -158,13 +158,12 @@ export function Room({ roomId }: RoomProps) {
   };
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    // Only pan if drawing mode is off, or if the pan tool is selected.
     const canPan = !isDrawing || drawingTool === 'pan';
     if (!canPan) return;
 
-    // Check if the event target is the board itself, not something on the canvas.
+    // Check if the event target is the board itself, not something on the canvas or a message.
     const target = e.target as HTMLElement;
-    if (target.closest('[data-drawing-canvas]') || target.closest('[data-message-card]')) {
+    if (target.closest('[data-drawing-canvas="true"]') || target.closest('[data-message-card="true"]') || target.closest('[data-resize-handle="true"]')) {
       return;
     }
     
@@ -190,7 +189,7 @@ export function Room({ roomId }: RoomProps) {
     const newIsDrawing = !isDrawing;
     setIsDrawing(newIsDrawing);
     if (newIsDrawing) {
-        setDrawingTool('select');
+        setDrawingTool('path');
     } else {
         setDrawingTool('pan');
     }
@@ -350,17 +349,19 @@ export function Room({ roomId }: RoomProps) {
               panOffset={panOffset}
             />
           ))}
-           <DrawingCanvas
-            roomId={roomId}
-            isDrawing={isDrawing}
-            color={drawColor}
-            strokeWidth={strokeWidth}
-            drawings={drawings}
-            drawingTool={drawingTool}
-            setDrawingTool={setDrawingTool}
-            className="z-10"
-          />
         </div>
+        
+        <DrawingCanvas
+          roomId={roomId}
+          isDrawing={isDrawing}
+          color={drawColor}
+          strokeWidth={strokeWidth}
+          drawings={drawings}
+          drawingTool={drawingTool}
+          setDrawingTool={setDrawingTool}
+          panOffset={panOffset}
+          className="z-10"
+        />
 
         {loading && messages.length === 0 && (
           <p className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground">

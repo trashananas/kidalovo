@@ -25,6 +25,7 @@ type DrawingCanvasProps = {
   drawings: DrawingObject[];
   drawingTool: DrawingShape | 'pan' | 'eraser' | 'select';
   setDrawingTool: (tool: DrawingShape | 'pan' | 'eraser' | 'select') => void;
+  panOffset: { x: number; y: number };
   className?: string;
 };
 
@@ -161,6 +162,7 @@ export function DrawingCanvas({
   drawings,
   drawingTool,
   setDrawingTool,
+  panOffset,
   className,
 }: DrawingCanvasProps) {
   const { user } = useUser();
@@ -202,8 +204,8 @@ export function DrawingCanvas({
     const svgPoint = point.matrixTransform(invertedMatrix);
 
     return {
-      x: svgPoint.x,
-      y: svgPoint.y,
+      x: svgPoint.x - panOffset.x,
+      y: svgPoint.y - panOffset.y,
     };
   };
 
@@ -296,7 +298,7 @@ export function DrawingCanvas({
 
   const handleCanvasPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     // If an object is selected and the click is on the background, deselect it.
-    if (drawingTool === 'select' && e.target === svgRef.current) {
+    if (drawingTool === 'select') {
         setSelectedObjectId(null);
     }
     
@@ -563,7 +565,7 @@ export function DrawingCanvas({
             </marker>
         ))}
       </defs>
-      <g>
+      <g transform={`translate(${panOffset.x}, ${panOffset.y})`}>
         {displayedDrawings.map((drawing) => {
             const { x, y, width, height } = getBoundingBox(drawing);
             const centerX = x + width / 2;
