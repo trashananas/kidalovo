@@ -13,6 +13,7 @@ export type Message = {
   userId: string;
   createdAt: Timestamp;
   updatedAt?: Timestamp;
+  isDeleted?: boolean;
   position: {
     x: number;
     y: number;

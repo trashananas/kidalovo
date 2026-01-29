@@ -10,20 +10,10 @@ import { GripVertical, Copy, File as FileIcon, Download, Pencil, Loader2, Trash2
 import { formatDistanceToNow } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 
 
 const GREEK_LOWER = {
@@ -108,7 +98,7 @@ const renderFormattedText = (text: string): React.ReactNode[] => {
       '|(?<![\\wа-яА-Я])(\\\\([^\\\\]*?)\\\\)(?![\\wа-яА-Я])' + // 6, 7: Italic
       '|(?<![\\wа-яА-Я])(_([^_]*?)_)(?![\\wа-яА-Я])' + // 8, 9: Underline
       '|(?<![\\wа-яА-Я])(\\$([^$]*?)\\$)(?![\\wа-яА-Я])' + // 10, 11: Strike
-      '|(?<![\\wа-яА-Я])(#([^#]*?)#)(?![\\wа-яА-Я])' + // 12, 13: Spoiler
+      '|(?<![\\wа-яА-Я])(\\#([^#]*?)\\#)(?![\\wа-яА-Я])' + // 12, 13: Spoiler
       '|((?:https?://|www\\.)[^\\s]+)' + // 14: Autolink
       '|(\\s<3\\s)', // 15: Heart
     'g'
@@ -222,7 +212,6 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editText, setEditText] = useState(message.text || '');
 
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
 
@@ -531,23 +520,25 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   };
 
   const handleDelete = async () => {
-    if (!firestore || !isOwner) return;
+    if (!firestore || !isOwner || isDeleting) return;
 
     setIsDeleting(true);
     const messageDocRef = doc(firestore, 'rooms', roomId, 'messages', message.id);
     
-    deleteDoc(messageDocRef)
+    // Soft delete: just update a flag to hide it
+    updateDoc(messageDocRef, { isDeleted: true })
       .catch((error) => {
         errorEmitter.emit(
           'permission-error',
           new FirestorePermissionError({
             path: messageDocRef.path,
-            operation: 'delete',
+            operation: 'update',
+            requestResourceData: { isDeleted: true }
           })
         );
         toast({
-          title: 'Ошибка удаления',
-          description: `Не удалось удалить сообщение: ${getErrorMessage(error)}`,
+          title: 'Ошибка',
+          description: `Не удалось скрыть сообщение: ${getErrorMessage(error)}`,
           variant: 'destructive',
         });
       })
@@ -558,28 +549,6 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
 
 
   return (
-    <>
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Вы уверены?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Это действие навсегда удалит сообщение с доски. Его нельзя будет восстановить.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Отмена</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={isDeleting}
-              onClick={handleDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isDeleting ? <Loader2 className="animate-spin" /> : 'Удалить'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
       <Card
         ref={cardRef}
         data-message-card="true"
@@ -730,10 +699,10 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
                 {isOwner && (
                   <div
                     className="p-1 text-destructive/70 hover:text-destructive cursor-pointer"
-                    onClick={() => setIsDeleteDialogOpen(true)}
+                    onClick={handleDelete}
                     title="Удалить"
                   >
-                    <Trash2 className="h-5 w-5" />
+                    {isDeleting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
                   </div>
                 )}
               </div>
@@ -760,6 +729,5 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
           />
         )}
       </Card>
-    </>
   );
 }

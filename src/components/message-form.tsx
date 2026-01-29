@@ -225,6 +225,7 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
             file: fileAttachment,
             userId: user.uid,
             createdAt: serverTimestamp(),
+            isDeleted: false,
             position: {
                 x: Math.random() * (window.innerWidth * 0.6) + 20 - panOffset.x,
                 y: Math.random() * (window.innerHeight * 0.4) + 20 - panOffset.y,

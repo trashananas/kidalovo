@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { collection, query, orderBy, doc, updateDoc } from 'firebase/firestore';
+import { useState, useEffect, useMemo } from 'react';
+import { collection, query, orderBy, doc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import type { Message, DrawingObject } from '@/types';
 
@@ -10,64 +10,69 @@ export function useRoom(roomId: string) {
   const { user } = useUser();
   const [isJoinAttemptComplete, setIsJoinAttemptComplete] = useState(false);
   const [joinError, setJoinError] = useState<Error | null>(null);
+  const [serverSideMembership, setServerSideMembership] = useState(false);
 
-  // This effect will run once to add the user to the room.
+  // This effect ensures we are officially recognized as a member on the server
   useEffect(() => {
-    // Reset state if user/room changes
-    setIsJoinAttemptComplete(false);
-    setJoinError(null);
+    if (!firestore || !roomId || !user) return;
 
-    if (firestore && roomId && user) {
-      const roomRef = doc(firestore, 'rooms', roomId);
-      // Attempt to add the user to the members list.
-      // The security rules are set up to allow this specific update for any signed-in user.
-      updateDoc(roomRef, {
-        [`members.${user.uid}`]: 'member',
-      })
-      .then(() => {
-        // Once the update is successful, we know the user is a member.
+    const roomRef = doc(firestore, 'rooms', roomId);
+    
+    // 1. First, attempt to join if not already a member
+    updateDoc(roomRef, {
+      [`members.${user.uid}`]: 'member',
+    }).catch(err => {
+      console.warn("Potential failure joining room, but we will wait for snapshot:", err);
+    });
+
+    // 2. Listen to the room document to confirm membership from server perspective
+    const unsubscribe = onSnapshot(roomRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        if (data.members && data.members[user.uid]) {
+          setServerSideMembership(true);
+          setIsJoinAttemptComplete(true);
+          setJoinError(null);
+        }
+      } else {
+        setJoinError(new Error("Комната не найдена"));
         setIsJoinAttemptComplete(true);
-      })
-      .catch((err) => {
-        // If this update fails with a permission error, it's likely because the underlying
-        // 'get' in the security rule failed, which usually means the room document doesn't exist.
-        console.error("Failed to add user to room members:", err);
-        setJoinError(err);
-        setIsJoinAttemptComplete(true); // The attempt is complete, even if it failed.
-      });
-    } else if (!user || !firestore) {
-        // If there's no user or firestore isn't ready, the attempt is (vacuously) complete.
-        // This allows loading states to resolve correctly.
-        setIsJoinAttemptComplete(true);
-    }
+      }
+    }, (err) => {
+      setJoinError(err);
+      setIsJoinAttemptComplete(true);
+    });
+
+    return () => unsubscribe();
   }, [firestore, roomId, user]);
 
 
   const messagesQuery = useMemoFirebase(() => {
-    // Only construct the query if the join attempt is complete and was successful.
-    if (!firestore || !roomId || !isJoinAttemptComplete || joinError) return null;
+    if (!firestore || !roomId || !serverSideMembership) return null;
     return query(
       collection(firestore, 'rooms', roomId, 'messages'),
       orderBy('createdAt', 'asc')
     );
-  }, [firestore, roomId, isJoinAttemptComplete, joinError]);
+  }, [firestore, roomId, serverSideMembership]);
 
   const drawingsQuery = useMemoFirebase(() => {
-    // Only construct the query if the join attempt is complete and was successful.
-    if (!firestore || !roomId || !isJoinAttemptComplete || joinError) return null;
+    if (!firestore || !roomId || !serverSideMembership) return null;
     return query(
       collection(firestore, 'rooms', roomId, 'drawings'),
       orderBy('createdAt', 'asc')
     );
-  }, [firestore, roomId, isJoinAttemptComplete, joinError]);
+  }, [firestore, roomId, serverSideMembership]);
 
-  const { data: messages, isLoading: messagesLoading, error: messagesError } = useCollection<Message>(messagesQuery);
+  const { data: rawMessages, isLoading: messagesLoading, error: messagesError } = useCollection<Message>(messagesQuery);
   const { data: drawings, isLoading: drawingsLoading, error: drawingsError } = useCollection<DrawingObject>(drawingsQuery);
   
-  const finalError = joinError || messagesError || drawingsError;
+  // Filter out deleted messages on the client side
+  const messages = useMemo(() => {
+    return (rawMessages ?? []).filter(m => !m.isDeleted);
+  }, [rawMessages]);
 
-  // The overall loading state is true until the join is complete AND data loading is complete.
+  const finalError = joinError || messagesError || drawingsError;
   const finalLoading = !isJoinAttemptComplete || (messagesQuery ? messagesLoading : false) || (drawingsQuery ? drawingsLoading : false);
 
-  return { messages: messages ?? [], drawings: drawings ?? [], loading: finalLoading, error: finalError };
+  return { messages, drawings: drawings ?? [], loading: finalLoading, error: finalError };
 }
