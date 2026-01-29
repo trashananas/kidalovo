@@ -160,18 +160,27 @@ export function Room({ roomId }: RoomProps) {
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
 
-    // Pan if drawing tool is 'pan' OR drawing is disabled
-    const canPan = (isDrawing && drawingTool === 'pan') || !isDrawing;
+    // This handler is ONLY for panning the board.
+    // We should only pan if the drawing mode is OFF, or if the selected tool is 'pan'.
+    const shouldPan = !isDrawing || drawingTool === 'pan';
 
+    if (!shouldPan) {
+      // If we are in any other drawing mode (pen, select, rect, etc.),
+      // this handler should do nothing and let the canvas handle the event.
+      return;
+    }
+    
+    // We are in panning mode. Now check if we clicked on something that shouldn't cause panning.
     if (
-      !canPan ||
       target.closest('[data-message-card="true"]') ||
       target.closest('.message-form-container') ||
-      target.closest('.room-header')
+      target.closest('.room-header') ||
+      target.closest('[data-resize-handle="true"]')
     ) {
       return;
     }
 
+    // If we've reached here, it's safe to start panning.
     setIsPanning(true);
     panStart.current = { x: e.clientX - panOffset.x, y: e.clientY - panOffset.y };
     e.currentTarget.setPointerCapture(e.pointerId);
