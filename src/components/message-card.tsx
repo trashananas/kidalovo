@@ -213,6 +213,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   const [editText, setEditText] = useState(message.text || '');
 
   const [isDeleting, setIsDeleting] = useState(false);
+  const lastDeleteClickRef = useRef<number>(0);
 
 
   const cardRef = useRef<HTMLDivElement>(null);
@@ -547,6 +548,21 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
       });
   };
 
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const now = Date.now();
+    if (now - lastDeleteClickRef.current < 500) {
+      handleDelete();
+    } else {
+      toast({ 
+        title: "Подтверждение", 
+        description: "Нажмите еще раз быстро для удаления",
+        duration: 2000 
+      });
+    }
+    lastDeleteClickRef.current = now;
+  };
+
 
   return (
       <Card
@@ -699,8 +715,8 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
                 {isOwner && (
                   <div
                     className="p-1 text-destructive/70 hover:text-destructive cursor-pointer"
-                    onClick={handleDelete}
-                    title="Удалить"
+                    onClick={handleDeleteClick}
+                    title="Двойной клик для удаления"
                   >
                     {isDeleting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
                   </div>
