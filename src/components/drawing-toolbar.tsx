@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -48,7 +49,7 @@ export function DrawingToolbar({
   }[] = [
     { id: 'select', icon: MousePointer2, title: 'Выделить' },
     { id: 'pan', icon: Hand, title: 'Перемещение' },
-    { id: 'pen', icon: Pen, title: 'Ручка' },
+    { id: 'path', icon: Pen, title: 'Ручка' },
     { id: 'arrow', icon: ArrowUpRight, title: 'Стрелка' },
     { id: 'rectangle', icon: RectangleHorizontal, title: 'Прямоугольник' },
     { id: 'ellipse', icon: Circle, title: 'Эллипс' },
@@ -58,8 +59,8 @@ export function DrawingToolbar({
 
   const handleColorClick = (c: string) => {
     setColor(c);
-    // Automatically switch to the pen tool when a color is selected
-    setDrawingTool('pen');
+    // Automatically switch to the path tool when a color is selected
+    setDrawingTool('path');
   };
 
   return (
