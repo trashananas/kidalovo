@@ -158,10 +158,8 @@ export function Room({ roomId }: RoomProps) {
   };
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLElement;
-
     // This handler is ONLY for panning the board.
-    // We should only pan if the drawing mode is OFF, or if the selected tool is 'pan'.
+    // It should only activate if drawing mode is off, or if the pan tool is selected.
     const shouldPan = !isDrawing || drawingTool === 'pan';
 
     if (!shouldPan) {
@@ -170,17 +168,7 @@ export function Room({ roomId }: RoomProps) {
       return;
     }
     
-    // We are in panning mode. Now check if we clicked on something that shouldn't cause panning.
-    if (
-      target.closest('[data-message-card="true"]') ||
-      target.closest('.message-form-container') ||
-      target.closest('.room-header') ||
-      target.closest('[data-resize-handle="true"]')
-    ) {
-      return;
-    }
-
-    // If we've reached here, it's safe to start panning.
+    // If we are in panning mode, we start panning.
     setIsPanning(true);
     panStart.current = { x: e.clientX - panOffset.x, y: e.clientY - panOffset.y };
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -238,6 +226,7 @@ export function Room({ roomId }: RoomProps) {
     if (!isDrawing) return isPanning ? 'cursor-grabbing' : 'cursor-grab';
     if (drawingTool === 'pan') return isPanning ? 'cursor-grabbing' : 'cursor-grab';
     if (drawingTool === 'select') return 'cursor-default';
+    // For other drawing tools, the cursor is handled by the canvas itself
     return '';
   }
 
@@ -348,7 +337,7 @@ export function Room({ roomId }: RoomProps) {
       >
         <div
           id="pannable-container"
-          className="absolute inset-0"
+          className="absolute inset-0 pointer-events-none"
           style={{
             transform: `translate(${panOffset.x}px, ${panOffset.y}px)`,
           }}
@@ -372,6 +361,7 @@ export function Room({ roomId }: RoomProps) {
           drawings={drawings}
           drawingTool={drawingTool}
           setDrawingTool={setDrawingTool}
+          className="z-10"
         />
 
         {loading && messages.length === 0 && (

@@ -471,10 +471,10 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
         ref={cardRef}
         data-message-card="true"
         className={cn(
-          'absolute rounded-lg shadow-lg transition-shadow duration-300 flex flex-col',
+          'absolute rounded-lg shadow-lg transition-shadow duration-300 flex flex-col pointer-events-auto',
           isOwner && 'cursor-grab',
-          isDragging && 'cursor-grabbing shadow-2xl z-20 scale-105',
-          isResizing && 'z-20'
+          isDragging && 'cursor-grabbing shadow-2xl z-30 scale-105',
+          isResizing && 'z-30'
         )}
         style={{
           left: `${position.x}px`,

@@ -26,6 +26,7 @@ type DrawingCanvasProps = {
   drawings: DrawingObject[];
   drawingTool: DrawingShape | 'pan' | 'eraser' | 'select';
   setDrawingTool: (tool: DrawingShape | 'pan' | 'eraser' | 'select') => void;
+  className?: string;
 };
 
 function getBoundingBox(object: DrawingObject): {
@@ -162,6 +163,7 @@ export function DrawingCanvas({
   drawings,
   drawingTool,
   setDrawingTool,
+  className,
 }: DrawingCanvasProps) {
   const { user } = useUser();
   const firestore = useFirestore();
@@ -295,7 +297,7 @@ export function DrawingCanvas({
   }
 
   const handleCanvasPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (e.target === svgRef.current) {
+    if (e.target !== svgRef.current) {
         setSelectedObjectId(null);
     }
     
@@ -537,7 +539,8 @@ export function DrawingCanvas({
       data-drawing-canvas="true"
       className={cn(
         'absolute inset-0 w-full h-full',
-        cursorClass()
+        cursorClass(),
+        className
       )}
       onPointerDown={handleCanvasPointerDown}
       onPointerMove={handleCanvasPointerMove}
