@@ -22,7 +22,6 @@ type DrawingCanvasProps = {
   isDrawing: boolean;
   color: string;
   strokeWidth: number;
-  panOffset: { x: number; y: number };
   drawings: DrawingObject[];
   drawingTool: DrawingShape | 'pan' | 'eraser' | 'select';
   setDrawingTool: (tool: DrawingShape | 'pan' | 'eraser' | 'select') => void;
@@ -159,7 +158,6 @@ export function DrawingCanvas({
   isDrawing,
   color,
   strokeWidth,
-  panOffset,
   drawings,
   drawingTool,
   setDrawingTool,
@@ -297,7 +295,8 @@ export function DrawingCanvas({
   }
 
   const handleCanvasPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (e.target !== svgRef.current) {
+    // If an object is selected and the click is on the background, deselect it.
+    if (drawingTool === 'select' && e.target === svgRef.current) {
         setSelectedObjectId(null);
     }
     
@@ -546,7 +545,6 @@ export function DrawingCanvas({
       onPointerMove={handleCanvasPointerMove}
       onPointerUp={handleCanvasPointerUp}
       onPointerLeave={handleCanvasPointerUp}
-      style={{ transform: `translate(${panOffset.x}px, ${panOffset.y}px)` }}
     >
       <defs>
         {uniqueColors.map(c => (

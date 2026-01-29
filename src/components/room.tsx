@@ -158,17 +158,16 @@ export function Room({ roomId }: RoomProps) {
   };
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    // This handler is ONLY for panning the board.
-    // It should only activate if drawing mode is off, or if the pan tool is selected.
-    const shouldPan = !isDrawing || drawingTool === 'pan';
+    // Only pan if drawing mode is off, or if the pan tool is selected.
+    const canPan = !isDrawing || drawingTool === 'pan';
+    if (!canPan) return;
 
-    if (!shouldPan) {
-      // If we are in any other drawing mode (pen, select, rect, etc.),
-      // this handler should do nothing and let the canvas handle the event.
+    // Check if the event target is the board itself, not something on the canvas.
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-drawing-canvas]') || target.closest('[data-message-card]')) {
       return;
     }
     
-    // If we are in panning mode, we start panning.
     setIsPanning(true);
     panStart.current = { x: e.clientX - panOffset.x, y: e.clientY - panOffset.y };
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -223,10 +222,11 @@ export function Room({ roomId }: RoomProps) {
   }
   
   const boardCursorClass = () => {
-    if (!isDrawing) return isPanning ? 'cursor-grabbing' : 'cursor-grab';
-    if (drawingTool === 'pan') return isPanning ? 'cursor-grabbing' : 'cursor-grab';
-    if (drawingTool === 'select') return 'cursor-default';
-    // For other drawing tools, the cursor is handled by the canvas itself
+    const canPan = !isDrawing || drawingTool === 'pan';
+    if (canPan) {
+      return isPanning ? 'cursor-grabbing' : 'cursor-grab';
+    }
+    // Cursors for drawing tools are handled by the canvas itself
     return '';
   }
 
@@ -337,7 +337,7 @@ export function Room({ roomId }: RoomProps) {
       >
         <div
           id="pannable-container"
-          className="absolute inset-0 pointer-events-none"
+          className="absolute inset-0"
           style={{
             transform: `translate(${panOffset.x}px, ${panOffset.y}px)`,
           }}
@@ -350,19 +350,17 @@ export function Room({ roomId }: RoomProps) {
               panOffset={panOffset}
             />
           ))}
+           <DrawingCanvas
+            roomId={roomId}
+            isDrawing={isDrawing}
+            color={drawColor}
+            strokeWidth={strokeWidth}
+            drawings={drawings}
+            drawingTool={drawingTool}
+            setDrawingTool={setDrawingTool}
+            className="z-10"
+          />
         </div>
-
-        <DrawingCanvas
-          roomId={roomId}
-          isDrawing={isDrawing}
-          color={drawColor}
-          strokeWidth={strokeWidth}
-          panOffset={panOffset}
-          drawings={drawings}
-          drawingTool={drawingTool}
-          setDrawingTool={setDrawingTool}
-          className="z-10"
-        />
 
         {loading && messages.length === 0 && (
           <p className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground">
