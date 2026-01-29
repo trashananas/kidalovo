@@ -300,8 +300,14 @@ export function DrawingCanvas({
     if (e.target === svgRef.current) {
         setSelectedObjectId(null);
     }
-    // If it's not a drawing action, or not on the canvas, or a non-drawing tool, exit.
-    if (!isDrawing || e.target !== svgRef.current || drawingTool === 'select' || drawingTool === 'pan' || drawingTool === 'eraser') return;
+    
+    const isDrawingToolActive = ['path', 'arrow', 'rectangle', 'ellipse', 'triangle'].includes(drawingTool);
+    if (!isDrawing || e.target !== svgRef.current || !isDrawingToolActive) {
+      return;
+    }
+
+    // This event is for starting a new drawing. Stop it from bubbling to the parent pan handler.
+    e.stopPropagation();
     
     const point = getPointInWorld(e);
 
@@ -507,9 +513,12 @@ export function DrawingCanvas({
     if (!isDrawing) return 'pointer-events-none';
     
     switch(drawingTool) {
-      case 'pan': return isInteracting ? 'cursor-grabbing' : 'cursor-grab';
-      case 'select': return 'cursor-default';
-      case 'eraser': return 'cursor-cell';
+      case 'pan':
+        return 'pointer-events-none';
+      case 'select':
+        return 'cursor-default';
+      case 'eraser':
+        return 'cursor-cell';
       case 'path':
       case 'arrow':
       case 'rectangle':
