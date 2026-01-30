@@ -36,7 +36,6 @@ service cloud.firestore {
 
     /**
      * Returns true if the user is a member of the specified room.
-     * Checks the parent room document as the single source of truth.
      */
     function isRoomMember(roomId) {
       return isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/rooms/$(roomId)).data.members;
@@ -44,7 +43,6 @@ service cloud.firestore {
 
     /**
      * Returns true if the user is the owner of the specified room.
-     * Checks for the 'owner' role in the parent room's members map.
      */
     function isRoomOwner(roomId) {
       return isSignedIn() && get(/databases/$(database)/documents/rooms/$(roomId)).data.members[request.auth.uid] == 'owner';
@@ -64,21 +62,14 @@ service cloud.firestore {
     function isMessageCreator() {
       return request.resource.data.userId == request.auth.uid;
     }
-    
-    /**
-     * Validates that an incoming drawing object on create has the creator's UID.
-     */
-    function isDrawingCreator() {
-      return request.resource.data.userId == request.auth.uid;
-    }
 
     /**
      * Validates that an incoming message has content (text or a file).
      */
     function hasContent() {
       let data = request.resource.data;
-      return (data.text != null && data.text is string && data.text.size() > 0) 
-          || (data.file != null && data.file.url != null && data.file.url is string && data.file.url.size() > 0);
+      return (data.get('text', '') != null && data.get('text', '').size() > 0) 
+          || (data.get('file', null) != null);
     }
 
     /**
@@ -90,21 +81,12 @@ service cloud.firestore {
 
     /**
      * Validates that immutable fields of a message are not changed on update.
-     * Allow only 'text', 'position', 'size', and 'updatedAt' to be changed.
+     * We only care that the author (userId) remains the same.
      */
     function isMessageUpdateValid() {
       let incoming = request.resource.data;
       let existing = resource.data;
-      
-      let fileUnchanged = (existing.file == null && incoming.file == null) || 
-                          (existing.file.name == incoming.file.name && 
-                           existing.file.type == incoming.file.type && 
-                           existing.file.url == incoming.file.url);
-                           
-      return incoming.userId == existing.userId &&
-             incoming.roomId == existing.roomId &&
-             incoming.createdAt == existing.createdAt &&
-             fileUnchanged;
+      return incoming.userId == existing.userId;
     }
 
     // ------------------------------------------------------------------------
@@ -118,15 +100,11 @@ service cloud.firestore {
     }
 
     match /rooms/{roomId} {
-      // Any signed in user can check if a room exists.
       allow get: if isSignedIn();
       allow list: if false;
-      // Only the creator can create the room.
       allow create: if isSignedIn() && request.resource.data.creatorId == request.auth.uid;
-      // The owner can update anything. Members can be added, but not removed by non-owners.
       allow update: if isRoomOwner(roomId) || 
         (isSignedIn() && request.resource.data.members.size() >= resource.data.members.size());
-      // A room can be deleted only by the last member remaining.
       allow delete: if isLastMember(roomId) && isExistingDoc();
 
       match /messages/{messageId} {

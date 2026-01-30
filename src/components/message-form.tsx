@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
@@ -58,6 +57,7 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       }
 
       await addDoc(collection(firestore, 'rooms', roomId, 'messages'), {
+        roomId,
         text: values.message,
         file: fileAttachment,
         userId: user.uid,
