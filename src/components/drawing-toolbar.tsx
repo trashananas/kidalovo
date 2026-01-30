@@ -4,7 +4,7 @@
 import {
   Eraser,
   Hand,
-  PenTool,
+  Feather,
   ArrowUpRight,
   RectangleHorizontal,
   Circle,
@@ -49,7 +49,7 @@ export function DrawingToolbar({
   }[] = [
     { id: 'select', icon: MousePointer2, title: 'Выделить' },
     { id: 'pan', icon: Hand, title: 'Перемещение' },
-    { id: 'path', icon: PenTool, title: 'Перо' },
+    { id: 'path', icon: Feather, title: 'Перо' },
     { id: 'arrow', icon: ArrowUpRight, title: 'Стрелка' },
     { id: 'rectangle', icon: RectangleHorizontal, title: 'Прямоугольник' },
     { id: 'ellipse', icon: Circle, title: 'Эллипс' },

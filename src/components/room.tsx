@@ -12,7 +12,7 @@ import {
   Trash2,
   Expand,
   Minimize,
-  PenTool,
+  Feather,
   MousePointer2,
   Lock,
   KeyRound,
@@ -186,7 +186,6 @@ export function Room({ roomId }: RoomProps) {
       return;
     }
     setIsPanning(true);
-    panStart.current = { x: e.clientX - panOffset.x, y: e.clientY - panStart.current.x }; // Fix for pan offset: this was slightly incorrect, but keeping user logic
     panStart.current = { x: e.clientX - panOffset.x, y: e.clientY - panOffset.y };
     e.currentTarget.setPointerCapture(e.pointerId);
   };
@@ -289,7 +288,7 @@ export function Room({ roomId }: RoomProps) {
 
         <div className="flex items-center gap-2 rounded-full border bg-card p-1 shadow-sm">
           <Button variant={isDrawing ? 'secondary' : 'ghost'} size="icon" onClick={toggleDrawing} title="Рисование">
-            {isDrawing ? <MousePointer2 /> : <PenTool />}
+            {isDrawing ? <MousePointer2 /> : <Feather />}
           </Button>
           {isMobile && (
             <Button variant="ghost" size="icon" onClick={toggleFullscreen} title={isFullscreen ? 'Выйти' : 'Во весь экран'}>
