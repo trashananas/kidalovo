@@ -21,7 +21,13 @@ const messageSchema = z.object({
 }).refine(data => {
   const hasText = typeof data.message === 'string' && data.message.trim().length > 0;
   return hasText || !!data.file;
-}, { message: 'Пустое сообщение', path: ['message'] });
+}, { message: 'Пустое сообщение', path: ['message'] })
+.refine(data => {
+  if (typeof data.message === 'string' && /валикова/gi.test(data.message)) {
+    return false;
+  }
+  return true;
+}, { message: 'your message contains a nature error', path: ['message'] });
 
 export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: { x: number; y: number } }) {
   const { user } = useUser();
@@ -116,18 +122,21 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
               render={({ field }) => (
                 <FormItem className="flex-grow">
                   <FormControl>
-                    <Textarea 
-                      {...field} 
-                      placeholder="Сообщение..." 
-                      className="min-h-[40px] max-h-[200px] resize-none py-2" 
-                      rows={1}
-                      onKeyDown={(e) => { 
-                        if (e.key === 'Enter' && !e.shiftKey) { 
-                          e.preventDefault(); 
-                          form.handleSubmit(onSubmit)(); 
-                        } 
-                      }}
-                    />
+                    <div className="relative">
+                      <Textarea 
+                        {...field} 
+                        placeholder="Сообщение..." 
+                        className="min-h-[40px] max-h-[200px] resize-none py-2" 
+                        rows={1}
+                        onKeyDown={(e) => { 
+                          if (e.key === 'Enter' && !e.shiftKey) { 
+                            e.preventDefault(); 
+                            form.handleSubmit(onSubmit)(); 
+                          } 
+                        }}
+                      />
+                      <FormMessage className="absolute -top-6 left-0" />
+                    </div>
                   </FormControl>
                 </FormItem>
               )}

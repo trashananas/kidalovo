@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { Message } from '@/types';
@@ -41,7 +40,7 @@ const renderFormattedText = (text: string): React.ReactNode[] => {
   let lastIndex = 0;
 
   const replacer = (str: string) => {
-    let processed = str.replace(/валикова/gi, 'x').replace(/_=/g, '≡');
+    let processed = str.replace(/_=/g, '≡');
     processed = processed.replace(GREEK_REGEX, (match) => {
       const lowerMatch = match.toLowerCase() as keyof typeof GREEK_LOWER;
       const isTitleCase = match.charAt(0) === match.charAt(0).toUpperCase() && match.slice(1) === lowerMatch.slice(1);
@@ -49,7 +48,7 @@ const renderFormattedText = (text: string): React.ReactNode[] => {
       if ((isTitleCase || isUpperCase) && GREEK_UPPER[lowerMatch]) return GREEK_UPPER[lowerMatch];
       return GREEK_LOWER[lowerMatch] || match;
     });
-    // Сердечко
+    // Сердечко ❤️
     processed = processed.replace(/<3/g, '❤️');
     return processed;
   };
@@ -354,7 +353,7 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner }: Message
                 {message.text || 'Файл...'}
               </div>
             ) : (
-              <p className="text-sm whitespace-pre-wrap break-words">{renderFormattedText(message.text || '')}</p>
+              <div className="text-sm whitespace-pre-wrap break-words">{renderFormattedText(message.text || '')}</div>
             )}
           </div>
         </div>
