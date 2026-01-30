@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { Message } from '@/types';
@@ -12,9 +13,7 @@ import { ru } from 'date-fns/locale';
 import { useUser, useFirestore } from '@/firebase';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
-
+import { PineappleBadge } from './pineapple-badge';
 
 const GREEK_LOWER = {
   pi: 'π', alpha: 'α', beta: 'β', gamma: 'γ', delta: 'δ', phi: 'φ', omega: 'ω', theta: 'θ', sigma: 'σ',
@@ -50,10 +49,12 @@ const renderFormattedText = (text: string): React.ReactNode[] => {
       if ((isTitleCase || isUpperCase) && GREEK_UPPER[lowerMatch]) return GREEK_UPPER[lowerMatch];
       return GREEK_LOWER[lowerMatch] || match;
     });
+    // Сердечко
+    processed = processed.replace(/<3/g, '❤️');
     return processed;
   };
 
-  const regex = new RegExp('(@(.*?)\\@\\{(.*?)\\})|(?<![\\wа-яА-Я])(\\*([^*].*?[^*]|[^\\s*])\\*)(?![\\wа-яА-Я])|(?<![\\wа-яА-Я])(\\\\([^\\\\]*?)\\\\)(?![\\wа-яА-Я])|(?<![\\wа-яА-Я])(_([^_]*?)_)(?![\\wа-яА-Я])|(?<![\\wа-яА-Я])(\\$([^$]*?)\\$)(?![\\wа-яА-Я])|(?<![\\wа-яА-Я])(\\#([^#]*?)\\#)(?![\\wа-яА-Я])|((?:https?://|www\\.)[^\\s]+)|(\\s<3\\s)', 'g');
+  const regex = new RegExp('(@(.*?)\\@\\{(.*?)\\})|(?<![\\wа-яА-Я])(\\*([^*].*?[^*]|[^\\s*])\\*)(?![\\wа-яА-Я])|(?<![\\wа-яА-Я])(\\\\([^\\\\]*?)\\\\)(?![\\wа-яА-Я])|(?<![\\wа-яА-Я])(_([^_]*?)_)(?![\\wа-яА-Я])|(?<![\\wа-яА-Я])(\\$([^$]*?)\\$)(?![\\wа-яА-Я])|(?<![\\wа-яА-Я])(\\#([^#]*?)\\#)(?![\\wа-яА-Я])|((?:https?://|www\\.)[^\\s]+)', 'g');
 
   let match;
   while ((match = regex.exec(text)) !== null) {
@@ -70,7 +71,7 @@ const renderFormattedText = (text: string): React.ReactNode[] => {
     else if (match[14] !== undefined) {
       const url = match[14].startsWith('www.') ? `http://${match[14]}` : match[14];
       nodes.push(<a key={lastIndex} href={url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline" onClick={(e) => e.stopPropagation()}>{replacer(match[14])}</a>);
-    } else if (match[15] !== undefined) nodes.push(<span key={lastIndex}> ❤️ </span>);
+    }
     lastIndex = regex.lastIndex;
   }
   if (lastIndex < text.length) nodes.push(replacer(text.substring(lastIndex)));
@@ -108,10 +109,11 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner }: Message
   const resizeStartRef = useRef<{ x: number; y: number; width: number; height: number; } | null>(null);
   const dragOffset = useRef({ x: 0, y: 0 });
 
-  // Проверка на глобального админа Ananas по уникальному email
   const isGlobalAdmin = user?.email === 'ananas@kidalovo.internal';
-  // Moderator/Owner or Global Admin can manage messages
   const isOwner = (user?.uid === message.userId) || (isRoomOwner && user && !user.isAnonymous) || isGlobalAdmin;
+
+  // Проверка: является ли автор сообщения админом Ananas
+  const isAuthorAdmin = message.authorLogin?.toLowerCase() === 'ananas';
 
   useEffect(() => {
     setPosition(message.position);
@@ -265,8 +267,11 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner }: Message
         {/* Header with Author and Actions */}
         <div className="flex justify-between items-start">
           {message.authorName && !isCollapsed && (
-            <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: message.authorColor || 'inherit' }}>
-              от {message.authorName}
+            <div className="flex items-center gap-1 mb-1">
+              <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: message.authorColor || 'inherit' }}>
+                от {message.authorName}
+              </div>
+              {isAuthorAdmin && <PineappleBadge className="h-3 w-3" />}
             </div>
           )}
           

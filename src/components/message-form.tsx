@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
@@ -37,11 +38,6 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
     }
   }, [user, firestore]);
 
-  const form = useForm<z.infer<typeof messageSchema>>({
-    resolver: zodResolver(messageSchema),
-    defaultValues: { message: '', file: null }
-  });
-
   const onSubmit = async (values: z.infer<typeof messageSchema>) => {
     if (!firestore || !user || !roomId) return;
     setIsSubmitting(true);
@@ -61,8 +57,9 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
         text: values.message,
         file: fileAttachment,
         userId: user.uid,
-        authorName: profile?.username,
-        authorColor: profile?.color,
+        authorName: profile?.username || 'Аноним',
+        authorColor: profile?.color || '#666666',
+        authorLogin: profile?.login || null,
         createdAt: serverTimestamp(),
         isDeleted: false,
         position: {

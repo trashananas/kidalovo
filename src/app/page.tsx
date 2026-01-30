@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
@@ -15,6 +16,7 @@ import { UserGuide } from '@/components/user-guide';
 import { KidalovoLogo } from '@/components/kidalovo-logo';
 import { Separator } from '@/components/ui/separator';
 import { AuthModal } from '@/components/auth-modal';
+import { PineappleBadge } from '@/components/pineapple-badge';
 import {
   Dialog,
   DialogContent,
@@ -217,7 +219,10 @@ export default function Home() {
       <div className="absolute top-4 right-4 flex items-center gap-2">
         {user && !user.isAnonymous ? (
           <div className="flex items-center gap-3 bg-card p-2 rounded-lg border shadow-sm">
-            <span className="text-sm font-medium">Привет, {user.displayName || 'Пользователь'}</span>
+            <div className="flex items-center gap-1">
+              <span className="text-sm font-medium">Привет, {user.displayName || 'Пользователь'}</span>
+              {isAnanas && <PineappleBadge className="h-4 w-4" />}
+            </div>
             <Button variant="ghost" size="icon" onClick={handleLogout}>
               <LogOut className="h-4 w-4" />
             </Button>

@@ -14,6 +14,7 @@ export type Message = {
   userId: string;
   authorName?: string;
   authorColor?: string;
+  authorLogin?: string; // Добавлено для идентификации админа
   createdAt: Timestamp;
   updatedAt?: Timestamp;
   isDeleted?: boolean;
@@ -49,4 +50,5 @@ export type UserProfile = {
   id: string;
   username: string;
   color: string;
+  login?: string;
 };
