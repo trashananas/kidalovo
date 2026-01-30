@@ -215,7 +215,8 @@ export function Room({ roomId }: RoomProps) {
       return;
     }
     setIsPanning(true);
-    panStart.current = { x: e.clientX - panOffset.x, y: e.clientY - panStart.current.y };
+    // Correctly store the initial mouse position relative to the current pan offset
+    panStart.current = { x: e.clientX - panOffset.x, y: e.clientY - panOffset.y };
     e.currentTarget.setPointerCapture(e.pointerId);
   };
 
