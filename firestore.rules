@@ -56,6 +56,10 @@ service cloud.firestore {
       return request.resource.data.userId == request.auth.uid || request.resource.data.userId == 'system';
     }
 
+    function isDrawingCreator() {
+      return request.resource.data.userId == request.auth.uid;
+    }
+
     function hasContent() {
       let data = request.resource.data;
       return (data.get('text', '') != null && data.get('text', '').size() > 0) 
@@ -94,8 +98,10 @@ service cloud.firestore {
         // Everyone in room can read everything (including audit)
         allow read, list: if isRoomMember(roomId);
 
-        // Client can't create audit logs manually
-        allow create: if isRoomMember(roomId) && isMessageCreator() && hasContent() && request.resource.data.get('type', '') != 'audit';
+        // Client can't create audit logs manually, unless room owner/admin during setup
+        allow create: if isRoomMember(roomId) && isMessageCreator() && hasContent() && (
+          request.resource.data.get('type', '') != 'audit' || isRoomOwner(roomId) || isGlobalAdmin()
+        );
 
         // Update/Delete: 
         // If it's audit, only GlobalAdmin.
