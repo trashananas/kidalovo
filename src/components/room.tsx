@@ -87,6 +87,7 @@ export function Room({ roomId }: RoomProps) {
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const panStart = useRef({ x: 0, y: 0 });
+  const hasInitiallyCentered = useRef(false);
 
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawingTool, setDrawingTool] = useState<DrawingShape | 'pan' | 'eraser' | 'select'>('pan');
@@ -98,31 +99,47 @@ export function Room({ roomId }: RoomProps) {
   // Handle password check
   useEffect(() => {
     if (roomData && !isRoomDataLoading && user) {
-      // 1. If room is public
       if (!roomData.password) {
         setIsPasswordVerified(true);
         return;
       }
-
-      // 2. If user is registered (authorized) AND already a member
       if (!user.isAnonymous && roomData.members && roomData.members[user.uid]) {
         setIsPasswordVerified(true);
         return;
       }
-
-      // 3. If creator (regardless of status)
       if (roomData.creatorId === user.uid) {
         setIsPasswordVerified(true);
         return;
       }
-
-      // 4. Check session storage (for temporary access in current session)
       const storedPassword = sessionStorage.getItem(`room_pwd_${roomId}`);
       if (storedPassword === roomData.password) {
         setIsPasswordVerified(true);
       }
     }
   }, [roomData, isRoomDataLoading, roomId, user]);
+
+  // Automatic centering on first message
+  useEffect(() => {
+    if (!loading && messages.length > 0 && !hasInitiallyCentered.current && typeof window !== 'undefined') {
+      const sorted = [...messages].sort((a, b) => {
+        const timeA = a.createdAt?.toMillis?.() || 0;
+        const timeB = b.createdAt?.toMillis?.() || 0;
+        return timeA - timeB;
+      });
+      const firstMsg = sorted[0];
+      const centerX = window.innerWidth / 2;
+      const centerY = window.innerHeight / 2;
+      const msgWidth = firstMsg.size?.width || 320;
+      const msgHeight = firstMsg.size?.height || 140;
+
+      setPanOffset({
+        x: centerX - (firstMsg.position.x + msgWidth / 2),
+        y: centerY - (firstMsg.position.y + msgHeight / 2),
+      });
+      
+      hasInitiallyCentered.current = true;
+    }
+  }, [loading, messages]);
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -215,7 +232,6 @@ export function Room({ roomId }: RoomProps) {
       return;
     }
     setIsPanning(true);
-    // Correctly store the initial mouse position relative to the current pan offset
     panStart.current = { x: e.clientX - panOffset.x, y: e.clientY - panOffset.y };
     e.currentTarget.setPointerCapture(e.pointerId);
   };
@@ -270,7 +286,6 @@ export function Room({ roomId }: RoomProps) {
     );
   }
 
-  // Password Wall
   if (!isPasswordVerified && roomData?.password) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-zinc-100 p-4">
