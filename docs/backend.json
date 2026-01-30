@@ -13,7 +13,7 @@
         },
         "code": {
           "type": "string",
-          "description": "The 4-8 character code required to join the room."
+          "description": "The 4-10 character code required to join the room."
         },
         "createdAt": {
           "type": "string",

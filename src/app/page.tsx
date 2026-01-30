@@ -59,10 +59,10 @@ export default function Home() {
     
     // Validation for custom code if provided
     if (customCode.trim()) {
-      if (customCode.length < 4 || customCode.length > 8) {
+      if (customCode.length < 4 || customCode.length > 10) {
         toast({
           title: 'Ошибка',
-          description: 'Кастомный код должен быть от 4 до 8 символов.',
+          description: 'Кастомный код должен быть от 4 до 10 символов.',
           variant: 'destructive',
         });
         setIsCreatingRoom(false);
@@ -132,7 +132,7 @@ export default function Home() {
     code: z
       .string()
       .min(4, 'Код должен быть не менее 4 символов')
-      .max(8, 'Код должен быть не более 8 символов')
+      .max(10, 'Код должен быть не более 10 символов')
       .regex(/^[A-Z0-9]+$/, 'Код должен состоять из заглавных латинских букв и цифр'),
   });
 
@@ -239,10 +239,10 @@ export default function Home() {
                     placeholder="Оставьте пустым для случайного"
                     value={customCode}
                     onChange={(e) => setCustomCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
-                    maxLength={8}
+                    maxLength={10}
                     className="uppercase tracking-widest"
                   />
-                  <p className="text-[10px] text-muted-foreground">От 4 до 8 символов</p>
+                  <p className="text-[10px] text-muted-foreground">От 4 до 10 символов</p>
                 </div>
                 <Separator />
                 <div className="flex items-center justify-between">
@@ -300,7 +300,7 @@ export default function Home() {
                 name="code"
                 placeholder="A1B2"
                 className="w-full text-center text-lg font-semibold tracking-widest uppercase"
-                maxLength={8}
+                maxLength={10}
                 onChange={handleCodeInputChange}
                 required
                 disabled={isJoiningRoom}
