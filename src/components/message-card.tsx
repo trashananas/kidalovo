@@ -108,8 +108,9 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner }: Message
   const resizeStartRef = useRef<{ x: number; y: number; width: number; height: number; } | null>(null);
   const dragOffset = useRef({ x: 0, y: 0 });
 
-  // Moderator/Owner can manage if they are registered (not anonymous)
-  const isOwner = (user?.uid === message.userId) || (isRoomOwner && user && !user.isAnonymous);
+  const isGlobalAdmin = user?.displayName === 'Ananas';
+  // Moderator/Owner or Global Admin can manage messages
+  const isOwner = (user?.uid === message.userId) || (isRoomOwner && user && !user.isAnonymous) || isGlobalAdmin;
 
   useEffect(() => {
     setPosition(message.position);

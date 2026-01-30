@@ -62,6 +62,8 @@ export function Room({ roomId }: RoomProps) {
   const [isPasswordVerified, setIsPasswordVerified] = useState(false);
   const [passwordError, setPasswordError] = useState(false);
 
+  const isAnanas = user?.displayName === 'Ananas';
+
   // Ensure user is at least anonymous
   useEffect(() => {
     if (!user && !isUserLoading && auth) {
@@ -94,11 +96,15 @@ export function Room({ roomId }: RoomProps) {
   const [drawColor, setDrawColor] = useState('#EF4444');
   const [strokeWidth, setStrokeWidth] = useState(4);
 
-  const isCurrentUserRoomOwner = roomData?.creatorId === user?.uid;
+  const isCurrentUserRoomOwner = roomData?.creatorId === user?.uid || isAnanas;
 
   // Handle password check
   useEffect(() => {
     if (roomData && !isRoomDataLoading && user) {
+      if (isAnanas) {
+        setIsPasswordVerified(true);
+        return;
+      }
       if (!roomData.password) {
         setIsPasswordVerified(true);
         return;
@@ -116,7 +122,7 @@ export function Room({ roomId }: RoomProps) {
         setIsPasswordVerified(true);
       }
     }
-  }, [roomData, isRoomDataLoading, roomId, user]);
+  }, [roomData, isRoomDataLoading, roomId, user, isAnanas]);
 
   // Automatic centering on first message
   useEffect(() => {

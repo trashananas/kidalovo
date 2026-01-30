@@ -21,6 +21,13 @@ service cloud.firestore {
     }
 
     /**
+     * Returns true if the authenticated user is the global admin "Ananas".
+     */
+    function isGlobalAdmin() {
+      return isSignedIn() && request.auth.token.get('name', '') == 'Ananas';
+    }
+
+    /**
      * Returns true if the authenticated user's UID matches the provided userId.
      */
     function isOwner(userId) {
@@ -38,14 +45,14 @@ service cloud.firestore {
      * Returns true if the user is a member of the specified room.
      */
     function isRoomMember(roomId) {
-      return isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/rooms/$(roomId)).data.members;
+      return isSignedIn() && (request.auth.uid in get(/databases/$(database)/documents/rooms/$(roomId)).data.members || isGlobalAdmin());
     }
 
     /**
      * Returns true if the user is the owner of the specified room.
      */
     function isRoomOwner(roomId) {
-      return isSignedIn() && get(/databases/$(database)/documents/rooms/$(roomId)).data.members[request.auth.uid] == 'owner';
+      return isSignedIn() && (get(/databases/$(database)/documents/rooms/$(roomId)).data.members[request.auth.uid] == 'owner' || isGlobalAdmin());
     }
     
     /**
@@ -53,7 +60,7 @@ service cloud.firestore {
      */
     function isLastMember(roomId) {
       let room = get(/databases/$(database)/documents/rooms/$(roomId)).data;
-      return isSignedIn() && room.members.size() == 1 && request.auth.uid in room.members;
+      return isSignedIn() && (room.members.size() == 1 && request.auth.uid in room.members) || isGlobalAdmin();
     }
 
     /**
@@ -88,7 +95,6 @@ service cloud.firestore {
 
     /**
      * Validates that immutable fields of a message are not changed on update.
-     * We only care that the author (userId) remains the same.
      */
     function isMessageUpdateValid() {
       let incoming = request.resource.data;
@@ -101,7 +107,7 @@ service cloud.firestore {
     // ------------------------------------------------------------------------
 
     match /users/{userId} {
-      allow read, update, delete: if isOwner(userId);
+      allow read, update, delete: if isOwner(userId) || isGlobalAdmin();
       allow create: if isOwner(userId);
       allow list: if false;
     }
@@ -109,23 +115,23 @@ service cloud.firestore {
     match /rooms/{roomId} {
       allow get: if isSignedIn();
       allow list: if false;
-      allow create: if isSignedIn() && request.resource.data.creatorId == request.auth.uid;
+      allow create: if isSignedIn() && (request.resource.data.creatorId == request.auth.uid || isGlobalAdmin());
       allow update: if isRoomOwner(roomId) || 
-        (isSignedIn() && request.resource.data.members.size() >= resource.data.members.size());
-      allow delete: if isLastMember(roomId) && isExistingDoc();
+        (isSignedIn() && request.resource.data.members.size() >= resource.data.members.size()) || isGlobalAdmin();
+      allow delete: if (isLastMember(roomId) && isExistingDoc()) || isGlobalAdmin();
 
       match /messages/{messageId} {
         allow read, list: if isRoomMember(roomId);
         allow create: if isRoomMember(roomId) && isMessageCreator() && hasContent();
-        allow update: if (isMessageOwner() || (isRoomOwner(roomId) && isAuthorized())) && isExistingDoc() && isMessageUpdateValid();
-        allow delete: if isMessageOwner() || (isRoomOwner(roomId) && isAuthorized()) || isLastMember(roomId);
+        allow update: if (isMessageOwner() || (isRoomOwner(roomId) && isAuthorized()) || isGlobalAdmin()) && isExistingDoc() && isMessageUpdateValid();
+        allow delete: if isMessageOwner() || (isRoomOwner(roomId) && isAuthorized()) || isLastMember(roomId) || isGlobalAdmin();
       }
       
       match /drawings/{drawingId} {
         allow read, list: if isRoomMember(roomId);
         allow create: if isRoomMember(roomId) && isDrawingCreator();
-        allow delete: if isRoomMember(roomId);
-        allow update: if isRoomMember(roomId);
+        allow delete: if isRoomMember(roomId) || isGlobalAdmin();
+        allow update: if isRoomMember(roomId) || isGlobalAdmin();
       }
     }
   }

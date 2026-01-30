@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
@@ -48,6 +47,8 @@ export default function Home() {
   const [showRoomPassword, setShowRoomPassword] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
+  const isAnanas = user?.displayName === 'Ananas';
+
   useEffect(() => {
     if (!user && !isUserLoading && auth) {
       initiateAnonymousSignIn(auth);
@@ -71,10 +72,12 @@ export default function Home() {
         setIsCreatingRoom(false);
         return;
       }
-      if (customCode.length < 5 || customCode.length > 10) {
+      
+      const minLen = isAnanas ? 1 : 5;
+      if (customCode.length < minLen || customCode.length > 10) {
         toast({
           title: 'Ошибка',
-          description: 'Кастомный код должен быть от 5 до 10 символов.',
+          description: `Кастомный код должен быть от ${minLen} до 10 символов.`,
           variant: 'destructive',
         });
         setIsCreatingRoom(false);
@@ -132,7 +135,7 @@ export default function Home() {
   const joinRoomSchema = z.object({
     code: z
       .string()
-      .min(4, 'Код слишком короткий')
+      .min(1, 'Код слишком короткий')
       .max(10, 'Код слишком длинный')
       .regex(/^[A-Z0-9]+$/, 'Только латинские буквы и цифры'),
   });
@@ -257,7 +260,7 @@ export default function Home() {
                   </Label>
                   <Input
                     id="code"
-                    placeholder={user?.isAnonymous ? "Случайный код (авторизуйтесь)" : "Оставьте пустым для случайного"}
+                    placeholder={user?.isAnonymous ? "Случайный код (авторизуйтесь)" : (isAnanas ? "Любая длина (админ)" : "Оставьте пустым для случайного")}
                     value={customCode}
                     onChange={(e) => setCustomCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
                     maxLength={10}
