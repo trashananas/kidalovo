@@ -1,15 +1,14 @@
-
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Lock, Unlock, Plus, LogOut, Info, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Lock, Unlock, Plus, LogOut, Info, Eye, EyeOff, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { useUser, useAuth, useFirestore } from '@/firebase';
 import { initiateAnonymousSignIn } from '@/firebase/non-blocking-login';
 import { useRouter } from 'next/navigation';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, collection, addDoc } from 'firebase/firestore';
 import { generateRoomCode, getErrorMessage } from '@/lib/utils';
 import { z } from 'zod';
 import { UserGuide } from '@/components/user-guide';
@@ -45,6 +44,7 @@ export default function Home() {
   // Create room form state
   const [customCode, setCustomCode] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
+  const [onlyAuthorized, setOnlyAuthorized] = useState(false);
   const [roomPassword, setRoomPassword] = useState('');
   const [showRoomPassword, setShowRoomPassword] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -64,7 +64,7 @@ export default function Home() {
 
     const finalCode = customCode.trim().toUpperCase() || generateRoomCode();
     
-    // Validation for custom code if provided
+    // Validation
     if (customCode.trim()) {
       if (user.isAnonymous) {
         toast({
@@ -107,8 +107,12 @@ export default function Home() {
         code: finalCode,
         createdAt: serverTimestamp(),
         creatorId: user.uid,
+        onlyAuthorized: onlyAuthorized,
         members: {
-          [user.uid]: 'owner',
+          [user.uid]: {
+            role: 'owner',
+            name: user.displayName || 'Создатель'
+          },
         },
       };
 
@@ -118,6 +122,18 @@ export default function Home() {
 
       await setDoc(roomRef, roomData);
       
+      // Создаем аудит-лог если комната закрытая
+      if (onlyAuthorized) {
+        await addDoc(collection(firestore, 'rooms', finalCode, 'messages'), {
+          type: 'audit',
+          text: 'SYSTEM_AUDIT_LOG',
+          userId: 'system',
+          createdAt: serverTimestamp(),
+          position: { x: 0, y: 0 },
+          size: { width: 320, height: 200 }
+        });
+      }
+
       if (roomData.password) {
         sessionStorage.setItem(`room_pwd_${finalCode}`, roomData.password);
       }
@@ -168,7 +184,12 @@ export default function Home() {
       if (!roomSnap.exists()) {
         setJoinError('Комната не найдена.');
       } else {
-        router.push(`/${validatedFields.data.code}`);
+        const rData = roomSnap.data();
+        if (rData.onlyAuthorized && user?.isAnonymous) {
+          setJoinError('Эта комната доступна только авторизованным пользователям.');
+        } else {
+          router.push(`/${validatedFields.data.code}`);
+        }
       }
     } catch (error) {
       setJoinError(getErrorMessage(error));
@@ -289,6 +310,28 @@ export default function Home() {
                     onCheckedChange={setIsPrivate}
                   />
                 </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="flex items-center gap-2">
+                      {onlyAuthorized ? <ShieldCheck className="h-4 w-4 text-primary" /> : <ShieldAlert className="h-4 w-4 text-muted-foreground" />}
+                      Только для авторизованных
+                    </Label>
+                    <p className="text-[10px] text-muted-foreground">Анонимы не смогут войти</p>
+                  </div>
+                  <Switch
+                    checked={onlyAuthorized}
+                    onCheckedChange={(val) => {
+                      if (user?.isAnonymous) {
+                         toast({ title: 'Доступ ограничен', description: 'Сначала войдите в аккаунт' });
+                         return;
+                      }
+                      setOnlyAuthorized(val);
+                    }}
+                    disabled={user?.isAnonymous}
+                  />
+                </div>
+
                 {isPrivate && (
                   <div className="grid gap-2">
                     <Label htmlFor="password">Пароль</Label>

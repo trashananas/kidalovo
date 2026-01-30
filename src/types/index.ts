@@ -1,4 +1,3 @@
-
 import type { Timestamp } from 'firebase/firestore';
 
 export type FileAttachment = {
@@ -10,11 +9,12 @@ export type FileAttachment = {
 export type Message = {
   id: string;
   text?: string;
+  type?: 'audit' | 'message';
   file?: FileAttachment;
   userId: string;
   authorName?: string;
   authorColor?: string;
-  authorLogin?: string; // Добавлено для идентификации админа
+  authorLogin?: string;
   createdAt: Timestamp;
   updatedAt?: Timestamp;
   isDeleted?: boolean;

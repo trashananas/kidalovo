@@ -17,7 +17,8 @@ import {
   Feather,
   Target,
   Eye,
-  EyeOff
+  EyeOff,
+  ShieldAlert
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
@@ -80,7 +81,7 @@ export function Room({ roomId }: RoomProps) {
   
   const { data: roomData, isLoading: isRoomDataLoading } = useDoc(roomDocRef);
 
-  // Hook for messages/drawings - only active if password verified or not needed
+  // Hook for messages/drawings
   const { messages, drawings, loading, error } = useRoom(roomId, isPasswordVerified);
 
   const [isDeleting, setIsDeleting] = useState(false);
@@ -125,15 +126,19 @@ export function Room({ roomId }: RoomProps) {
     }
   }, [roomData, isRoomDataLoading, roomId, user, isAnanas]);
 
-  // Automatic centering on first message
+  // Automatic centering
   useEffect(() => {
     if (!loading && messages.length > 0 && !hasInitiallyCentered.current && typeof window !== 'undefined') {
-      const sorted = [...messages].sort((a, b) => {
-        const timeA = a.createdAt?.toMillis?.() || 0;
-        const timeB = b.createdAt?.toMillis?.() || 0;
-        return timeA - timeB;
-      });
-      const firstMsg = sorted[0];
+      // Ищем первое не системное сообщение
+      const sorted = [...messages]
+        .filter(m => m.type !== 'audit')
+        .sort((a, b) => {
+          const timeA = a.createdAt?.toMillis?.() || 0;
+          const timeB = b.createdAt?.toMillis?.() || 0;
+          return timeA - timeB;
+        });
+      
+      const firstMsg = sorted[0] || messages[0];
       const centerX = window.innerWidth / 2;
       const centerY = window.innerHeight / 2;
       const msgWidth = firstMsg.size?.width || 320;
@@ -262,12 +267,14 @@ export function Room({ roomId }: RoomProps) {
 
   const handleResetView = () => {
     if (messages.length > 0) {
-      const sorted = [...messages].sort((a, b) => {
-        const timeA = a.createdAt?.toMillis?.() || 0;
-        const timeB = b.createdAt?.toMillis?.() || 0;
-        return timeA - timeB;
-      });
-      const firstMsg = sorted[0];
+      const sorted = [...messages]
+        .filter(m => m.type !== 'audit')
+        .sort((a, b) => {
+          const timeA = a.createdAt?.toMillis?.() || 0;
+          const timeB = b.createdAt?.toMillis?.() || 0;
+          return timeA - timeB;
+        });
+      const firstMsg = sorted[0] || messages[0];
       const centerX = window.innerWidth / 2;
       const centerY = window.innerHeight / 2;
       const msgWidth = firstMsg.size?.width || 320;
@@ -289,6 +296,22 @@ export function Room({ roomId }: RoomProps) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <Loader2 className="h-16 w-16 animate-spin" />
+      </div>
+    );
+  }
+
+  // Check if room is onlyAuthorized and user is anonymous
+  if (roomData?.onlyAuthorized && user?.isAnonymous) {
+    return (
+      <div className="flex h-screen w-full flex-col items-center justify-center bg-zinc-100 p-4 gap-6">
+        <div className="bg-destructive/10 p-6 rounded-full">
+           <ShieldAlert className="h-16 w-16 text-destructive" />
+        </div>
+        <h2 className="text-3xl font-bold">Доступ ограничен</h2>
+        <p className="text-muted-foreground text-center max-w-sm">
+          Эта комната доступна только зарегистрированным пользователям. Пожалуйста, войдите в аккаунт.
+        </p>
+        <Button asChild><Link href="/">Вернуться на главную</Link></Button>
       </div>
     );
   }
@@ -345,7 +368,7 @@ export function Room({ roomId }: RoomProps) {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center gap-4 text-center">
         <h2 className="text-2xl font-bold text-destructive">Ошибка загрузки комнаты</h2>
-        <p className="max-w-md text-muted-foreground">Проверьте код и попробуйте снова.</p>
+        <p className="max-w-md text-muted-foreground">{error.message}</p>
         <Button asChild><Link href="/">На главную</Link></Button>
       </div>
     );
@@ -391,7 +414,7 @@ export function Room({ roomId }: RoomProps) {
                 <AlertDialogContent>
                   <AlertDialogHeader>
                     <AlertDialogTitle>Удалить комнату?</AlertDialogTitle>
-                    <AlertDialogDescription>Это навсегда удалит всё содержимое. Вы должны быть последним участником.</AlertDialogDescription>
+                    <AlertDialogDescription>Это навсегда удалит всё содержимое. Вы должны быть последним участником или владельцем.</AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel disabled={isDeleting}>Отмена</AlertDialogCancel>
@@ -413,7 +436,7 @@ export function Room({ roomId }: RoomProps) {
       <div id="board" className={cn('absolute inset-0', boardCursorClass())} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp}>
         <div id="pannable-container" className="absolute inset-0" style={{ transform: `translate(${panOffset.x}px, ${panOffset.y}px)` }}>
           {messages.map((msg) => (
-            <MessageCard key={msg.id} message={msg} roomId={roomId} panOffset={panOffset} isRoomOwner={isCurrentUserRoomOwner} />
+            <MessageCard key={msg.id} message={msg} roomId={roomId} panOffset={panOffset} isRoomOwner={isCurrentUserRoomOwner} roomMembers={roomData?.members} />
           ))}
         </div>
         <DrawingCanvas roomId={roomId} isDrawing={isDrawing} color={drawColor} strokeWidth={strokeWidth} drawings={drawings} drawingTool={drawingTool} setDrawingTool={setDrawingTool} panOffset={panOffset} className="z-10" />

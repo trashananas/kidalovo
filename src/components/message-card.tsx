@@ -6,7 +6,7 @@ import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { cn, getErrorMessage } from '@/lib/utils';
 import { useState, useEffect, useRef } from 'react';
-import { GripVertical, Copy, File as FileIcon, Download, Pencil, Loader2, Trash2 } from 'lucide-react';
+import { GripVertical, Copy, File as FileIcon, Download, Pencil, Loader2, Trash2, ShieldCheck } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useUser, useFirestore } from '@/firebase';
@@ -14,41 +14,12 @@ import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { PineappleBadge } from './pineapple-badge';
 
-const GREEK_LOWER = {
-  pi: 'π', alpha: 'α', beta: 'β', gamma: 'γ', delta: 'δ', phi: 'φ', omega: 'ω', theta: 'θ', sigma: 'σ',
-};
-const GREEK_UPPER = {
-  pi: 'Π', alpha: 'Α', beta: 'В', gamma: 'Г', delta: 'Δ', phi: 'Ф', omega: 'Ω', theta: 'Θ', sigma: 'Σ',
-};
-const GREEK_WORDS = Object.keys(GREEK_LOWER).join('|');
-const GREEK_REGEX = new RegExp(`(?<![a-zA-Z])(${GREEK_WORDS})(?![a-zA-Z])`, 'gi');
-
-const Spoiler = ({ children }: { children: React.ReactNode }) => {
-  const [isVisible, setIsVisible] = useState(false);
-  return (
-    <span
-      className={cn('inline-block rounded px-1 cursor-pointer transition-colors', isVisible ? 'bg-transparent' : 'bg-muted-foreground/30 hover:bg-muted-foreground/20')}
-      onClick={(e) => { e.stopPropagation(); setIsVisible(!isVisible); }}
-    >
-      <span className={cn(isVisible ? 'opacity-100' : 'opacity-0')}>{children}</span>
-    </span>
-  );
-};
-
 const renderFormattedText = (text: string): React.ReactNode[] => {
   const nodes: React.ReactNode[] = [];
   let lastIndex = 0;
 
   const replacer = (str: string) => {
     let processed = str.replace(/_=/g, '≡');
-    processed = processed.replace(GREEK_REGEX, (match) => {
-      const lowerMatch = match.toLowerCase() as keyof typeof GREEK_LOWER;
-      const isTitleCase = match.charAt(0) === match.charAt(0).toUpperCase() && match.slice(1) === lowerMatch.slice(1);
-      const isUpperCase = match === match.toUpperCase();
-      if ((isTitleCase || isUpperCase) && GREEK_UPPER[lowerMatch]) return GREEK_UPPER[lowerMatch];
-      return GREEK_LOWER[lowerMatch] || match;
-    });
-    // Сердечко ❤️
     processed = processed.replace(/<3/g, '❤️');
     return processed;
   };
@@ -66,7 +37,6 @@ const renderFormattedText = (text: string): React.ReactNode[] => {
     else if (match[7] !== undefined) nodes.push(<em key={lastIndex}>{replacer(match[7])}</em>);
     else if (match[9] !== undefined) nodes.push(<u key={lastIndex}>{replacer(match[9])}</u>);
     else if (match[11] !== undefined) nodes.push(<s key={lastIndex}>{replacer(match[11])}</s>);
-    else if (match[13] !== undefined) nodes.push(<Spoiler key={lastIndex}>{replacer(match[13])}</Spoiler>);
     else if (match[14] !== undefined) {
       const url = match[14].startsWith('www.') ? `http://${match[14]}` : match[14];
       nodes.push(<a key={lastIndex} href={url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline" onClick={(e) => e.stopPropagation()}>{replacer(match[14])}</a>);
@@ -82,9 +52,10 @@ type MessageCardProps = {
   roomId: string;
   panOffset: { x: number; y: number };
   isRoomOwner: boolean;
+  roomMembers?: Record<string, { role: string; name: string }>;
 };
 
-export function MessageCard({ message, roomId, panOffset, isRoomOwner }: MessageCardProps) {
+export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembers }: MessageCardProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -95,7 +66,6 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner }: Message
   const [isResizing, setIsResizing] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [timeAgo, setTimeAgo] = useState('');
-  const [updatedAgo, setUpdatedAgo] = useState('');
 
   const [isEditing, setIsEditing] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -111,8 +81,11 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner }: Message
   const isGlobalAdmin = user?.email === 'ananas@kidalovo.internal';
   const isOwner = (user?.uid === message.userId) || (isRoomOwner && user && !user.isAnonymous) || isGlobalAdmin;
 
-  // Проверка: является ли автор сообщения админом Ananas
-  const isAuthorAdmin = message.authorLogin?.toLowerCase() === 'ananas';
+  // Проверка на аудит-лог
+  const isAuditLog = message.type === 'audit';
+  
+  // Если это аудит-лог, его видит только Ananas
+  if (isAuditLog && !isGlobalAdmin) return null;
 
   useEffect(() => {
     setPosition(message.position);
@@ -132,18 +105,8 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner }: Message
     return () => clearInterval(intervalId);
   }, [message.createdAt]);
 
-  useEffect(() => {
-    if (!message.updatedAt) { setUpdatedAgo(''); return; }
-    const update = () => {
-      try { setUpdatedAgo(formatDistanceToNow(message.updatedAt!.toDate(), { addSuffix: true, locale: ru })); } catch { setUpdatedAgo(''); }
-    };
-    update();
-    const intervalId = setInterval(update, 60000);
-    return () => clearInterval(intervalId);
-  }, [message.updatedAt]);
-
   const handleGripPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isOwner) return;
+    if (!isOwner || isAuditLog) return;
     e.stopPropagation();
     dragStartRef.current = { x: e.clientX, y: e.clientY };
     if (!cardRef.current) return;
@@ -153,7 +116,7 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner }: Message
   };
 
   const handleCardPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isOwner || isEditing) return;
+    if (!isOwner || isEditing || isAuditLog) return;
 
     if (!isDragging && dragStartRef.current) {
       const dx = Math.abs(e.clientX - dragStartRef.current.x);
@@ -175,7 +138,7 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner }: Message
   };
 
   const handleCardPointerUp = async (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isOwner) return;
+    if (!isOwner || isAuditLog) return;
     
     if (dragStartRef.current && !isDragging && !isResizing) {
       setIsCollapsed((p) => !p);
@@ -198,7 +161,7 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner }: Message
   };
 
   const handleResizePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isOwner) return;
+    if (!isOwner || isAuditLog) return;
     e.stopPropagation(); e.preventDefault();
     setIsResizing(true);
     resizeStartRef.current = { x: e.clientX, y: e.clientY, width: cardRef.current?.offsetWidth || size.width, height: cardRef.current?.offsetHeight || size.height };
@@ -226,7 +189,7 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner }: Message
   }, [isResizing, size, message.id, roomId, firestore, isOwner]);
 
   const handleDelete = () => {
-    if (!firestore || !isOwner || isDeleting) return;
+    if (!firestore || !isOwner || isDeleting || isAuditLog) return;
     setIsDeleting(true);
     const ref = doc(firestore, 'rooms', roomId, 'messages', message.id);
     updateDoc(ref, { isDeleted: true }).catch((err) => {
@@ -243,13 +206,16 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner }: Message
     }).finally(() => setIsSavingEdit(false));
   };
 
+  const isAuthorAdmin = message.authorLogin?.toLowerCase() === 'ananas';
+
   return (
     <Card
       ref={cardRef}
       className={cn(
         'absolute rounded-lg shadow-lg flex flex-col pointer-events-auto transition-transform',
-        isOwner && !isEditing && 'cursor-grab',
-        isDragging && 'z-50 scale-105 shadow-2xl cursor-grabbing'
+        isOwner && !isEditing && !isAuditLog && 'cursor-grab',
+        isDragging && 'z-50 scale-105 shadow-2xl cursor-grabbing',
+        isAuditLog && 'border-primary border-2 bg-primary/5'
       )}
       style={{
         left: `${position.x}px`,
@@ -263,18 +229,27 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner }: Message
       data-message-card="true"
     >
       <div className="relative p-4 flex flex-col gap-2 flex-grow overflow-hidden">
-        {/* Header with Author and Actions */}
+        
         <div className="flex justify-between items-start">
-          {message.authorName && !isCollapsed && (
-            <div className="flex items-center gap-1 mb-1">
-              <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: message.authorColor || 'inherit' }}>
-                от {message.authorName}
+          {isAuditLog ? (
+            <div className="flex items-center gap-2 mb-1">
+              <ShieldCheck className="h-4 w-4 text-primary" />
+              <div className="text-[10px] font-bold uppercase tracking-wider text-primary">
+                Audit Log (Only for Ananas)
               </div>
-              {isAuthorAdmin && <PineappleBadge className="h-3 w-3" />}
             </div>
+          ) : (
+             message.authorName && !isCollapsed && (
+              <div className="flex items-center gap-1 mb-1">
+                <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: message.authorColor || 'inherit' }}>
+                  от {message.authorName}
+                </div>
+                {isAuthorAdmin && <PineappleBadge className="h-3 w-3" />}
+              </div>
+            )
           )}
           
-          {!isCollapsed && !isEditing && (
+          {!isCollapsed && !isEditing && !isAuditLog && (
             <div className="flex gap-1 ml-auto">
               <div 
                 className="p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer" 
@@ -318,7 +293,7 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner }: Message
           )}
         </div>
         
-        {message.file && !isCollapsed && (
+        {message.file && !isCollapsed && !isAuditLog && (
           message.file.type.startsWith('image') ? (
             <img src={message.file.url} alt={message.file.name} className="w-full h-auto max-h-96 rounded-md mb-2 object-contain pointer-events-none" />
           ) : (
@@ -330,7 +305,7 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner }: Message
         )}
 
         <div className="flex items-start gap-2 flex-grow min-h-0">
-          {isOwner && !isEditing && (
+          {isOwner && !isEditing && !isAuditLog && (
             <div 
               className="p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer shrink-0" 
               onPointerDown={handleGripPointerDown}
@@ -350,7 +325,19 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner }: Message
               </div>
             ) : isCollapsed ? (
               <div className="text-xs italic text-muted-foreground truncate opacity-70">
-                {message.text || 'Файл...'}
+                {isAuditLog ? 'Список участников' : (message.text || 'Файл...')}
+              </div>
+            ) : isAuditLog ? (
+              <div className="space-y-2">
+                <p className="text-sm font-semibold">Тут были:</p>
+                <ul className="text-sm space-y-1 pl-2">
+                   {roomMembers ? Object.values(roomMembers).map((m: any, i) => (
+                      <li key={i} className="flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
+                        {m.name} {m.role === 'owner' && <span className="text-[10px] text-muted-foreground">(создатель)</span>}
+                      </li>
+                   )) : <li>Загрузка списка...</li>}
+                </ul>
               </div>
             ) : (
               <div className="text-sm whitespace-pre-wrap break-words">{renderFormattedText(message.text || '')}</div>
@@ -358,14 +345,13 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner }: Message
           </div>
         </div>
 
-        {!isCollapsed && !isEditing && (
+        {!isCollapsed && !isEditing && !isAuditLog && (
           <div className="mt-auto text-[10px] text-muted-foreground pt-1 border-t flex justify-between shrink-0">
             <span>{timeAgo}</span>
-            {updatedAgo && <span className="italic">(отред. {updatedAgo})</span>}
           </div>
         )}
       </div>
-      {isOwner && !isCollapsed && (
+      {isOwner && !isCollapsed && !isAuditLog && (
         <div 
           className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize hover:bg-primary/20 transition-colors rounded-br-lg" 
           onPointerDown={handleResizePointerDown} 

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -20,22 +19,32 @@ export function useRoom(roomId: string, isPasswordVerified: boolean = true) {
 
     const roomRef = doc(firestore, 'rooms', roomId);
     
-    // 1. First, attempt to join if not already a member
-    updateDoc(roomRef, {
-      [`members.${user.uid}`]: 'member',
-    }).catch(err => {
-      // Membership might already exist or permission error if room not found
-      console.warn("Potential failure joining room, but we will wait for snapshot:", err);
-    });
-
-    // 2. Listen to the room document to confirm membership from server perspective
+    // Listen to the room document to confirm membership and check restrictions
     const unsubscribe = onSnapshot(roomRef, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
+        
+        // Check if room is onlyAuthorized and user is anonymous
+        if (data.onlyAuthorized && user.isAnonymous) {
+          setJoinError(new Error("Эта комната доступна только авторизованным пользователям."));
+          setIsJoinAttemptComplete(true);
+          return;
+        }
+
         if (data.members && data.members[user.uid]) {
           setServerSideMembership(true);
           setIsJoinAttemptComplete(true);
           setJoinError(null);
+        } else {
+          // Attempt to join
+          updateDoc(roomRef, {
+            [`members.${user.uid}`]: {
+              role: 'member',
+              name: user.displayName || (user.isAnonymous ? 'Аноним' : 'Пользователь')
+            },
+          }).catch(err => {
+            console.warn("Potential failure joining room:", err);
+          });
         }
       } else {
         setJoinError(new Error("Комната не найдена"));
