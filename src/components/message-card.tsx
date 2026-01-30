@@ -201,7 +201,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   const { toast } = useToast();
 
   const [position, setPosition] = useState(message.position);
-  const [size, setSize] = useState(message.size || { width: 320, height: 180 });
+  const [size, setSize] = useState(message.size || { width: 320, height: 140 });
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -280,7 +280,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
 
   useEffect(() => {
     if (!isResizing) {
-      setSize(message.size || { width: 320, height: 180 });
+      setSize(message.size || { width: 320, height: 140 });
     }
   }, [message.size, isResizing]);
 
@@ -417,7 +417,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
         return;
       }
 
-      const originalSize = message.size || { width: 320, height: 180 };
+      const originalSize = message.size || { width: 320, height: 140 };
       if (
         size.width === originalSize.width &&
         size.height === originalSize.height
@@ -442,7 +442,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
           description: `Не удалось обновить размер: ${getErrorMessage(error)}`,
           variant: 'destructive',
         });
-        setSize(message.size || { width: 320, height: 180 });
+        setSize(message.size || { width: 320, height: 140 });
       } finally {
         setIsResizing(false);
         resizeStartRef.current = null;

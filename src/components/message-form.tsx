@@ -71,7 +71,7 @@ const getImageDimensions = (dataUrl: string): Promise<{width: number, height: nu
         img.onerror = () => {
             // Don't reject, just resolve with a default size so submission doesn't fail
             console.error("Could not load image to get dimensions from data URL.");
-            resolve({ width: 320, height: 180 });
+            resolve({ width: 320, height: 140 });
         };
         img.src = dataUrl;
     });
@@ -147,7 +147,7 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
 
     try {
         let fileAttachment: FileAttachment | null = null;
-        let size = { width: 320, height: 180 }; // Default size increased
+        let size = { width: 320, height: 140 }; 
         const MAX_FILE_SIZE_FOR_DATA_URI = 1 * 1024 * 1024; // 1MB
 
         if (file) {
@@ -164,9 +164,9 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
                     const { width, height } = await getImageDimensions(dataUrl);
                     const aspectRatio = height / width;
                     size.width = 320;
-                    size.height = Math.max(180, Math.round(size.width * aspectRatio));
+                    size.height = Math.max(140, Math.round(size.width * aspectRatio));
                 } else {
-                    size.height = 200; // A bit more space for non-image files
+                    size.height = 160; 
                 }
 
             } else {
@@ -210,9 +210,9 @@ export function MessageForm({ roomId, panOffset }: MessageFormProps) {
                 if (data.resource_type === 'image' && data.width && data.height) {
                     const aspectRatio = data.height / data.width;
                     size.width = 320; 
-                    size.height = Math.max(180, Math.round(size.width * aspectRatio));
+                    size.height = Math.max(140, Math.round(size.width * aspectRatio));
                 } else {
-                    size.height = 200;
+                    size.height = 160;
                 }
             }
         } else if (message.trim() === '<3') {
