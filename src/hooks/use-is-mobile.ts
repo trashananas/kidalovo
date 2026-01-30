@@ -5,7 +5,6 @@ const useIsMobile = (breakpoint = 768) => {
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    // This check ensures window is defined, preventing errors during SSR
     if (typeof window === 'undefined') {
       return;
     }

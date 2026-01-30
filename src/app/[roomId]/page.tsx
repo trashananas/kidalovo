@@ -7,7 +7,6 @@ import { Loader2 } from 'lucide-react';
 export default function RoomPage() {
   const params = useParams();
   
-  // Безопасное получение roomId из параметров
   const roomId = typeof params?.roomId === 'string' ? params.roomId : null;
 
   if (!roomId) {

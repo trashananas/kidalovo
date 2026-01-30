@@ -12,19 +12,15 @@ export function useRoom(roomId: string, isPasswordVerified: boolean = true) {
   const [joinError, setJoinError] = useState<Error | null>(null);
   const [serverSideMembership, setServerSideMembership] = useState(false);
 
-  // This effect ensures we are officially recognized as a member on the server
   useEffect(() => {
-    // Only proceed if password is verified (if applicable)
     if (!firestore || !roomId || !user || !isPasswordVerified) return;
 
     const roomRef = doc(firestore, 'rooms', roomId);
     
-    // Listen to the room document to confirm membership and check restrictions
     const unsubscribe = onSnapshot(roomRef, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
         
-        // Check if room is onlyAuthorized and user is anonymous
         if (data.onlyAuthorized && user.isAnonymous) {
           setJoinError(new Error("Эта комната доступна только авторизованным пользователям."));
           setIsJoinAttemptComplete(true);
@@ -36,7 +32,6 @@ export function useRoom(roomId: string, isPasswordVerified: boolean = true) {
           setIsJoinAttemptComplete(true);
           setJoinError(null);
         } else {
-          // Attempt to join
           updateDoc(roomRef, {
             [`members.${user.uid}`]: {
               role: 'member',
@@ -78,7 +73,6 @@ export function useRoom(roomId: string, isPasswordVerified: boolean = true) {
   const { data: rawMessages, isLoading: messagesLoading, error: messagesError } = useCollection<Message>(messagesQuery);
   const { data: drawings, isLoading: drawingsLoading, error: drawingsError } = useCollection<DrawingObject>(drawingsQuery);
   
-  // Filter out deleted messages on the client side
   const messages = useMemo(() => {
     return (rawMessages ?? []).filter(m => !m.isDeleted);
   }, [rawMessages]);
