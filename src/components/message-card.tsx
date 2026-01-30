@@ -111,6 +111,14 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   const isOwner = user?.uid === message.userId;
 
   useEffect(() => {
+    setPosition(message.position);
+  }, [message.position]);
+
+  useEffect(() => {
+    if (message.size) setSize(message.size);
+  }, [message.size]);
+
+  useEffect(() => {
     if (!message.createdAt) { setTimeAgo('только что'); return; }
     const update = () => {
       try { setTimeAgo(formatDistanceToNow(message.createdAt.toDate(), { addSuffix: true, locale: ru })); } catch { setTimeAgo('только что'); }
@@ -132,53 +140,57 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
 
   const handleGripPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isOwner) return;
-    e.stopPropagation(); e.preventDefault();
-    dragStartRef.current = { x: e.clientX, y: e.clientY };
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-  };
-
-  const handleGripPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isOwner || !dragStartRef.current || isDragging) return;
-    const dx = Math.abs(e.clientX - dragStartRef.current.x);
-    const dy = Math.abs(e.clientY - dragStartRef.current.y);
-    if (dx > 5 || dy > 5) {
-      if (!cardRef.current) return;
-      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-      const rect = cardRef.current.getBoundingClientRect();
-      dragOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-      setIsDragging(true);
-      cardRef.current.setPointerCapture(e.pointerId);
-      dragStartRef.current = null;
-    }
-  };
-
-  const handleGripPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isOwner) return;
     e.stopPropagation();
-    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-    if (dragStartRef.current) setIsCollapsed((p) => !p);
-    dragStartRef.current = null;
+    dragStartRef.current = { x: e.clientX, y: e.clientY };
+    if (!cardRef.current) return;
+    const rect = cardRef.current.getBoundingClientRect();
+    dragOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    cardRef.current.setPointerCapture(e.pointerId);
   };
 
   const handleCardPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDragging || !isOwner) return;
-    const board = document.getElementById('board');
-    if (!board) return;
-    const boardRect = board.getBoundingClientRect();
-    setPosition({
-      x: e.clientX - boardRect.left - panOffset.x - dragOffset.current.x,
-      y: e.clientY - boardRect.top - panOffset.y - dragOffset.current.y,
-    });
+    if (!isOwner || isEditing) return;
+
+    if (!isDragging && dragStartRef.current) {
+      const dx = Math.abs(e.clientX - dragStartRef.current.x);
+      const dy = Math.abs(e.clientY - dragStartRef.current.y);
+      if (dx > 5 || dy > 5) {
+        setIsDragging(true);
+      }
+    }
+
+    if (isDragging) {
+      const board = document.getElementById('board');
+      if (!board) return;
+      const boardRect = board.getBoundingClientRect();
+      setPosition({
+        x: e.clientX - boardRect.left - panOffset.x - dragOffset.current.x,
+        y: e.clientY - boardRect.top - panOffset.y - dragOffset.current.y,
+      });
+    }
   };
 
   const handleCardPointerUp = async (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDragging || !isOwner || !firestore) { if (isDragging) setIsDragging(false); return; }
-    cardRef.current?.releasePointerCapture(e.pointerId);
-    try {
-      const messageDocRef = doc(firestore, 'rooms', roomId, 'messages', message.id);
-      await updateDoc(messageDocRef, { position });
-    } catch (error) { toast({ title: 'Ошибка', description: getErrorMessage(error), variant: 'destructive' }); }
-    finally { setIsDragging(false); }
+    if (!isOwner) return;
+    
+    if (dragStartRef.current && !isDragging && !isResizing) {
+      setIsCollapsed((p) => !p);
+    }
+
+    dragStartRef.current = null;
+    
+    if (isDragging) {
+      cardRef.current?.releasePointerCapture(e.pointerId);
+      setIsDragging(false);
+      if (firestore) {
+        try {
+          const messageDocRef = doc(firestore, 'rooms', roomId, 'messages', message.id);
+          await updateDoc(messageDocRef, { position });
+        } catch (error) {
+          toast({ title: 'Ошибка', description: getErrorMessage(error), variant: 'destructive' });
+        }
+      }
+    }
   };
 
   const handleResizePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -230,12 +242,23 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   return (
     <Card
       ref={cardRef}
-      className={cn('absolute rounded-lg shadow-lg flex flex-col pointer-events-auto', isOwner && !isEditing && 'cursor-grab', isDragging && 'z-30 scale-105 shadow-2xl')}
-      style={{ left: `${position.x}px`, top: `${position.y}px`, width: `${size.width}px`, height: isEditing ? 'auto' : `${size.height}px`, touchAction: 'none' }}
+      className={cn(
+        'absolute rounded-lg shadow-lg flex flex-col pointer-events-auto transition-transform',
+        isOwner && !isEditing && 'cursor-grab',
+        isDragging && 'z-50 scale-105 shadow-2xl cursor-grabbing'
+      )}
+      style={{
+        left: `${position.x}px`,
+        top: `${position.y}px`,
+        width: `${size.width}px`,
+        height: isEditing ? 'auto' : (isCollapsed ? '60px' : `${size.height}px`),
+        touchAction: 'none'
+      }}
       onPointerMove={handleCardPointerMove}
       onPointerUp={handleCardPointerUp}
+      data-message-card="true"
     >
-      <div className="relative p-4 flex flex-col gap-2 flex-grow overflow-y-auto">
+      <div className="relative p-4 flex flex-col gap-2 flex-grow overflow-hidden">
         {message.authorName && !isCollapsed && (
           <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: message.authorColor || 'inherit' }}>
             от {message.authorName}
@@ -244,7 +267,7 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
         
         {message.file && !isCollapsed && (
           message.file.type.startsWith('image') ? (
-            <img src={message.file.url} alt={message.file.name} className="w-full h-auto max-h-96 rounded-md mb-2 object-contain" />
+            <img src={message.file.url} alt={message.file.name} className="w-full h-auto max-h-96 rounded-md mb-2 object-contain pointer-events-none" />
           ) : (
             <div className="flex items-center gap-3 p-2 rounded-md border bg-muted/20 mb-2">
               <FileIcon className="h-6 w-6 text-muted-foreground" />
@@ -253,14 +276,17 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
           )
         )}
 
-        <div className="flex items-start gap-2 flex-grow">
+        <div className="flex items-start gap-2 flex-grow min-h-0">
           {isOwner && !isEditing && (
-            <div className="p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer" onPointerDown={handleGripPointerDown} onPointerUp={handleGripPointerUp}>
+            <div 
+              className="p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer shrink-0" 
+              onPointerDown={handleGripPointerDown}
+            >
               <GripVertical className="h-5 w-5" />
             </div>
           )}
 
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 overflow-y-auto pr-1 custom-scrollbar">
             {isEditing ? (
               <div className="flex flex-col gap-2">
                 <Textarea value={editText} onChange={(e) => setEditText(e.target.value)} className="text-sm" rows={2} autoFocus />
@@ -270,15 +296,20 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
                 </div>
               </div>
             ) : isCollapsed ? (
-              <div className="text-xs italic text-muted-foreground text-center">Свёрнуто...</div>
+              <div className="text-xs italic text-muted-foreground truncate opacity-70">
+                {message.text || 'Файл...'}
+              </div>
             ) : (
               <p className="text-sm whitespace-pre-wrap break-words">{renderFormattedText(message.text || '')}</p>
             )}
           </div>
 
           {!isCollapsed && !isEditing && (
-            <div className="flex flex-col gap-1 items-center shrink-0">
-              <div className="p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer" onClick={() => navigator.clipboard.writeText(message.text || '')} title="Копировать"><Copy className="h-4 w-4" /></div>
+            <div className="flex flex-col gap-1 items-center shrink-0 border-l pl-2">
+              <div className="p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer" onClick={() => {
+                navigator.clipboard.writeText(message.text || '');
+                toast({ title: "Скопировано!" });
+              }} title="Копировать"><Copy className="h-4 w-4" /></div>
               {isOwner && <div className="p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer" onClick={() => setIsEditing(true)} title="Изменить"><Pencil className="h-4 w-4" /></div>}
               {isOwner && <div className="p-1 text-destructive/50 hover:text-destructive cursor-pointer" onClick={(e) => {
                 const now = Date.now();
@@ -291,13 +322,19 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
         </div>
 
         {!isCollapsed && !isEditing && (
-          <div className="mt-auto text-[10px] text-muted-foreground pt-1 border-t flex justify-between">
+          <div className="mt-auto text-[10px] text-muted-foreground pt-1 border-t flex justify-between shrink-0">
             <span>{timeAgo}</span>
             {updatedAgo && <span className="italic">(отред. {updatedAgo})</span>}
           </div>
         )}
       </div>
-      {isOwner && <div className="absolute bottom-0 right-0 w-3 h-3 cursor-nwse-resize bg-primary/10 rounded-br-lg" onPointerDown={handleResizePointerDown} />}
+      {isOwner && !isCollapsed && (
+        <div 
+          className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize hover:bg-primary/20 transition-colors rounded-br-lg" 
+          onPointerDown={handleResizePointerDown} 
+          data-resize-handle="true"
+        />
+      )}
     </Card>
   );
 }
