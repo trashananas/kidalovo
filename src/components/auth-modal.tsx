@@ -41,6 +41,9 @@ const USER_COLORS = [
   '#f97316', // Orange
 ];
 
+// Внутренний суффикс для преобразования логина в формат email для Firebase
+const INTERNAL_AUTH_DOMAIN = '@kidalovo.internal';
+
 export function AuthModal() {
   const auth = useAuth();
   const firestore = useFirestore();
@@ -50,24 +53,39 @@ export function AuthModal() {
   const [rememberMe, setRememberMe] = useState(true);
 
   // Form states
-  const [email, setEmail] = useState('');
+  const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
+
+  const validateLogin = (val: string) => {
+    return val.trim().length >= 5;
+  };
+
+  const formatAuthEmail = (val: string) => {
+    return `${val.trim().toLowerCase()}${INTERNAL_AUTH_DOMAIN}`;
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth) return;
+    
+    if (!validateLogin(login)) {
+      toast({ title: 'Ошибка', description: 'Логин должен быть не менее 5 символов', variant: 'destructive' });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
       await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
+      const email = formatAuthEmail(login);
       await signInWithEmailAndPassword(auth, email, password);
       setIsOpen(false);
       toast({ title: 'Вы вошли в аккаунт' });
     } catch (error) {
       toast({
         title: 'Ошибка входа',
-        description: getErrorMessage(error),
+        description: 'Неверный логин или пароль',
         variant: 'destructive',
       });
     } finally {
@@ -78,13 +96,26 @@ export function AuthModal() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth || !firestore) return;
+    
     if (!username.trim()) {
       toast({ title: 'Ошибка', description: 'Введите никнейм', variant: 'destructive' });
       return;
     }
+
+    if (!validateLogin(login)) {
+      toast({ title: 'Ошибка', description: 'Логин должен быть не менее 5 символов', variant: 'destructive' });
+      return;
+    }
+
+    if (password.length < 6) {
+        toast({ title: 'Ошибка', description: 'Пароль должен быть не менее 6 символов', variant: 'destructive' });
+        return;
+    }
+
     setIsLoading(true);
 
     try {
+      const email = formatAuthEmail(login);
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
@@ -99,6 +130,7 @@ export function AuthModal() {
         id: user.uid,
         username: username.trim(),
         color: randomColor,
+        login: login.trim().toLowerCase()
       });
 
       setIsOpen(false);
@@ -135,8 +167,14 @@ export function AuthModal() {
           <TabsContent value="login">
             <form onSubmit={handleLogin} className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" placeholder="mail@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                <Label htmlFor="login">Логин</Label>
+                <Input 
+                  id="login" 
+                  placeholder="Ваш уникальный логин" 
+                  value={login} 
+                  onChange={(e) => setLogin(e.target.value)} 
+                  required 
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Пароль</Label>
@@ -157,12 +195,18 @@ export function AuthModal() {
           <TabsContent value="register">
             <form onSubmit={handleRegister} className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="reg-username">Никнейм</Label>
-                <Input id="reg-username" placeholder="Ваше имя" value={username} onChange={(e) => setUsername(e.target.value)} required />
+                <Label htmlFor="reg-username">Никнейм (для доски)</Label>
+                <Input id="reg-username" placeholder="Как вас будут видеть" value={username} onChange={(e) => setUsername(e.target.value)} required />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="reg-email">Email</Label>
-                <Input id="reg-email" type="email" placeholder="mail@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                <Label htmlFor="reg-login">Логин (для входа)</Label>
+                <Input 
+                  id="reg-login" 
+                  placeholder="Минимум 5 символов" 
+                  value={login} 
+                  onChange={(e) => setLogin(e.target.value)} 
+                  required 
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="reg-password">Пароль</Label>
