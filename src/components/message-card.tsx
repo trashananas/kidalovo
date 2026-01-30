@@ -108,7 +108,8 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner }: Message
   const resizeStartRef = useRef<{ x: number; y: number; width: number; height: number; } | null>(null);
   const dragOffset = useRef({ x: 0, y: 0 });
 
-  const isGlobalAdmin = user?.displayName === 'Ananas';
+  // Проверка на глобального админа Ananas по уникальному email
+  const isGlobalAdmin = user?.email === 'ananas@kidalovo.internal';
   // Moderator/Owner or Global Admin can manage messages
   const isOwner = (user?.uid === message.userId) || (isRoomOwner && user && !user.isAnonymous) || isGlobalAdmin;
 

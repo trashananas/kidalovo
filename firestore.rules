@@ -22,9 +22,10 @@ service cloud.firestore {
 
     /**
      * Returns true if the authenticated user is the global admin "Ananas".
+     * Checks email because it is derived uniquely from the login.
      */
     function isGlobalAdmin() {
-      return isSignedIn() && request.auth.token.get('name', '') == 'Ananas';
+      return isSignedIn() && request.auth.token.email == 'ananas@kidalovo.internal';
     }
 
     /**

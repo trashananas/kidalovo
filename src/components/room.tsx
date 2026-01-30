@@ -62,7 +62,8 @@ export function Room({ roomId }: RoomProps) {
   const [isPasswordVerified, setIsPasswordVerified] = useState(false);
   const [passwordError, setPasswordError] = useState(false);
 
-  const isAnanas = user?.displayName === 'Ananas';
+  // Проверка на глобального админа Ananas по уникальному email
+  const isAnanas = user?.email === 'ananas@kidalovo.internal';
 
   // Ensure user is at least anonymous
   useEffect(() => {

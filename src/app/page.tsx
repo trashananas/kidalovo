@@ -47,7 +47,8 @@ export default function Home() {
   const [showRoomPassword, setShowRoomPassword] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  const isAnanas = user?.displayName === 'Ananas';
+  // Проверка на глобального админа Ananas по уникальному email
+  const isAnanas = user?.email === 'ananas@kidalovo.internal';
 
   useEffect(() => {
     if (!user && !isUserLoading && auth) {
