@@ -1,4 +1,3 @@
-
 'use client';
 
 import { cn } from '@/lib/utils';
@@ -11,7 +10,6 @@ export function PineappleBadge({ className }: { className?: string }) {
       className={cn("h-5 w-5 inline-block align-middle select-none", className)}
       xmlns="http://www.w3.org/2000/svg"
     >
-      {/* Фоновый круг с градиентом как на картинке */}
       <defs>
         <linearGradient id="pineapple-grad" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" style={{ stopColor: '#F472B6', stopOpacity: 1 }} />
@@ -20,7 +18,6 @@ export function PineappleBadge({ className }: { className?: string }) {
       </defs>
       <circle cx="50" cy="50" r="45" fill="url(#pineapple-grad)" />
       
-      {/* Листья ананаса */}
       <g fill="#4ADE80" stroke="#4ADE80" strokeWidth="1.5" strokeLinejoin="round">
         <path d="M50 40 L40 25 Q50 35 60 25 Z" />
         <path d="M50 40 L50 15 Q50 35 50 15 Z" />
@@ -28,7 +25,6 @@ export function PineappleBadge({ className }: { className?: string }) {
         <path d="M50 40 L70 35 Q50 40 70 35 Z" />
       </g>
       
-      {/* Тело ананаса */}
       <circle cx="50" cy="58" r="18" fill="none" stroke="#FACC15" strokeWidth="3" />
       <path d="M38 50 L62 66 M38 66 L62 50 M32 58 L68 58 M50 40 L50 76" stroke="#FACC15" strokeWidth="2.5" strokeLinecap="round" />
       <circle cx="50" cy="58" r="18" fill="#FACC15" fillOpacity="0.2" />

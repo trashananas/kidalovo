@@ -59,9 +59,6 @@ function getBoundingBox(object: DrawingObject): {
   return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }
 
-/**
- * Converts an array of points into an SVG path string.
- */
 function getSvgPathFromPoints(points: Point[]): string {
   if (!points || points.length === 0) return '';
 
@@ -180,7 +177,6 @@ export function DrawingCanvas({
   const moveStartRef = useRef<{ x: number; y: number, object: DrawingObject } | null>(null);
   const rotationStartRef = useRef<{ objectInitialRotation: number; pivot: Point; startAngle: number; } | null>(null);
 
-
   const selectedObject = useMemo(() => {
     if (!selectedObjectId) return null;
     return drawings.find((d) => d.id === selectedObjectId) || null;
@@ -297,7 +293,6 @@ export function DrawingCanvas({
   }
 
   const handleCanvasPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
-    // If an object is selected and the click is on the background, deselect it.
     if (drawingTool === 'select') {
         setSelectedObjectId(null);
     }
@@ -518,7 +513,6 @@ export function DrawingCanvas({
     }
   }
 
-
   const uniqueColors = useMemo(() => {
     const colors = new Set<string>();
     drawings.forEach(d => colors.add(d.color));
@@ -532,7 +526,6 @@ export function DrawingCanvas({
     }
     return drawings;
   }, [drawings, wipDrawing, isMoving, editingVertex, isRotating]);
-
 
   return (
     <svg

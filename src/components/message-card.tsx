@@ -80,10 +80,8 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
 
   const isGlobalAdmin = user?.email === 'ananas@kidalovo.internal';
   
-  // Проверка на аудит-лог
   const isAuditLog = message.type === 'audit';
 
-  // Права на управление: для аудит-лога — только Ananas, для остальных — по стандарту
   const isOwner = isAuditLog 
     ? isGlobalAdmin 
     : ((user?.uid === message.userId) || (isRoomOwner && user && !user.isAnonymous) || isGlobalAdmin);

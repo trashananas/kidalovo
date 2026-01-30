@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -29,19 +28,18 @@ import {
 } from '@/components/ui/dialog';
 
 const USER_COLORS = [
-  '#ef4444', // Red
-  '#3b82f6', // Blue
-  '#22c55e', // Green
-  '#f59e0b', // Amber
-  '#a855f7', // Purple
-  '#ec4899', // Pink
-  '#06b6d4', // Cyan
-  '#6366f1', // Indigo
-  '#14b8a6', // Teal
-  '#f97316', // Orange
+  '#ef4444',
+  '#3b82f6',
+  '#22c55e',
+  '#f59e0b',
+  '#a855f7',
+  '#ec4899',
+  '#06b6d4',
+  '#6366f1',
+  '#14b8a6',
+  '#f97316',
 ];
 
-// Внутренний суффикс для преобразования логина в формат email для Firebase
 const INTERNAL_AUTH_DOMAIN = '@kidalovo.internal';
 
 export function AuthModal() {
@@ -54,7 +52,6 @@ export function AuthModal() {
   const [showPassword, setShowPassword] = useState(false);
   const [showRegPassword, setShowRegPassword] = useState(false);
 
-  // Form states
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
@@ -121,13 +118,10 @@ export function AuthModal() {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Assign a random color
       const randomColor = USER_COLORS[Math.floor(Math.random() * USER_COLORS.length)];
 
-      // Update auth profile
       await updateProfile(user, { displayName: username });
 
-      // Create user document
       await setDoc(doc(firestore, 'users', user.uid), {
         id: user.uid,
         username: username.trim(),

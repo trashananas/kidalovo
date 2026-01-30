@@ -1,4 +1,3 @@
-
 'use client';
 
 import {
@@ -59,7 +58,6 @@ export function DrawingToolbar({
 
   const handleColorClick = (c: string) => {
     setColor(c);
-    // Automatically switch to the path tool when a color is selected
     setDrawingTool('path');
   };
 

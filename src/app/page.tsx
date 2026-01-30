@@ -41,7 +41,6 @@ export default function Home() {
   const [joinError, setJoinError] = useState<string | null>(null);
   const joinCodeRef = useRef<HTMLInputElement>(null);
 
-  // Create room form state
   const [customCode, setCustomCode] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
   const [onlyAuthorized, setOnlyAuthorized] = useState(false);
@@ -49,7 +48,6 @@ export default function Home() {
   const [showRoomPassword, setShowRoomPassword] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  // Проверка на глобального админа Ananas по уникальному email
   const isAnanas = user?.email === 'ananas@kidalovo.internal';
 
   useEffect(() => {
@@ -64,7 +62,6 @@ export default function Home() {
 
     const finalCode = customCode.trim().toUpperCase() || generateRoomCode();
     
-    // Validation
     if (customCode.trim()) {
       if (user.isAnonymous) {
         toast({
@@ -120,10 +117,8 @@ export default function Home() {
         roomData.password = roomPassword.trim();
       }
 
-      // 1. Create the room
       await setDoc(roomRef, roomData);
       
-      // 2. Create audit log if it's a restricted room
       if (onlyAuthorized) {
         const messagesCol = collection(firestore, 'rooms', finalCode, 'messages');
         await addDoc(messagesCol, {

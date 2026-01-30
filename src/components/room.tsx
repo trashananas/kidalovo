@@ -57,23 +57,19 @@ export function Room({ roomId }: RoomProps) {
   const router = useRouter();
   const isMobile = useIsMobile();
 
-  // Password verification state
   const [passwordInput, setPasswordInput] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isPasswordVerified, setIsPasswordVerified] = useState(false);
   const [passwordError, setPasswordError] = useState(false);
 
-  // Проверка на глобального админа Ananas по уникальному email
   const isAnanas = user?.email === 'ananas@kidalovo.internal';
 
-  // Ensure user is at least anonymous
   useEffect(() => {
     if (!user && !isUserLoading && auth) {
       initiateAnonymousSignIn(auth);
     }
   }, [user, isUserLoading, auth]);
 
-  // Firestore room doc to check for password and membership
   const roomDocRef = useMemoFirebase(() => {
     if (!firestore) return null;
     return doc(firestore, 'rooms', roomId);
@@ -81,7 +77,6 @@ export function Room({ roomId }: RoomProps) {
   
   const { data: roomData, isLoading: isRoomDataLoading } = useDoc(roomDocRef);
 
-  // Hook for messages/drawings
   const { messages, drawings, loading, error } = useRoom(roomId, isPasswordVerified);
 
   const [isDeleting, setIsDeleting] = useState(false);
@@ -100,7 +95,6 @@ export function Room({ roomId }: RoomProps) {
 
   const isCurrentUserRoomOwner = roomData?.creatorId === user?.uid || isAnanas;
 
-  // Handle password check
   useEffect(() => {
     if (roomData && !isRoomDataLoading && user) {
       if (isAnanas) {
@@ -126,10 +120,8 @@ export function Room({ roomId }: RoomProps) {
     }
   }, [roomData, isRoomDataLoading, roomId, user, isAnanas]);
 
-  // Automatic centering
   useEffect(() => {
     if (!loading && messages.length > 0 && !hasInitiallyCentered.current && typeof window !== 'undefined') {
-      // Ищем первое не системное сообщение
       const sorted = [...messages]
         .filter(m => m.type !== 'audit')
         .sort((a, b) => {
@@ -300,7 +292,6 @@ export function Room({ roomId }: RoomProps) {
     );
   }
 
-  // Check if room is onlyAuthorized and user is anonymous
   if (roomData?.onlyAuthorized && user?.isAnonymous) {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center bg-zinc-100 p-4 gap-6">
