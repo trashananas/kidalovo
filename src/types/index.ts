@@ -1,3 +1,4 @@
+
 import type { Timestamp } from 'firebase/firestore';
 
 export type FileAttachment = {
@@ -11,6 +12,8 @@ export type Message = {
   text?: string;
   file?: FileAttachment;
   userId: string;
+  authorName?: string;
+  authorColor?: string;
   createdAt: Timestamp;
   updatedAt?: Timestamp;
   isDeleted?: boolean;
@@ -40,4 +43,10 @@ export type DrawingObject = {
   strokeWidth: number;
   rotation?: number;
   createdAt: Timestamp;
+};
+
+export type UserProfile = {
+  id: string;
+  username: string;
+  color: string;
 };

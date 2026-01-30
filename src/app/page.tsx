@@ -1,10 +1,11 @@
+
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Lock, Unlock, Plus } from 'lucide-react';
+import { Loader2, Lock, Unlock, Plus, LogOut, Info } from 'lucide-react';
 import { useUser, useAuth, useFirestore } from '@/firebase';
 import { initiateAnonymousSignIn } from '@/firebase/non-blocking-login';
 import { useRouter } from 'next/navigation';
@@ -14,6 +15,7 @@ import { z } from 'zod';
 import { UserGuide } from '@/components/user-guide';
 import { KidalovoLogo } from '@/components/kidalovo-logo';
 import { Separator } from '@/components/ui/separator';
+import { AuthModal } from '@/components/auth-modal';
 import {
   Dialog,
   DialogContent,
@@ -25,6 +27,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { signOut } from 'firebase/auth';
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
@@ -58,19 +61,19 @@ export default function Home() {
     
     // Validation for custom code if provided
     if (customCode.trim()) {
-      if (customCode.length < 5 || customCode.length > 10) {
+      if (user.isAnonymous) {
         toast({
-          title: 'Ошибка',
-          description: 'Кастомный код должен быть от 5 до 10 символов.',
+          title: 'Доступ запрещен',
+          description: 'Кастомные коды доступны только зарегистрированным пользователям.',
           variant: 'destructive',
         });
         setIsCreatingRoom(false);
         return;
       }
-      if (!/^[A-Z0-9]+$/.test(finalCode)) {
+      if (customCode.length < 5 || customCode.length > 10) {
         toast({
           title: 'Ошибка',
-          description: 'Код может содержать только латинские буквы и цифры.',
+          description: 'Кастомный код должен быть от 5 до 10 символов.',
           variant: 'destructive',
         });
         setIsCreatingRoom(false);
@@ -86,7 +89,7 @@ export default function Home() {
       if (docSnap.exists()) {
         toast({
           title: 'Ошибка',
-          description: `Код комнаты ${finalCode} уже занят. Выберите другой.`,
+          description: `Код комнаты ${finalCode} уже занят.`,
           variant: 'destructive',
         });
         setIsCreatingRoom(false);
@@ -108,7 +111,6 @@ export default function Home() {
 
       await setDoc(roomRef, roomData);
       
-      // If private, store password in sessionStorage for the creator as well
       if (roomData.password) {
         sessionStorage.setItem(`room_pwd_${finalCode}`, roomData.password);
       }
@@ -116,10 +118,9 @@ export default function Home() {
       setIsDialogOpen(false);
       router.push(`/${finalCode}`);
     } catch (error) {
-      console.error(`Ошибка при создании комнаты:`, error);
       toast({
         title: 'Ошибка',
-        description: `Не удалось создать комнату: ${getErrorMessage(error)}`,
+        description: getErrorMessage(error),
         variant: 'destructive',
       });
     } finally {
@@ -130,9 +131,9 @@ export default function Home() {
   const joinRoomSchema = z.object({
     code: z
       .string()
-      .min(4, 'Код должен быть не менее 4 символов')
-      .max(10, 'Код должен быть не более 10 символов')
-      .regex(/^[A-Z0-9]+$/, 'Код должен состоять из заглавных латинских букв и цифр'),
+      .min(4, 'Код слишком короткий')
+      .max(10, 'Код слишком длинный')
+      .regex(/^[A-Z0-9]+$/, 'Только латинские буквы и цифры'),
   });
 
   const handleJoinRoom = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -158,25 +159,30 @@ export default function Home() {
       const roomSnap = await getDoc(roomRef);
 
       if (!roomSnap.exists()) {
-        setJoinError('Комната не найдена. Пожалуйста, проверьте код.');
+        setJoinError('Комната не найдена.');
       } else {
         router.push(`/${validatedFields.data.code}`);
       }
     } catch (error) {
       setJoinError(getErrorMessage(error));
-       toast({
-        title: 'Ошибка',
-        description: getErrorMessage(error),
-        variant: 'destructive',
-      });
+    } finally {
+      setIsJoiningRoom(false);
     }
+  };
 
-    setIsJoiningRoom(false);
+  const handleLogout = async () => {
+    if (!auth) return;
+    try {
+      await signOut(auth);
+      toast({ title: 'Вы вышли из аккаунта' });
+    } catch (error) {
+      toast({ title: 'Ошибка', description: getErrorMessage(error), variant: 'destructive' });
+    }
   };
 
   if (isUserLoading || !auth) {
     return (
-      <div className="flex min-h-screen w-full flex-col items-center justify-center">
+      <div className="flex min-h-screen w-full items-center justify-center">
         <Loader2 className="h-16 w-16 animate-spin" />
       </div>
     );
@@ -203,15 +209,27 @@ export default function Home() {
 
   return (
     <main className="relative flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
+      <div className="absolute top-4 right-4 flex items-center gap-2">
+        {user && !user.isAnonymous ? (
+          <div className="flex items-center gap-3 bg-card p-2 rounded-lg border shadow-sm">
+            <span className="text-sm font-medium">Привет, {user.displayName || 'Пользователь'}</span>
+            <Button variant="ghost" size="icon" onClick={handleLogout}>
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </div>
+        ) : (
+          <AuthModal />
+        )}
+      </div>
+
       <div className="flex flex-col items-center gap-8">
         <div className="flex flex-col items-center gap-2 select-none">
           <KidalovoLogo />
-          <h1 className="text-5xl font-bold tracking-tight text-center font-headline">
+          <h1 className="text-5xl font-bold tracking-tight text-center">
             Kidalovo
           </h1>
           <p className="text-muted-foreground text-center max-w-sm">
-            Совместная доска для сообщений в реальном времени. Создайте комнату
-            и поделитесь кодом или присоединитесь к существующей.
+            Интерактивная доска для сообщений в реальном времени.
           </p>
         </div>
         <div className="flex flex-col items-stretch gap-4 rounded-lg border bg-card p-6 shadow-sm w-full max-w-md">
@@ -220,28 +238,32 @@ export default function Home() {
             <DialogTrigger asChild>
               <Button size="lg" disabled={!user}>
                 <Plus className="mr-2 h-5 w-5" />
-                Создать новую комнату
+                Создать комнату
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
                 <DialogTitle>Настройка комнаты</DialogTitle>
                 <DialogDescription>
-                  Вы можете задать свой код или оставить поле пустым для случайного.
+                  Создайте уникальную доску для обсуждений.
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="code">Код комнаты (A-Z, 0-9)</Label>
+                  <Label htmlFor="code" className="flex items-center gap-2">
+                    Код комнаты
+                    {user?.isAnonymous && <Info className="h-3 w-3 text-destructive" title="Только для авторизованных" />}
+                  </Label>
                   <Input
                     id="code"
-                    placeholder="Оставьте пустым для случайного"
+                    placeholder={user?.isAnonymous ? "Случайный код (авторизуйтесь)" : "Оставьте пустым для случайного"}
                     value={customCode}
                     onChange={(e) => setCustomCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
                     maxLength={10}
+                    disabled={user?.isAnonymous}
                     className="uppercase tracking-widest"
                   />
-                  <p className="text-[10px] text-muted-foreground">От 5 до 10 символов для кастомного кода</p>
+                  {user?.isAnonymous && <p className="text-[10px] text-destructive">Кастомные коды доступны только после входа в аккаунт.</p>}
                 </div>
                 <Separator />
                 <div className="flex items-center justify-between">
@@ -250,7 +272,7 @@ export default function Home() {
                       {isPrivate ? <Lock className="h-4 w-4 text-primary" /> : <Unlock className="h-4 w-4 text-muted-foreground" />}
                       Приватная комната
                     </Label>
-                    <p className="text-[10px] text-muted-foreground">Потребуется пароль для входа</p>
+                    <p className="text-[10px] text-muted-foreground">Доступ только по паролю</p>
                   </div>
                   <Switch
                     checked={isPrivate}
@@ -258,7 +280,7 @@ export default function Home() {
                   />
                 </div>
                 {isPrivate && (
-                  <div className="grid gap-2 animate-in fade-in slide-in-from-top-2">
+                  <div className="grid gap-2">
                     <Label htmlFor="password">Пароль</Label>
                     <Input
                       id="password"
@@ -273,22 +295,18 @@ export default function Home() {
               </div>
               <DialogFooter>
                 <Button onClick={handleCreateRoom} disabled={isCreatingRoom} className="w-full">
-                   {isCreatingRoom ? (
-                    <><Loader2 className="animate-spin mr-2" /> Создание...</>
-                  ) : (
-                    'Создать'
-                  )}
+                   {isCreatingRoom ? <Loader2 className="animate-spin" /> : 'Создать'}
                 </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
 
-          <div className="relative w-full text-center select-none">
+          <div className="relative w-full text-center">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground select-none">Или</span>
+              <span className="bg-card px-2 text-muted-foreground">Или войти</span>
             </div>
           </div>
           
@@ -311,26 +329,14 @@ export default function Home() {
               )}
             </div>
             <Button type="submit" size="lg" variant="secondary" disabled={isJoiningRoom || !user}>
-              {isJoiningRoom ? (
-                <>
-                  <Loader2 className="animate-spin" />
-                  Вход...
-                </>
-              ) : (
-                'Войти'
-              )}
+              {isJoiningRoom ? <Loader2 className="animate-spin" /> : 'Войти'}
             </Button>
           </form>
           
-          <Separator className="my-2" />
-
-          <div className="flex flex-col items-center text-center">
-             <p className="text-sm text-muted-foreground mb-4">Инструменты и помощь</p>
-             <div className="flex gap-2">
-                <UserGuide />
-             </div>
+          <Separator />
+          <div className="flex justify-center">
+            <UserGuide />
           </div>
-
         </div>
       </div>
       <footer className="absolute bottom-4 text-xs text-muted-foreground">

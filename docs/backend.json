@@ -54,11 +54,16 @@
         "username": {
           "type": "string",
           "description": "The username of the user."
+        },
+        "color": {
+          "type": "string",
+          "description": "The unique color assigned to the user for message attribution."
         }
       },
       "required": [
         "id",
-        "username"
+        "username",
+        "color"
       ]
     },
     "Message": {
@@ -73,11 +78,19 @@
         },
         "roomId": {
           "type": "string",
-          "description": "Reference to Room. (Relationship: Room 1:N Message)"
+          "description": "Reference to Room."
         },
         "userId": {
           "type": "string",
-          "description": "Reference to User. (Relationship: User 1:N Message)"
+          "description": "Reference to User."
+        },
+        "authorName": {
+          "type": "string",
+          "description": "The nickname of the author (for authenticated users)."
+        },
+        "authorColor": {
+          "type": "string",
+          "description": "The assigned color of the author."
         },
         "text": {
           "type": "string",
@@ -85,72 +98,39 @@
         },
         "file": {
           "type": "object",
-          "description": "An attached file, stored as a data URI or a URL from a cloud storage provider.",
           "properties": {
-            "name": {
-              "type": "string",
-              "description": "The name of the file."
-            },
-            "type": {
-              "type": "string",
-              "description": "The MIME type of the file."
-            },
-            "url": {
-              "type": "string",
-              "description": "The URL or data URI of the file."
-            }
+            "name": { "type": "string" },
+            "type": { "type": "string" },
+            "url": { "type": "string" }
           },
-          "required": [
-            "name",
-            "type",
-            "url"
-          ]
+          "required": ["name", "type", "url"]
         },
         "position": {
           "type": "object",
-          "description": "The coordinates of the message's position on the board.",
           "properties": {
-            "x": {
-              "type": "number"
-            },
-            "y": {
-              "type": "number"
-            }
+            "x": { "type": "number" },
+            "y": { "type": "number" }
           },
-          "required": [
-            "x",
-            "y"
-          ]
+          "required": ["x", "y"]
         },
         "size": {
           "type": "object",
-          "description": "The dimensions of the message card.",
           "properties": {
-            "width": {
-              "type": "number"
-            },
-            "height": {
-              "type": "number"
-            }
+            "width": { "type": "number" },
+            "height": { "type": "number" }
           },
-          "required": [
-            "x",
-            "y"
-          ]
+          "required": ["width", "height"]
         },
         "createdAt": {
           "type": "string",
-          "description": "Timestamp indicating when the message was created.",
           "format": "date-time"
         },
         "updatedAt": {
           "type": "string",
-          "description": "Timestamp indicating when the message was last updated.",
           "format": "date-time"
         },
         "isDeleted": {
-          "type": "boolean",
-          "description": "Flag to hide the message without hard deleting."
+          "type": "boolean"
         }
       },
       "required": [
@@ -158,67 +138,6 @@
         "roomId",
         "userId",
         "position",
-        "createdAt"
-      ]
-    },
-    "DrawingObject": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "DrawingObject",
-      "type": "object",
-      "description": "Represents a single object drawn on the board, like a path, arrow, or shape.",
-      "properties": {
-        "userId": {
-          "type": "string"
-        },
-        "type": {
-          "type": "string",
-          "enum": [
-            "path",
-            "arrow",
-            "rectangle",
-            "ellipse",
-            "triangle"
-          ]
-        },
-        "points": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "x": {
-                "type": "number"
-              },
-              "y": {
-                "type": "number"
-              }
-            },
-            "required": [
-              "x",
-              "y"
-            ]
-          }
-        },
-        "color": {
-          "type": "string"
-        },
-        "strokeWidth": {
-          "type": "number"
-        },
-        "rotation": {
-          "type": "number",
-          "description": "The rotation of the object in degrees."
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "userId",
-        "type",
-        "points",
-        "color",
-        "strokeWidth",
         "createdAt"
       ]
     }
@@ -234,25 +153,19 @@
       "schema": {
         "$ref": "#/backend/entities/Room"
       },
-      "description": "Stores room metadata, including the join code, password and creation timestamp."
+      "description": "Stores room metadata."
     },
     "/users/{userId}": {
       "schema": {
         "$ref": "#/backend/entities/User"
       },
-      "description": "Stores user information."
+      "description": "Stores user profile information."
     },
     "/rooms/{roomId}/messages/{messageId}": {
       "schema": {
         "$ref": "#/backend/entities/Message"
       },
-      "description": "Stores messages within a room. Includes denormalized 'roomId' for authorization independence."
-    },
-    "/rooms/{roomId}/drawings/{drawingId}": {
-      "schema": {
-        "$ref": "#/backend/entities/DrawingObject"
-      },
-      "description": "Stores individual drawing objects within a room."
+      "description": "Stores messages within a room."
     }
   }
 }
