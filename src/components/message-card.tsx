@@ -526,7 +526,6 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
     setIsDeleting(true);
     const messageDocRef = doc(firestore, 'rooms', roomId, 'messages', message.id);
     
-    // Soft delete: just update a flag to hide it
     updateDoc(messageDocRef, { isDeleted: true })
       .catch((error) => {
         errorEmitter.emit(
@@ -690,7 +689,16 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
             </div>
 
             {!isCollapsed && !isEditing && (
-              <div className="flex-shrink-0 flex items-center">
+              <div className="flex-shrink-0 flex flex-col items-center gap-1">
+                {message.text && (
+                  <div
+                    className="p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer"
+                    onClick={handleCopy}
+                    title="Скопировать текст"
+                  >
+                    <Copy className="h-5 w-5" />
+                  </div>
+                )}
                 {isOwner && message.text && (
                   <div
                     className="p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer"
@@ -701,15 +709,6 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
                     title="Редактировать"
                   >
                     <Pencil className="h-5 w-5" />
-                  </div>
-                )}
-                {message.text && (
-                  <div
-                    className="p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer"
-                    onClick={handleCopy}
-                    title="Скопировать текст"
-                  >
-                    <Copy className="h-5 w-5" />
                   </div>
                 )}
                 {isOwner && (
