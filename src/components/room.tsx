@@ -21,7 +21,7 @@ import {
   EyeOff
 } from 'lucide-react';
 import { Button } from './ui/button';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { useState, useRef, useEffect } from 'react';
 import { cn, getErrorMessage } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
@@ -43,6 +43,7 @@ import { DrawingCanvas } from './drawing-canvas';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { DrawingShape } from '@/types';
+import { initiateAnonymousSignIn } from '@/firebase/non-blocking-login';
 
 type RoomProps = {
   roomId: string;
@@ -50,6 +51,7 @@ type RoomProps = {
 
 export function Room({ roomId }: RoomProps) {
   const { user, isUserLoading } = useUser();
+  const auth = useAuth();
   const firestore = useFirestore();
   const { toast } = useToast();
   const router = useRouter();
@@ -61,7 +63,14 @@ export function Room({ roomId }: RoomProps) {
   const [isPasswordVerified, setIsPasswordVerified] = useState(false);
   const [passwordError, setPasswordError] = useState(false);
 
-  // Firestore room doc to check for password
+  // Ensure user is at least anonymous
+  useEffect(() => {
+    if (!user && !isUserLoading && auth) {
+      initiateAnonymousSignIn(auth);
+    }
+  }, [user, isUserLoading, auth]);
+
+  // Firestore room doc to check for password and membership
   const roomDocRef = useMemoFirebase(() => {
     if (!firestore) return null;
     return doc(firestore, 'rooms', roomId);
@@ -85,19 +94,34 @@ export function Room({ roomId }: RoomProps) {
   const [drawColor, setDrawColor] = useState('#EF4444');
   const [strokeWidth, setStrokeWidth] = useState(4);
 
-  // Handle password check from sessionStorage on mount
+  // Handle password check
   useEffect(() => {
-    if (roomData && !isRoomDataLoading) {
+    if (roomData && !isRoomDataLoading && user) {
+      // 1. If room is public
       if (!roomData.password) {
         setIsPasswordVerified(true);
-      } else {
-        const storedPassword = sessionStorage.getItem(`room_pwd_${roomId}`);
-        if (storedPassword === roomData.password) {
-          setIsPasswordVerified(true);
-        }
+        return;
+      }
+
+      // 2. If user is registered (authorized) AND already a member
+      if (!user.isAnonymous && roomData.members && roomData.members[user.uid]) {
+        setIsPasswordVerified(true);
+        return;
+      }
+
+      // 3. If creator (regardless of status, though creator is usually registered for custom codes)
+      if (roomData.creatorId === user.uid) {
+        setIsPasswordVerified(true);
+        return;
+      }
+
+      // 4. Check session storage (for temporary access in current session)
+      const storedPassword = sessionStorage.getItem(`room_pwd_${roomId}`);
+      if (storedPassword === roomData.password) {
+        setIsPasswordVerified(true);
       }
     }
-  }, [roomData, isRoomDataLoading, roomId]);
+  }, [roomData, isRoomDataLoading, roomId, user]);
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -190,7 +214,7 @@ export function Room({ roomId }: RoomProps) {
       return;
     }
     setIsPanning(true);
-    panStart.current = { x: e.clientX - panOffset.x, y: e.clientY - panOffset.y };
+    panStart.current = { x: e.clientX - panOffset.x, y: e.clientY - panStart.current.y };
     e.currentTarget.setPointerCapture(e.pointerId);
   };
 
@@ -213,20 +237,14 @@ export function Room({ roomId }: RoomProps) {
 
   const handleResetView = () => {
     if (messages.length > 0) {
-      // Find the message with the earliest createdAt
       const sorted = [...messages].sort((a, b) => {
         const timeA = a.createdAt?.toMillis?.() || 0;
         const timeB = b.createdAt?.toMillis?.() || 0;
         return timeA - timeB;
       });
       const firstMsg = sorted[0];
-      
-      // Calculate panOffset to center this message
       const centerX = window.innerWidth / 2;
       const centerY = window.innerHeight / 2;
-      
-      // Target position: message should be in the center
-      // msg.x + panOffset.x = centerX - msgWidth/2
       const msgWidth = firstMsg.size?.width || 320;
       const msgHeight = firstMsg.size?.height || 140;
 
