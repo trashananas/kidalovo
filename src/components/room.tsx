@@ -16,6 +16,7 @@ import {
   Lock,
   KeyRound,
   Feather,
+  Target,
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
@@ -186,7 +187,7 @@ export function Room({ roomId }: RoomProps) {
       return;
     }
     setIsPanning(true);
-    panStart.current = { x: e.clientX - panOffset.x, y: e.clientY - panStart.current.x };
+    panStart.current = { x: e.clientX - panOffset.x, y: e.clientY - panOffset.y };
     e.currentTarget.setPointerCapture(e.pointerId);
   };
 
@@ -205,6 +206,37 @@ export function Room({ roomId }: RoomProps) {
     const newIsDrawing = !isDrawing;
     setIsDrawing(newIsDrawing);
     setDrawingTool(newIsDrawing ? 'path' : 'pan');
+  };
+
+  const handleResetView = () => {
+    if (messages.length > 0) {
+      // Find the message with the earliest createdAt
+      const sorted = [...messages].sort((a, b) => {
+        const timeA = a.createdAt?.toMillis?.() || 0;
+        const timeB = b.createdAt?.toMillis?.() || 0;
+        return timeA - timeB;
+      });
+      const firstMsg = sorted[0];
+      
+      // Calculate panOffset to center this message
+      const centerX = window.innerWidth / 2;
+      const centerY = window.innerHeight / 2;
+      
+      // Target position: message should be in the center
+      // msg.x + panOffset.x = centerX - msgWidth/2
+      const msgWidth = firstMsg.size?.width || 320;
+      const msgHeight = firstMsg.size?.height || 140;
+
+      setPanOffset({
+        x: centerX - (firstMsg.position.x + msgWidth / 2),
+        y: centerY - (firstMsg.position.y + msgHeight / 2),
+      });
+      
+      toast({ title: 'Возврат к первому сообщению' });
+    } else {
+      setPanOffset({ x: 0, y: 0 });
+      toast({ title: 'Вид сброшен к началу' });
+    }
   };
 
   if (isUserLoading || isRoomDataLoading) {
@@ -289,6 +321,9 @@ export function Room({ roomId }: RoomProps) {
         <div className="flex items-center gap-2 rounded-full border bg-card p-1 shadow-sm">
           <Button variant={isDrawing ? 'secondary' : 'ghost'} size="icon" onClick={toggleDrawing} title="Рисование">
             {isDrawing ? <MousePointer2 /> : <Feather />}
+          </Button>
+          <Button variant="ghost" size="icon" onClick={handleResetView} title="К первому сообщению">
+            <Target />
           </Button>
           {isMobile && (
             <Button variant="ghost" size="icon" onClick={toggleFullscreen} title={isFullscreen ? 'Выйти' : 'Во весь экран'}>
