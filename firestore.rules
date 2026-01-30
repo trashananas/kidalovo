@@ -64,6 +64,13 @@ service cloud.firestore {
     }
 
     /**
+     * Validates that an incoming drawing on create has the creator's UID.
+     */
+    function isDrawingCreator() {
+      return request.resource.data.userId == request.auth.uid;
+    }
+
+    /**
      * Validates that an incoming message has content (text or a file).
      */
     function hasContent() {
