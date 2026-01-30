@@ -260,11 +260,57 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner }: Message
       data-message-card="true"
     >
       <div className="relative p-4 flex flex-col gap-2 flex-grow overflow-hidden">
-        {message.authorName && !isCollapsed && (
-          <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: message.authorColor || 'inherit' }}>
-            от {message.authorName}
-          </div>
-        )}
+        {/* Header with Author and Actions */}
+        <div className="flex justify-between items-start">
+          {message.authorName && !isCollapsed && (
+            <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: message.authorColor || 'inherit' }}>
+              от {message.authorName}
+            </div>
+          )}
+          
+          {!isCollapsed && !isEditing && (
+            <div className="flex gap-1 ml-auto">
+              <div 
+                className="p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer" 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigator.clipboard.writeText(message.text || '');
+                  toast({ title: "Скопировано!" });
+                }} 
+                title="Копировать"
+              >
+                <Copy className="h-4 w-4" />
+              </div>
+              {isOwner && (
+                <div 
+                  className="p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsEditing(true);
+                  }} 
+                  title="Изменить"
+                >
+                  <Pencil className="h-4 w-4" />
+                </div>
+              )}
+              {isOwner && (
+                <div 
+                  className="p-1 text-destructive/50 hover:text-destructive cursor-pointer" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const now = Date.now();
+                    if (now - lastDeleteClickRef.current < 500) handleDelete();
+                    else toast({ title: "Удаление", description: "Нажмите еще раз для подтверждения" });
+                    lastDeleteClickRef.current = now;
+                  }} 
+                  title="Удалить"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
         
         {message.file && !isCollapsed && (
           message.file.type.startsWith('image') ? (
@@ -304,22 +350,6 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner }: Message
               <p className="text-sm whitespace-pre-wrap break-words">{renderFormattedText(message.text || '')}</p>
             )}
           </div>
-
-          {!isCollapsed && !isEditing && (
-            <div className="flex flex-col gap-1 items-center shrink-0 border-l pl-2">
-              <div className="p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer" onClick={() => {
-                navigator.clipboard.writeText(message.text || '');
-                toast({ title: "Скопировано!" });
-              }} title="Копировать"><Copy className="h-4 w-4" /></div>
-              {isOwner && <div className="p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer" onClick={() => setIsEditing(true)} title="Изменить"><Pencil className="h-4 w-4" /></div>}
-              {isOwner && <div className="p-1 text-destructive/50 hover:text-destructive cursor-pointer" onClick={(e) => {
-                const now = Date.now();
-                if (now - lastDeleteClickRef.current < 500) handleDelete();
-                else toast({ title: "Удаление", description: "Нажмите еще раз для подтверждения" });
-                lastDeleteClickRef.current = now;
-              }} title="Удалить"><Trash2 className="h-4 w-4" /></div>}
-            </div>
-          )}
         </div>
 
         {!isCollapsed && !isEditing && (
