@@ -30,10 +30,10 @@ const GREEK_LOWER = {
 const GREEK_UPPER = {
   pi: 'Π',
   alpha: 'Α',
-  beta: 'Β',
-  gamma: 'Γ',
+  beta: 'В',
+  gamma: 'Г',
   delta: 'Δ',
-  phi: 'Φ',
+  phi: 'Ф',
   omega: 'Ω',
   theta: 'Θ',
   sigma: 'Σ',
@@ -243,7 +243,11 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
       return;
     }
     const update = () => {
-      setTimeAgo(formatDistanceToNow(message.createdAt.toDate(), { addSuffix: true, locale: ru }));
+      try {
+        setTimeAgo(formatDistanceToNow(message.createdAt.toDate(), { addSuffix: true, locale: ru }));
+      } catch (e) {
+        setTimeAgo('только что');
+      }
     };
     update();
     const intervalId = setInterval(update, 60000);
@@ -256,7 +260,11 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
       return;
     }
     const update = () => {
-      setUpdatedAgo(formatDistanceToNow(message.updatedAt.toDate(), { addSuffix: true, locale: ru }));
+      try {
+        setUpdatedAgo(formatDistanceToNow(message.updatedAt!.toDate(), { addSuffix: true, locale: ru }));
+      } catch (e) {
+        setUpdatedAgo('');
+      }
     };
     update();
     const intervalId = setInterval(update, 60000);
@@ -562,6 +570,9 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
     lastDeleteClickRef.current = now;
   };
 
+  const createdAtString = message.createdAt?.toDate ? message.createdAt.toDate().toLocaleString() : '...';
+  const updatedAtString = message.updatedAt?.toDate ? message.updatedAt.toDate().toLocaleString() : '';
+
 
   return (
       <Card
@@ -725,9 +736,9 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
           </div>
           {!isCollapsed && !isEditing && timeAgo && (
             <div className="mt-auto text-xs text-muted-foreground pt-1 border-t shrink-0 flex justify-between items-center">
-              <span title={message.createdAt.toDate().toLocaleString()}>{timeAgo}</span>
+              <span title={createdAtString}>{timeAgo}</span>
               {updatedAgo && (
-                <span className="italic" title={message.updatedAt?.toDate().toLocaleString()}>
+                <span className="italic" title={updatedAtString}>
                   (отред. {updatedAgo})
                 </span>
               )}
