@@ -82,7 +82,7 @@ export function UserGuide() {
             <div>
               <h3 className="font-semibold text-md border-t pt-4 mb-2">Рисование на доске</h3>
               <p className="mb-2">
-                Нажмите на иконку <b className="font-mono">Пера</b> сверху для входа в режим рисования.
+                Нажмите на иконку сверху для входа в режим рисования.
               </p>
               <ul className="list-disc pl-5 space-y-2">
                 <li><b className="font-mono">Выделить:</b> Позволяет выбирать объекты для перемещения, вращения или изменения формы за узловые точки.</li>
@@ -95,7 +95,7 @@ export function UserGuide() {
             <div>
               <h3 className="font-semibold text-md border-t pt-4 mb-2">Форматирование текста</h3>
               <p className="mb-2">
-                Используйте разметку или горячие клавиши:
+                Используйте разметку:
               </p>
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
@@ -103,39 +103,32 @@ export function UserGuide() {
                         <tr className="border-b">
                             <th className="py-2 pr-4">Стиль</th>
                             <th className="py-2 pr-4">Разметка</th>
-                            <th className="py-2 pr-4">Горячая клавиша</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr className="border-b">
                             <td className="py-2 pr-4"><strong>Жирный</strong></td>
                             <td className="py-2 pr-4 font-mono">*текст*</td>
-                            <td className="py-2 pr-4 font-mono">Ctrl + B</td>
                         </tr>
                         <tr className="border-b">
                             <td className="py-2 pr-4"><em>Курсив</em></td>
                             <td className="py-2 pr-4 font-mono">\текст\</td>
-                            <td className="py-2 pr-4 font-mono">Ctrl + I</td>
                         </tr>
                         <tr className="border-b">
                             <td className="py-2 pr-4"><u>Подчеркнутый</u></td>
                             <td className="py-2 pr-4 font-mono">_текст_</td>
-                             <td className="py-2 pr-4 font-mono">Ctrl + U</td>
                         </tr>
                         <tr className="border-b">
                             <td className="py-2 pr-4"><s>Зачеркнутый</s></td>
                             <td className="py-2 pr-4 font-mono">$текст$</td>
-                             <td className="py-2 pr-4 font-mono">Ctrl + Shift + X</td>
                         </tr>
                         <tr className="border-b">
                             <td className="py-2 pr-4">Спойлер</td>
                             <td className="py-2 pr-4 font-mono">#текст#</td>
-                             <td className="py-2 pr-4 font-mono">Ctrl + Shift + P</td>
                         </tr>
                         <tr className="border-b">
                             <td className="py-2 pr-4">Ссылка</td>
                             <td className="py-2 pr-4 font-mono">@текст@{"{url}"}</td>
-                             <td className="py-2 pr-4 font-mono">Ctrl + K</td>
                         </tr>
                     </tbody>
                 </table>
