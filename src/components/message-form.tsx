@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
@@ -18,8 +17,11 @@ import type { FileAttachment, UserProfile } from '@/types';
 
 const messageSchema = z.object({
   message: z.string(),
-  file: z.instanceof(File).nullable(),
-}).refine(data => data.message.trim().length > 0 || !!data.file, { message: 'Пустое сообщение', path: ['message'] });
+  file: z.any().nullable(),
+}).refine(data => {
+  const hasText = typeof data.message === 'string' && data.message.trim().length > 0;
+  return hasText || !!data.file;
+}, { message: 'Пустое сообщение', path: ['message'] });
 
 export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: { x: number; y: number } }) {
   const { user } = useUser();
@@ -27,6 +29,14 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+
+  const form = useForm<z.infer<typeof messageSchema>>({
+    resolver: zodResolver(messageSchema),
+    defaultValues: {
+      message: '',
+      file: null,
+    },
+  });
 
   useEffect(() => {
     if (user && !user.isAnonymous && firestore) {
@@ -43,13 +53,13 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
     setIsSubmitting(true);
     try {
       let fileAttachment: FileAttachment | null = null;
-      if (values.file) {
+      if (values.file instanceof File) {
         const reader = new FileReader();
         const dataUrl = await new Promise<string>((res) => {
           reader.onload = () => res(reader.result as string);
-          reader.readAsDataURL(values.file!);
+          reader.readAsDataURL(values.file as File);
         });
-        fileAttachment = { name: values.file.name, type: values.file.type, url: dataUrl };
+        fileAttachment = { name: (values.file as File).name, type: (values.file as File).type, url: dataUrl };
       }
 
       await addDoc(collection(firestore, 'rooms', roomId, 'messages'), {
@@ -76,9 +86,28 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
     }
   };
 
+  const selectedFile = form.watch('file');
+
   return (
     <Card className="shadow-xl">
       <CardContent className="p-3">
+        {selectedFile && (
+          <div className="flex items-center gap-2 mb-2 p-2 bg-muted rounded-md">
+            <FileIcon className="h-4 w-4" />
+            <span className="text-xs truncate flex-1">
+              {selectedFile instanceof File ? selectedFile.name : 'Файл выбран'}
+            </span>
+            <Button 
+              type="button" 
+              variant="ghost" 
+              size="icon" 
+              className="h-6 w-6" 
+              onClick={() => form.setValue('file', null)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex items-end gap-2">
             <FormField
@@ -90,17 +119,39 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
                     <Textarea 
                       {...field} 
                       placeholder="Сообщение..." 
-                      className="min-h-0 resize-none py-2" 
+                      className="min-h-[40px] max-h-[200px] resize-none py-2" 
                       rows={1}
-                      onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.handleSubmit(onSubmit)(); } }}
+                      onKeyDown={(e) => { 
+                        if (e.key === 'Enter' && !e.shiftKey) { 
+                          e.preventDefault(); 
+                          form.handleSubmit(onSubmit)(); 
+                        } 
+                      }}
                     />
                   </FormControl>
                 </FormItem>
               )}
             />
-            <Button type="button" size="icon" variant="outline" onClick={() => document.getElementById('file-input')?.click()}><Paperclip className="h-4 w-4" /></Button>
-            <input id="file-input" type="file" className="hidden" onChange={(e) => form.setValue('file', e.target.files?.[0] || null)} />
-            <Button type="submit" size="icon" disabled={isSubmitting}>{isSubmitting ? <Loader2 className="animate-spin" /> : <Send className="h-4 w-4" />}</Button>
+            <Button 
+              type="button" 
+              size="icon" 
+              variant="outline" 
+              onClick={() => document.getElementById('file-input')?.click()}
+            >
+              <Paperclip className="h-4 w-4" />
+            </Button>
+            <input 
+              id="file-input" 
+              type="file" 
+              className="hidden" 
+              onChange={(e) => {
+                const file = e.target.files?.[0] || null;
+                form.setValue('file', file);
+              }} 
+            />
+            <Button type="submit" size="icon" disabled={isSubmitting}>
+              {isSubmitting ? <Loader2 className="animate-spin" /> : <Send className="h-4 w-4" />}
+            </Button>
           </form>
         </Form>
       </CardContent>
