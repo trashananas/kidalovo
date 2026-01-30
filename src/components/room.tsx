@@ -17,6 +17,8 @@ import {
   KeyRound,
   Feather,
   Target,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
@@ -55,6 +57,7 @@ export function Room({ roomId }: RoomProps) {
 
   // Password verification state
   const [passwordInput, setPasswordInput] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isPasswordVerified, setIsPasswordVerified] = useState(false);
   const [passwordError, setPasswordError] = useState(false);
 
@@ -267,13 +270,20 @@ export function Room({ roomId }: RoomProps) {
                 <div className="relative">
                   <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     placeholder="Введите пароль"
-                    className={cn("pl-10", passwordError && "border-destructive ring-destructive")}
+                    className={cn("pl-10 pr-10", passwordError && "border-destructive ring-destructive")}
                     value={passwordInput}
                     onChange={(e) => setPasswordInput(e.target.value)}
                     autoFocus
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
               </div>
               <div className="flex gap-2">

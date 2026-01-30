@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Lock, Unlock, Plus, LogOut, Info } from 'lucide-react';
+import { Loader2, Lock, Unlock, Plus, LogOut, Info, Eye, EyeOff } from 'lucide-react';
 import { useUser, useAuth, useFirestore } from '@/firebase';
 import { initiateAnonymousSignIn } from '@/firebase/non-blocking-login';
 import { useRouter } from 'next/navigation';
@@ -45,6 +45,7 @@ export default function Home() {
   const [customCode, setCustomCode] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
   const [roomPassword, setRoomPassword] = useState('');
+  const [showRoomPassword, setShowRoomPassword] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   useEffect(() => {
@@ -282,14 +283,24 @@ export default function Home() {
                 {isPrivate && (
                   <div className="grid gap-2">
                     <Label htmlFor="password">Пароль</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="Введите пароль"
-                      value={roomPassword}
-                      onChange={(e) => setRoomPassword(e.target.value)}
-                      required={isPrivate}
-                    />
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        type={showRoomPassword ? "text" : "password"}
+                        placeholder="Введите пароль"
+                        value={roomPassword}
+                        onChange={(e) => setRoomPassword(e.target.value)}
+                        required={isPrivate}
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowRoomPassword(!showRoomPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {showRoomPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
