@@ -12,10 +12,10 @@ import {
   Trash2,
   Expand,
   Minimize,
-  Feather,
   MousePointer2,
   Lock,
   KeyRound,
+  Feather,
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
@@ -186,7 +186,7 @@ export function Room({ roomId }: RoomProps) {
       return;
     }
     setIsPanning(true);
-    panStart.current = { x: e.clientX - panOffset.x, y: e.clientY - panOffset.y };
+    panStart.current = { x: e.clientX - panOffset.x, y: e.clientY - panStart.current.x };
     e.currentTarget.setPointerCapture(e.pointerId);
   };
 

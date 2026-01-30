@@ -4,12 +4,12 @@
 import {
   Eraser,
   Hand,
-  Feather,
   ArrowUpRight,
   RectangleHorizontal,
   Circle,
   Triangle,
   MousePointer2,
+  Feather,
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Slider } from './ui/slider';
