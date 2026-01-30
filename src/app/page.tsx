@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
@@ -59,10 +58,10 @@ export default function Home() {
     
     // Validation for custom code if provided
     if (customCode.trim()) {
-      if (customCode.length < 4 || customCode.length > 10) {
+      if (customCode.length < 5 || customCode.length > 10) {
         toast({
           title: 'Ошибка',
-          description: 'Кастомный код должен быть от 4 до 10 символов.',
+          description: 'Кастомный код должен быть от 5 до 10 символов.',
           variant: 'destructive',
         });
         setIsCreatingRoom(false);
@@ -242,7 +241,7 @@ export default function Home() {
                     maxLength={10}
                     className="uppercase tracking-widest"
                   />
-                  <p className="text-[10px] text-muted-foreground">От 4 до 10 символов</p>
+                  <p className="text-[10px] text-muted-foreground">От 5 до 10 символов для кастомного кода</p>
                 </div>
                 <Separator />
                 <div className="flex items-center justify-between">
