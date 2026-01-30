@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { Message } from '@/types';
@@ -82,9 +81,10 @@ type MessageCardProps = {
   message: Message;
   roomId: string;
   panOffset: { x: number; y: number };
+  isRoomOwner: boolean;
 };
 
-export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
+export function MessageCard({ message, roomId, panOffset, isRoomOwner }: MessageCardProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -108,7 +108,8 @@ export function MessageCard({ message, roomId, panOffset }: MessageCardProps) {
   const resizeStartRef = useRef<{ x: number; y: number; width: number; height: number; } | null>(null);
   const dragOffset = useRef({ x: 0, y: 0 });
 
-  const isOwner = user?.uid === message.userId;
+  // Moderator/Owner can manage if they are registered (not anonymous)
+  const isOwner = (user?.uid === message.userId) || (isRoomOwner && user && !user.isAnonymous);
 
   useEffect(() => {
     setPosition(message.position);

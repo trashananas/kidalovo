@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useRoom } from '@/hooks/use-room';
@@ -94,6 +93,8 @@ export function Room({ roomId }: RoomProps) {
   const [drawColor, setDrawColor] = useState('#EF4444');
   const [strokeWidth, setStrokeWidth] = useState(4);
 
+  const isCurrentUserRoomOwner = roomData?.creatorId === user?.uid;
+
   // Handle password check
   useEffect(() => {
     if (roomData && !isRoomDataLoading && user) {
@@ -109,7 +110,7 @@ export function Room({ roomId }: RoomProps) {
         return;
       }
 
-      // 3. If creator (regardless of status, though creator is usually registered for custom codes)
+      // 3. If creator (regardless of status)
       if (roomData.creatorId === user.uid) {
         setIsPasswordVerified(true);
         return;
@@ -389,7 +390,7 @@ export function Room({ roomId }: RoomProps) {
       <div id="board" className={cn('absolute inset-0', boardCursorClass())} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp}>
         <div id="pannable-container" className="absolute inset-0" style={{ transform: `translate(${panOffset.x}px, ${panOffset.y}px)` }}>
           {messages.map((msg) => (
-            <MessageCard key={msg.id} message={msg} roomId={roomId} panOffset={panOffset} />
+            <MessageCard key={msg.id} message={msg} roomId={roomId} panOffset={panOffset} isRoomOwner={isCurrentUserRoomOwner} />
           ))}
         </div>
         <DrawingCanvas roomId={roomId} isDrawing={isDrawing} color={drawColor} strokeWidth={strokeWidth} drawings={drawings} drawingTool={drawingTool} setDrawingTool={setDrawingTool} panOffset={panOffset} className="z-10" />

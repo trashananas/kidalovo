@@ -14,6 +14,13 @@ service cloud.firestore {
     }
 
     /**
+     * Returns true if the user is not anonymous (registered with login/password).
+     */
+    function isAuthorized() {
+      return isSignedIn() && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
+    /**
      * Returns true if the authenticated user's UID matches the provided userId.
      */
     function isOwner(userId) {
@@ -125,8 +132,8 @@ service cloud.firestore {
       match /messages/{messageId} {
         allow read, list: if isRoomMember(roomId);
         allow create: if isRoomMember(roomId) && isMessageCreator() && hasContent();
-        allow update: if isMessageOwner() && isExistingDoc() && isMessageUpdateValid();
-        allow delete: if isMessageOwner() || isLastMember(roomId);
+        allow update: if (isMessageOwner() || (isRoomOwner(roomId) && isAuthorized())) && isExistingDoc() && isMessageUpdateValid();
+        allow delete: if isMessageOwner() || (isRoomOwner(roomId) && isAuthorized()) || isLastMember(roomId);
       }
       
       match /drawings/{drawingId} {
