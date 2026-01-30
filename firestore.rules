@@ -56,10 +56,6 @@ service cloud.firestore {
       return request.resource.data.userId == request.auth.uid || request.resource.data.userId == 'system';
     }
 
-    function isDrawingCreator() {
-      return request.resource.data.userId == request.auth.uid;
-    }
-
     function hasContent() {
       let data = request.resource.data;
       return (data.get('text', '') != null && data.get('text', '').size() > 0) 
@@ -95,11 +91,24 @@ service cloud.firestore {
       allow delete: if (isLastMember(roomId) && isExistingDoc()) || isGlobalAdmin();
 
       match /messages/{messageId} {
-        // Audit log only for Ananas
-        allow read, list: if isRoomMember(roomId) && (resource.data.get('type', '') != 'audit' || isGlobalAdmin());
+        // Everyone in room can read everything (including audit)
+        allow read, list: if isRoomMember(roomId);
+
+        // Client can't create audit logs manually
         allow create: if isRoomMember(roomId) && isMessageCreator() && hasContent() && request.resource.data.get('type', '') != 'audit';
-        allow update: if (isMessageOwner() || (isRoomOwner(roomId) && isAuthorized()) || isGlobalAdmin()) && isExistingDoc() && isMessageUpdateValid() && resource.data.get('type', '') != 'audit';
-        allow delete: if (isMessageOwner() || (isRoomOwner(roomId) && isAuthorized()) || isLastMember(roomId) || isGlobalAdmin()) && resource.data.get('type', '') != 'audit';
+
+        // Update/Delete: 
+        // If it's audit, only GlobalAdmin.
+        // If not audit, owner/roomOwner/admin.
+        allow update: if isExistingDoc() && isMessageUpdateValid() && (
+          (resource.data.get('type', '') == 'audit' && isGlobalAdmin()) ||
+          (resource.data.get('type', '') != 'audit' && (isMessageOwner() || (isRoomOwner(roomId) && isAuthorized()) || isGlobalAdmin()))
+        );
+
+        allow delete: if isExistingDoc() && (
+          (resource.data.get('type', '') == 'audit' && isGlobalAdmin()) ||
+          (resource.data.get('type', '') != 'audit' && (isMessageOwner() || (isRoomOwner(roomId) && isAuthorized()) || isLastMember(roomId) || isGlobalAdmin()))
+        );
       }
       
       match /drawings/{drawingId} {

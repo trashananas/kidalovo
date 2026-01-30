@@ -79,13 +79,14 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
   const dragOffset = useRef({ x: 0, y: 0 });
 
   const isGlobalAdmin = user?.email === 'ananas@kidalovo.internal';
-  const isOwner = (user?.uid === message.userId) || (isRoomOwner && user && !user.isAnonymous) || isGlobalAdmin;
-
+  
   // Проверка на аудит-лог
   const isAuditLog = message.type === 'audit';
-  
-  // Если это аудит-лог, его видит только Ananas
-  if (isAuditLog && !isGlobalAdmin) return null;
+
+  // Права на управление: для аудит-лога — только Ananas, для остальных — по стандарту
+  const isOwner = isAuditLog 
+    ? isGlobalAdmin 
+    : ((user?.uid === message.userId) || (isRoomOwner && user && !user.isAnonymous) || isGlobalAdmin);
 
   useEffect(() => {
     setPosition(message.position);
@@ -106,7 +107,7 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
   }, [message.createdAt]);
 
   const handleGripPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isOwner || isAuditLog) return;
+    if (!isOwner) return;
     e.stopPropagation();
     dragStartRef.current = { x: e.clientX, y: e.clientY };
     if (!cardRef.current) return;
@@ -116,7 +117,7 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
   };
 
   const handleCardPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isOwner || isEditing || isAuditLog) return;
+    if (!isOwner || isEditing) return;
 
     if (!isDragging && dragStartRef.current) {
       const dx = Math.abs(e.clientX - dragStartRef.current.x);
@@ -138,15 +139,13 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
   };
 
   const handleCardPointerUp = async (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isOwner || isAuditLog) return;
-    
     if (dragStartRef.current && !isDragging && !isResizing) {
       setIsCollapsed((p) => !p);
     }
 
     dragStartRef.current = null;
     
-    if (isDragging) {
+    if (isDragging && isOwner) {
       cardRef.current?.releasePointerCapture(e.pointerId);
       setIsDragging(false);
       if (firestore) {
@@ -161,7 +160,7 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
   };
 
   const handleResizePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isOwner || isAuditLog) return;
+    if (!isOwner) return;
     e.stopPropagation(); e.preventDefault();
     setIsResizing(true);
     resizeStartRef.current = { x: e.clientX, y: e.clientY, width: cardRef.current?.offsetWidth || size.width, height: cardRef.current?.offsetHeight || size.height };
@@ -189,7 +188,7 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
   }, [isResizing, size, message.id, roomId, firestore, isOwner]);
 
   const handleDelete = () => {
-    if (!firestore || !isOwner || isDeleting || isAuditLog) return;
+    if (!firestore || !isOwner || isDeleting) return;
     setIsDeleting(true);
     const ref = doc(firestore, 'rooms', roomId, 'messages', message.id);
     updateDoc(ref, { isDeleted: true }).catch((err) => {
@@ -213,7 +212,7 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
       ref={cardRef}
       className={cn(
         'absolute rounded-lg shadow-lg flex flex-col pointer-events-auto transition-transform',
-        isOwner && !isEditing && !isAuditLog && 'cursor-grab',
+        isOwner && !isEditing && 'cursor-grab',
         isDragging && 'z-50 scale-105 shadow-2xl cursor-grabbing',
         isAuditLog && 'border-primary border-2 bg-primary/5'
       )}
@@ -235,7 +234,7 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
             <div className="flex items-center gap-2 mb-1">
               <ShieldCheck className="h-4 w-4 text-primary" />
               <div className="text-[10px] font-bold uppercase tracking-wider text-primary">
-                Audit Log (Only for Ananas)
+                Список участников
               </div>
             </div>
           ) : (
@@ -249,19 +248,21 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
             )
           )}
           
-          {!isCollapsed && !isEditing && !isAuditLog && (
+          {!isCollapsed && !isEditing && (
             <div className="flex gap-1 ml-auto">
-              <div 
-                className="p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer" 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  navigator.clipboard.writeText(message.text || '');
-                  toast({ title: "Скопировано!" });
-                }} 
-                title="Копировать"
-              >
-                <Copy className="h-4 w-4" />
-              </div>
+              {!isAuditLog && (
+                <div 
+                  className="p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigator.clipboard.writeText(message.text || '');
+                    toast({ title: "Скопировано!" });
+                  }} 
+                  title="Копировать"
+                >
+                  <Copy className="h-4 w-4" />
+                </div>
+              )}
               {isOwner && (
                 <div 
                   className="p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer" 
@@ -305,7 +306,7 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
         )}
 
         <div className="flex items-start gap-2 flex-grow min-h-0">
-          {isOwner && !isEditing && !isAuditLog && (
+          {isOwner && !isEditing && (
             <div 
               className="p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer shrink-0" 
               onPointerDown={handleGripPointerDown}
@@ -325,7 +326,7 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
               </div>
             ) : isCollapsed ? (
               <div className="text-xs italic text-muted-foreground truncate opacity-70">
-                {isAuditLog ? 'Список участников' : (message.text || 'Файл...')}
+                {isAuditLog ? 'Тут были...' : (message.text || 'Файл...')}
               </div>
             ) : isAuditLog ? (
               <div className="space-y-2">
@@ -334,7 +335,7 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
                    {roomMembers ? Object.values(roomMembers).map((m: any, i) => (
                       <li key={i} className="flex items-center gap-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
-                        {m.name} {m.role === 'owner' && <span className="text-[10px] text-muted-foreground">(создатель)</span>}
+                        {m.name} {m.role === 'owner' && <span className="text-[10px] text-muted-foreground font-bold">(создатель)</span>}
                       </li>
                    )) : <li>Загрузка списка...</li>}
                 </ul>
@@ -351,7 +352,7 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
           </div>
         )}
       </div>
-      {isOwner && !isCollapsed && !isAuditLog && (
+      {isOwner && !isCollapsed && (
         <div 
           className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize hover:bg-primary/20 transition-colors rounded-br-lg" 
           onPointerDown={handleResizePointerDown} 
