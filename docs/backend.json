@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "Room": {
@@ -12,7 +13,7 @@
         },
         "code": {
           "type": "string",
-          "description": "The 4-letter code required to join the room."
+          "description": "The 4-8 character code required to join the room."
         },
         "createdAt": {
           "type": "string",
@@ -26,6 +27,10 @@
         "members": {
           "type": "object",
           "description": "A map of user UIDs to their roles (e.g., 'owner', 'member')."
+        },
+        "password": {
+          "type": "string",
+          "description": "Optional password for private rooms."
         }
       },
       "required": [
@@ -129,8 +134,8 @@
             }
           },
           "required": [
-            "width",
-            "height"
+            "x",
+            "y"
           ]
         },
         "createdAt": {
@@ -142,6 +147,10 @@
           "type": "string",
           "description": "Timestamp indicating when the message was last updated.",
           "format": "date-time"
+        },
+        "isDeleted": {
+          "type": "boolean",
+          "description": "Flag to hide the message without hard deleting."
         }
       },
       "required": [
@@ -225,7 +234,7 @@
       "schema": {
         "$ref": "#/backend/entities/Room"
       },
-      "description": "Stores room metadata, including the join code and creation timestamp."
+      "description": "Stores room metadata, including the join code, password and creation timestamp."
     },
     "/users/{userId}": {
       "schema": {

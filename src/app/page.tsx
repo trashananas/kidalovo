@@ -1,10 +1,11 @@
+
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Lock, Unlock, Plus } from 'lucide-react';
 import { useUser, useAuth, useFirestore } from '@/firebase';
 import { initiateAnonymousSignIn } from '@/firebase/non-blocking-login';
 import { useRouter } from 'next/navigation';
@@ -14,6 +15,17 @@ import { z } from 'zod';
 import { UserGuide } from '@/components/user-guide';
 import { KidalovoLogo } from '@/components/kidalovo-logo';
 import { Separator } from '@/components/ui/separator';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
@@ -27,6 +39,12 @@ export default function Home() {
   const [joinError, setJoinError] = useState<string | null>(null);
   const joinCodeRef = useRef<HTMLInputElement>(null);
 
+  // Create room form state
+  const [customCode, setCustomCode] = useState('');
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [roomPassword, setRoomPassword] = useState('');
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+
   useEffect(() => {
     if (!user && !isUserLoading && auth) {
       initiateAnonymousSignIn(auth);
@@ -37,61 +55,84 @@ export default function Home() {
     if (!firestore || !user) return;
     setIsCreatingRoom(true);
 
-    let attempts = 0;
-    const maxAttempts = 10;
-
-    while (attempts < maxAttempts) {
-      attempts++;
-      const roomCode = generateRoomCode();
-      const roomRef = doc(firestore, 'rooms', roomCode);
-
-      try {
-        const docSnap = await getDoc(roomRef);
-
-        if (docSnap.exists()) {
-          console.log(`Код комнаты ${roomCode} уже существует. Повторная попытка...`);
-          continue;
-        }
-
-        await setDoc(roomRef, {
-          code: roomCode,
-          createdAt: serverTimestamp(),
-          creatorId: user.uid,
-          members: {
-            [user.uid]: 'owner',
-          },
+    const finalCode = customCode.trim().toUpperCase() || generateRoomCode();
+    
+    // Validation for custom code if provided
+    if (customCode.trim()) {
+      if (customCode.length < 4 || customCode.length > 8) {
+        toast({
+          title: 'Ошибка',
+          description: 'Кастомный код должен быть от 4 до 8 символов.',
+          variant: 'destructive',
         });
-        
-        router.push(`/${roomCode}`);
-        return; // Exit on success
-
-      } catch (error) {
-        console.error(`Ошибка при создании комнаты:`, error);
-        if (attempts === maxAttempts) {
-          toast({
-            title: 'Ошибка',
-            description: `Не удалось создать комнату: ${getErrorMessage(error)}`,
-            variant: 'destructive',
-          });
-        }
+        setIsCreatingRoom(false);
+        return;
+      }
+      if (!/^[A-Z0-9]+$/.test(finalCode)) {
+        toast({
+          title: 'Ошибка',
+          description: 'Код может содержать только латинские буквы и цифры.',
+          variant: 'destructive',
+        });
+        setIsCreatingRoom(false);
+        return;
       }
     }
 
-    if (attempts === maxAttempts) {
-         toast({
-            title: 'Ошибка',
-            description: 'Не удалось создать уникальную комнату после 10 попыток.',
-            variant: 'destructive',
-          });
-    }
+    const roomRef = doc(firestore, 'rooms', finalCode);
 
-    setIsCreatingRoom(false);
+    try {
+      const docSnap = await getDoc(roomRef);
+
+      if (docSnap.exists()) {
+        toast({
+          title: 'Ошибка',
+          description: `Код комнаты ${finalCode} уже занят. Выберите другой.`,
+          variant: 'destructive',
+        });
+        setIsCreatingRoom(false);
+        return;
+      }
+
+      const roomData: any = {
+        code: finalCode,
+        createdAt: serverTimestamp(),
+        creatorId: user.uid,
+        members: {
+          [user.uid]: 'owner',
+        },
+      };
+
+      if (isPrivate && roomPassword.trim()) {
+        roomData.password = roomPassword.trim();
+      }
+
+      await setDoc(roomRef, roomData);
+      
+      // If private, store password in sessionStorage for the creator as well
+      if (roomData.password) {
+        sessionStorage.setItem(`room_pwd_${finalCode}`, roomData.password);
+      }
+
+      setIsDialogOpen(false);
+      router.push(`/${finalCode}`);
+    } catch (error) {
+      console.error(`Ошибка при создании комнаты:`, error);
+      toast({
+        title: 'Ошибка',
+        description: `Не удалось создать комнату: ${getErrorMessage(error)}`,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCreatingRoom(false);
+    }
   };
   
   const joinRoomSchema = z.object({
     code: z
       .string()
-      .length(4, 'Код должен состоять из 4 символов')
+      .min(4, 'Код должен быть не менее 4 символов')
+      .max(8, 'Код должен быть не более 8 символов')
       .regex(/^[A-Z0-9]+$/, 'Код должен состоять из заглавных латинских букв и цифр'),
   });
 
@@ -175,16 +216,73 @@ export default function Home() {
           </p>
         </div>
         <div className="flex flex-col items-stretch gap-4 rounded-lg border bg-card p-6 shadow-sm w-full max-w-md">
-          <Button size="lg" onClick={handleCreateRoom} disabled={isCreatingRoom || !user}>
-            {isCreatingRoom ? (
-              <>
-                <Loader2 className="animate-spin" />
-                Создание...
-              </>
-            ) : (
-              'Создать новую комнату'
-            )}
-          </Button>
+          
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button size="lg" disabled={!user}>
+                <Plus className="mr-2 h-5 w-5" />
+                Создать новую комнату
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Настройка комнаты</DialogTitle>
+                <DialogDescription>
+                  Вы можете задать свой код или оставить поле пустым для случайного.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="code">Код комнаты (A-Z, 0-9)</Label>
+                  <Input
+                    id="code"
+                    placeholder="Оставьте пустым для случайного"
+                    value={customCode}
+                    onChange={(e) => setCustomCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                    maxLength={8}
+                    className="uppercase tracking-widest"
+                  />
+                  <p className="text-[10px] text-muted-foreground">От 4 до 8 символов</p>
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="flex items-center gap-2">
+                      {isPrivate ? <Lock className="h-4 w-4 text-primary" /> : <Unlock className="h-4 w-4 text-muted-foreground" />}
+                      Приватная комната
+                    </Label>
+                    <p className="text-[10px] text-muted-foreground">Потребуется пароль для входа</p>
+                  </div>
+                  <Switch
+                    checked={isPrivate}
+                    onCheckedChange={setIsPrivate}
+                  />
+                </div>
+                {isPrivate && (
+                  <div className="grid gap-2 animate-in fade-in slide-in-from-top-2">
+                    <Label htmlFor="password">Пароль</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="Введите пароль"
+                      value={roomPassword}
+                      onChange={(e) => setRoomPassword(e.target.value)}
+                      required={isPrivate}
+                    />
+                  </div>
+                )}
+              </div>
+              <DialogFooter>
+                <Button onClick={handleCreateRoom} disabled={isCreatingRoom} className="w-full">
+                   {isCreatingRoom ? (
+                    <><Loader2 className="animate-spin mr-2" /> Создание...</>
+                  ) : (
+                    'Создать'
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           <div className="relative w-full text-center select-none">
             <div className="absolute inset-0 flex items-center">
@@ -202,7 +300,7 @@ export default function Home() {
                 name="code"
                 placeholder="A1B2"
                 className="w-full text-center text-lg font-semibold tracking-widest uppercase"
-                maxLength={4}
+                maxLength={8}
                 onChange={handleCodeInputChange}
                 required
                 disabled={isJoiningRoom}
@@ -220,7 +318,7 @@ export default function Home() {
                   Вход...
                 </>
               ) : (
-                'Войти в комнату'
+                'Войти'
               )}
             </Button>
           </form>

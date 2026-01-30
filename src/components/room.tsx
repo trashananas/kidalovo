@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useRoom } from '@/hooks/use-room';
@@ -13,6 +14,8 @@ import {
   Minimize,
   Pen,
   MousePointer2,
+  Lock,
+  KeyRound,
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
@@ -34,6 +37,8 @@ import { useToast } from '@/hooks/use-toast';
 import useIsMobile from '@/hooks/use-is-mobile';
 import { DrawingToolbar } from './drawing-toolbar';
 import { DrawingCanvas } from './drawing-canvas';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { DrawingShape } from '@/types';
 
 type RoomProps = {
@@ -42,11 +47,26 @@ type RoomProps = {
 
 export function Room({ roomId }: RoomProps) {
   const { user, isUserLoading } = useUser();
-  const { messages, drawings, loading, error } = useRoom(roomId);
-  const router = useRouter();
   const firestore = useFirestore();
   const { toast } = useToast();
+  const router = useRouter();
   const isMobile = useIsMobile();
+
+  // Password verification state
+  const [passwordInput, setPasswordInput] = useState('');
+  const [isPasswordVerified, setIsPasswordVerified] = useState(false);
+  const [passwordError, setPasswordError] = useState(false);
+
+  // Firestore room doc to check for password
+  const roomDocRef = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return doc(firestore, 'rooms', roomId);
+  }, [firestore, roomId]);
+  
+  const { data: roomData, isLoading: isRoomDataLoading } = useDoc(roomDocRef);
+
+  // Hook for messages/drawings - only active if password verified or not needed
+  const { messages, drawings, loading, error } = useRoom(roomId, isPasswordVerified);
 
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -58,15 +78,38 @@ export function Room({ roomId }: RoomProps) {
 
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawingTool, setDrawingTool] = useState<DrawingShape | 'pan' | 'eraser' | 'select'>('pan');
-  const [drawColor, setDrawColor] = useState('#EF4444'); // Tailwind red-500
+  const [drawColor, setDrawColor] = useState('#EF4444');
   const [strokeWidth, setStrokeWidth] = useState(4);
 
-  const roomRef = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return doc(firestore, 'rooms', roomId);
-  }, [firestore, roomId]);
+  // Handle password check from sessionStorage on mount
+  useEffect(() => {
+    if (roomData && !isRoomDataLoading) {
+      if (!roomData.password) {
+        setIsPasswordVerified(true);
+      } else {
+        const storedPassword = sessionStorage.getItem(`room_pwd_${roomId}`);
+        if (storedPassword === roomData.password) {
+          setIsPasswordVerified(true);
+        }
+      }
+    }
+  }, [roomData, isRoomDataLoading, roomId]);
 
-  useDoc(roomRef);
+  const handlePasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (roomData && passwordInput === roomData.password) {
+      setIsPasswordVerified(true);
+      sessionStorage.setItem(`room_pwd_${roomId}`, passwordInput);
+      setPasswordError(false);
+    } else {
+      setPasswordError(true);
+      toast({
+        title: 'Ошибка',
+        description: 'Неверный пароль.',
+        variant: 'destructive',
+      });
+    }
+  };
 
   useEffect(() => {
     if (isMobile) {
@@ -91,9 +134,7 @@ export function Room({ roomId }: RoomProps) {
       try {
         await document.documentElement.requestFullscreen();
         if (screen.orientation && screen.orientation.lock) {
-          await screen.orientation.lock('portrait-primary').catch(() => {
-            // Ignore errors, not critical if locking fails
-          });
+          await screen.orientation.lock('portrait-primary').catch(() => {});
         }
       } catch (err) {
         toast({
@@ -110,46 +151,26 @@ export function Room({ roomId }: RoomProps) {
   };
 
   const handleDeleteRoom = async () => {
-    if (!firestore || !user || !roomRef) return;
-
+    if (!firestore || !user || !roomDocRef) return;
     setIsDeleting(true);
-
     try {
-      const messagesCollectionRef = collection(
-        firestore,
-        'rooms',
-        roomId,
-        'messages'
-      );
+      const messagesCollectionRef = collection(firestore, 'rooms', roomId, 'messages');
       const drawingsCollectionRef = collection(firestore, 'rooms', roomId, 'drawings');
-
       const [messagesSnapshot, drawingsSnapshot] = await Promise.all([
         getDocs(messagesCollectionRef),
         getDocs(drawingsCollectionRef),
       ]);
-
       const batch = writeBatch(firestore);
-
       messagesSnapshot.docs.forEach((doc) => batch.delete(doc.ref));
       drawingsSnapshot.docs.forEach((doc) => batch.delete(doc.ref));
-
-      batch.delete(roomRef);
-
+      batch.delete(roomDocRef);
       await batch.commit();
-
-      toast({
-        title: 'Комната удалена',
-        description: `Комната ${roomId} и всё её содержимое были удалены.`,
-      });
-
+      toast({ title: 'Комната удалена' });
       router.push('/');
     } catch (error) {
-      console.error('Ошибка при удалении комнаты: ', error);
       toast({
         title: 'Ошибка удаления',
-        description:
-          'Удалить комнату может только последний участник. ' +
-          getErrorMessage(error),
+        description: getErrorMessage(error),
         variant: 'destructive',
       });
       setIsDeleting(false);
@@ -160,13 +181,10 @@ export function Room({ roomId }: RoomProps) {
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const canPan = !isDrawing || drawingTool === 'pan';
     if (!canPan) return;
-
-    // Check if the event target is the board itself, not something on the canvas or a message.
     const target = e.target as HTMLElement;
     if (target.closest('[data-drawing-canvas="true"]') || target.closest('[data-message-card="true"]') || target.closest('[data-resize-handle="true"]')) {
       return;
     }
-    
     setIsPanning(true);
     panStart.current = { x: e.clientX - panOffset.x, y: e.clientY - panOffset.y };
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -174,9 +192,7 @@ export function Room({ roomId }: RoomProps) {
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isPanning) return;
-    const newX = e.clientX - panStart.current.x;
-    const newY = e.clientY - panStart.current.y;
-    setPanOffset({ x: newX, y: newY });
+    setPanOffset({ x: e.clientX - panStart.current.x, y: e.clientY - panStart.current.y });
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -188,14 +204,10 @@ export function Room({ roomId }: RoomProps) {
   const toggleDrawing = () => {
     const newIsDrawing = !isDrawing;
     setIsDrawing(newIsDrawing);
-    if (newIsDrawing) {
-        setDrawingTool('path');
-    } else {
-        setDrawingTool('pan');
-    }
+    setDrawingTool(newIsDrawing ? 'path' : 'pan');
   };
 
-  if (isUserLoading || (!user && !error)) {
+  if (isUserLoading || isRoomDataLoading) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <Loader2 className="h-16 w-16 animate-spin" />
@@ -203,105 +215,100 @@ export function Room({ roomId }: RoomProps) {
     );
   }
 
-  if (error) {
+  // Password Wall
+  if (!isPasswordVerified && roomData?.password) {
     return (
-      <div className="flex h-screen w-full flex-col items-center justify-center gap-4 text-center">
-        <h2 className="text-2xl font-bold text-destructive">
-          Ошибка загрузки комнаты
-        </h2>
-        <p className="max-w-md text-muted-foreground">
-          Не удалось загрузить данные комнаты. Возможно, вы ввели неверный код
-          или у вас нет прав доступа. Проверьте код и попробуйте снова.
-        </p>
-        <Button asChild>
-          <Link href="/">Вернуться на главную</Link>
-        </Button>
+      <div className="flex h-screen w-full items-center justify-center bg-zinc-100 p-4">
+        <Card className="w-full max-w-md shadow-2xl border-2">
+          <CardHeader className="text-center">
+            <div className="mx-auto bg-primary/10 p-3 rounded-full w-fit mb-2">
+              <Lock className="h-8 w-8 text-primary" />
+            </div>
+            <CardTitle className="text-2xl">Приватная комната</CardTitle>
+            <p className="text-sm text-muted-foreground mt-2">
+              Для входа в комнату <b>{roomId}</b> требуется пароль.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handlePasswordSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <div className="relative">
+                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="password"
+                    placeholder="Введите пароль"
+                    className={cn("pl-10", passwordError && "border-destructive ring-destructive")}
+                    value={passwordInput}
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                 <Button type="button" variant="outline" className="flex-1" asChild>
+                    <Link href="/">Назад</Link>
+                 </Button>
+                 <Button type="submit" className="flex-1">Войти</Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
       </div>
     );
   }
-  
-  const boardCursorClass = () => {
-    const canPan = !isDrawing || drawingTool === 'pan';
-    if (canPan) {
-      return isPanning ? 'cursor-grabbing' : 'cursor-grab';
-    }
-    // Cursors for drawing tools are handled by the canvas itself
-    return '';
+
+  if (error) {
+    return (
+      <div className="flex h-screen w-full flex-col items-center justify-center gap-4 text-center">
+        <h2 className="text-2xl font-bold text-destructive">Ошибка загрузки комнаты</h2>
+        <p className="max-w-md text-muted-foreground">Проверьте код и попробуйте снова.</p>
+        <Button asChild><Link href="/">На главную</Link></Button>
+      </div>
+    );
   }
 
+  const boardCursorClass = () => {
+    const canPan = !isDrawing || drawingTool === 'pan';
+    if (canPan) return isPanning ? 'cursor-grabbing' : 'cursor-grab';
+    return '';
+  }
 
   return (
     <div className="relative h-screen w-full overflow-hidden bg-zinc-100 dark:bg-zinc-900 border-4 border-background rounded-lg">
       <header className="absolute top-4 left-4 z-20 flex items-center gap-2 md:gap-4 room-header">
         <Button asChild variant="outline" size="icon">
-          <Link href="/">
-            <ArrowLeft />
-            <span className="sr-only">Вернуться на главную</span>
-          </Link>
+          <Link href="/"><ArrowLeft /><span className="sr-only">Назад</span></Link>
         </Button>
-        <div>
-          <h1 className="text-lg font-semibold hidden sm:block">Код комнаты</h1>
-          <Badge
-            variant="secondary"
-            className="text-base font-bold tracking-widest"
-          >
-            {roomId}
-          </Badge>
+        <div className="flex flex-col">
+          <div className="flex items-center gap-2">
+             <Badge variant="secondary" className="text-base font-bold tracking-widest">{roomId}</Badge>
+             {roomData?.password && <Lock className="h-3 w-3 text-muted-foreground" />}
+          </div>
         </div>
 
         <div className="flex items-center gap-2 rounded-full border bg-card p-1 shadow-sm">
-          <Button
-            variant={isDrawing ? 'secondary' : 'ghost'}
-            size="icon"
-            onClick={toggleDrawing}
-            title="Режим рисования"
-          >
+          <Button variant={isDrawing ? 'secondary' : 'ghost'} size="icon" onClick={toggleDrawing} title="Рисование">
             {isDrawing ? <MousePointer2 /> : <Pen />}
           </Button>
           {isMobile && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleFullscreen}
-              title={isFullscreen ? 'Выйти' : 'Во весь экран'}
-            >
+            <Button variant="ghost" size="icon" onClick={toggleFullscreen} title={isFullscreen ? 'Выйти' : 'Во весь экран'}>
               {isFullscreen ? <Minimize /> : <Expand />}
             </Button>
           )}
           {user && (
             <>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-destructive-foreground bg-destructive/80 hover:bg-destructive"
-                onClick={() => setIsDeleteDialogOpen(true)}
-                disabled={isDeleting}
-                title="Удалить комнату (только для последнего участника)"
-              >
+              <Button variant="ghost" size="icon" className="text-destructive-foreground bg-destructive/80 hover:bg-destructive" onClick={() => setIsDeleteDialogOpen(true)} disabled={isDeleting} title="Удалить">
                 {isDeleting ? <Loader2 className="animate-spin" /> : <Trash2 />}
               </Button>
-              <AlertDialog
-                open={isDeleteDialogOpen}
-                onOpenChange={setIsDeleteDialogOpen}
-              >
+              <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Вы уверены?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Это действие навсегда удалит комнату и всё её содержимое
-                      (сообщения и рисунки). Действие сработает, только если вы
-                      последний участник в комнате.
-                    </AlertDialogDescription>
+                    <AlertDialogTitle>Удалить комнату?</AlertDialogTitle>
+                    <AlertDialogDescription>Это навсегда удалит всё содержимое. Вы должны быть последним участником.</AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel disabled={isDeleting}>
-                      Отмена
-                    </AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={handleDeleteRoom}
-                      disabled={isDeleting}
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    >
+                    <AlertDialogCancel disabled={isDeleting}>Отмена</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDeleteRoom} disabled={isDeleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                       {isDeleting ? 'Удаление...' : 'Удалить'}
                     </AlertDialogAction>
                   </AlertDialogFooter>
@@ -313,61 +320,17 @@ export function Room({ roomId }: RoomProps) {
       </header>
 
       {isDrawing && (
-        <DrawingToolbar
-          color={drawColor}
-          setColor={setDrawColor}
-          strokeWidth={strokeWidth}
-          setStrokeWidth={setStrokeWidth}
-          drawingTool={drawingTool}
-          setDrawingTool={setDrawingTool}
-        />
+        <DrawingToolbar color={drawColor} setColor={setDrawColor} strokeWidth={strokeWidth} setStrokeWidth={setStrokeWidth} drawingTool={drawingTool} setDrawingTool={setDrawingTool} />
       )}
 
-      <div
-        id="board"
-        className={cn(
-          'absolute inset-0',
-           boardCursorClass()
-        )}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-      >
-        <div
-          id="pannable-container"
-          className="absolute inset-0"
-          style={{
-            transform: `translate(${panOffset.x}px, ${panOffset.y}px)`,
-          }}
-        >
+      <div id="board" className={cn('absolute inset-0', boardCursorClass())} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp}>
+        <div id="pannable-container" className="absolute inset-0" style={{ transform: `translate(${panOffset.x}px, ${panOffset.y}px)` }}>
           {messages.map((msg) => (
-            <MessageCard
-              key={msg.id}
-              message={msg}
-              roomId={roomId}
-              panOffset={panOffset}
-            />
+            <MessageCard key={msg.id} message={msg} roomId={roomId} panOffset={panOffset} />
           ))}
         </div>
-        
-        <DrawingCanvas
-          roomId={roomId}
-          isDrawing={isDrawing}
-          color={drawColor}
-          strokeWidth={strokeWidth}
-          drawings={drawings}
-          drawingTool={drawingTool}
-          setDrawingTool={setDrawingTool}
-          panOffset={panOffset}
-          className="z-10"
-        />
-
-        {loading && messages.length === 0 && (
-          <p className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground">
-            Загрузка сообщений...
-          </p>
-        )}
+        <DrawingCanvas roomId={roomId} isDrawing={isDrawing} color={drawColor} strokeWidth={strokeWidth} drawings={drawings} drawingTool={drawingTool} setDrawingTool={setDrawingTool} panOffset={panOffset} className="z-10" />
+        {loading && messages.length === 0 && <p className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground">Загрузка...</p>}
       </div>
 
       <div className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-20 message-form-container">

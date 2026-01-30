@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -5,7 +6,7 @@ import { collection, query, orderBy, doc, updateDoc, onSnapshot } from 'firebase
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import type { Message, DrawingObject } from '@/types';
 
-export function useRoom(roomId: string) {
+export function useRoom(roomId: string, isPasswordVerified: boolean = true) {
   const firestore = useFirestore();
   const { user } = useUser();
   const [isJoinAttemptComplete, setIsJoinAttemptComplete] = useState(false);
@@ -14,7 +15,8 @@ export function useRoom(roomId: string) {
 
   // This effect ensures we are officially recognized as a member on the server
   useEffect(() => {
-    if (!firestore || !roomId || !user) return;
+    // Only proceed if password is verified (if applicable)
+    if (!firestore || !roomId || !user || !isPasswordVerified) return;
 
     const roomRef = doc(firestore, 'rooms', roomId);
     
@@ -22,6 +24,7 @@ export function useRoom(roomId: string) {
     updateDoc(roomRef, {
       [`members.${user.uid}`]: 'member',
     }).catch(err => {
+      // Membership might already exist or permission error if room not found
       console.warn("Potential failure joining room, but we will wait for snapshot:", err);
     });
 
@@ -44,24 +47,24 @@ export function useRoom(roomId: string) {
     });
 
     return () => unsubscribe();
-  }, [firestore, roomId, user]);
+  }, [firestore, roomId, user, isPasswordVerified]);
 
 
   const messagesQuery = useMemoFirebase(() => {
-    if (!firestore || !roomId || !serverSideMembership) return null;
+    if (!firestore || !roomId || !serverSideMembership || !isPasswordVerified) return null;
     return query(
       collection(firestore, 'rooms', roomId, 'messages'),
       orderBy('createdAt', 'asc')
     );
-  }, [firestore, roomId, serverSideMembership]);
+  }, [firestore, roomId, serverSideMembership, isPasswordVerified]);
 
   const drawingsQuery = useMemoFirebase(() => {
-    if (!firestore || !roomId || !serverSideMembership) return null;
+    if (!firestore || !roomId || !serverSideMembership || !isPasswordVerified) return null;
     return query(
       collection(firestore, 'rooms', roomId, 'drawings'),
       orderBy('createdAt', 'asc')
     );
-  }, [firestore, roomId, serverSideMembership]);
+  }, [firestore, roomId, serverSideMembership, isPasswordVerified]);
 
   const { data: rawMessages, isLoading: messagesLoading, error: messagesError } = useCollection<Message>(messagesQuery);
   const { data: drawings, isLoading: drawingsLoading, error: drawingsError } = useCollection<DrawingObject>(drawingsQuery);
@@ -72,7 +75,7 @@ export function useRoom(roomId: string) {
   }, [rawMessages]);
 
   const finalError = joinError || messagesError || drawingsError;
-  const finalLoading = !isJoinAttemptComplete || (messagesQuery ? messagesLoading : false) || (drawingsQuery ? drawingsLoading : false);
+  const finalLoading = (isPasswordVerified && !isJoinAttemptComplete) || (messagesQuery ? messagesLoading : false) || (drawingsQuery ? drawingsLoading : false);
 
   return { messages, drawings: drawings ?? [], loading: finalLoading, error: finalError };
 }
