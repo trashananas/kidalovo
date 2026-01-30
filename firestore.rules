@@ -39,8 +39,10 @@ service cloud.firestore {
     function isRoomOwner(roomId) {
       let room = get(/databases/$(database)/documents/rooms/$(roomId)).data;
       return isSignedIn() && (
-        (room != null && room.get('members', {}) != null && room.members.get(request.auth.uid, {}).get('role', '') == 'owner') || 
-        isGlobalAdmin()
+        (room != null && (
+          (room.get('members', {}) != null && room.members.get(request.auth.uid, {}).get('role', '') == 'owner') ||
+          (room.get('creatorId', '') == request.auth.uid)
+        )) || isGlobalAdmin()
       );
     }
     
@@ -95,17 +97,14 @@ service cloud.firestore {
       allow delete: if (isLastMember(roomId) && isExistingDoc()) || isGlobalAdmin();
 
       match /messages/{messageId} {
-        // Everyone in room can read everything (including audit)
         allow read, list: if isRoomMember(roomId);
 
-        // Client can't create audit logs manually, unless room owner/admin during setup
-        allow create: if isRoomMember(roomId) && isMessageCreator() && hasContent() && (
-          request.resource.data.get('type', '') != 'audit' || isRoomOwner(roomId) || isGlobalAdmin()
-        );
+        allow create: if isSignedIn() && (
+          isRoomMember(roomId) || 
+          get(/databases/$(database)/documents/rooms/$(roomId)).data.creatorId == request.auth.uid ||
+          isGlobalAdmin()
+        ) && isMessageCreator() && hasContent();
 
-        // Update/Delete: 
-        // If it's audit, only GlobalAdmin.
-        // If not audit, owner/roomOwner/admin.
         allow update: if isExistingDoc() && isMessageUpdateValid() && (
           (resource.data.get('type', '') == 'audit' && isGlobalAdmin()) ||
           (resource.data.get('type', '') != 'audit' && (isMessageOwner() || (isRoomOwner(roomId) && isAuthorized()) || isGlobalAdmin()))

@@ -120,11 +120,13 @@ export default function Home() {
         roomData.password = roomPassword.trim();
       }
 
+      // 1. Create the room
       await setDoc(roomRef, roomData);
       
-      // Создаем аудит-лог если комната закрытая
+      // 2. Create audit log if it's a restricted room
       if (onlyAuthorized) {
-        await addDoc(collection(firestore, 'rooms', finalCode, 'messages'), {
+        const messagesCol = collection(firestore, 'rooms', finalCode, 'messages');
+        await addDoc(messagesCol, {
           type: 'audit',
           text: 'SYSTEM_AUDIT_LOG',
           userId: 'system',
