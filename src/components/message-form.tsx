@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -63,21 +62,13 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
         const base64 = await fileToBase64(file);
         return { name: file.name, type: file.type, url: base64 };
       } catch (e) {
-        console.error('Base64 conversion failed:', e);
+        console.error('Base64 error:', e);
       }
     }
 
     try {
-      const signResponse = await fetch('/api/sign-upload', { 
-        method: 'POST',
-        cache: 'no-store'
-      });
-      
-      if (!signResponse.ok) {
-        const err = await signResponse.json();
-        throw new Error(err.error || 'Ошибка сервера при подписи');
-      }
-      
+      const signResponse = await fetch('/api/sign-upload', { method: 'POST' });
+      if (!signResponse.ok) throw new Error('Ошибка получения подписи');
       const { timestamp, signature, apiKey, cloudName, folder } = await signResponse.json();
 
       const formData = new FormData();
@@ -89,19 +80,15 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
 
       const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
         method: 'POST',
-        body: formData
+        body: formData,
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        return { name: file.name, type: file.type, url: result.secure_url };
-      } else {
-        const errData = await response.json();
-        throw new Error(errData.error?.message || 'Ошибка Cloudinary');
-      }
+      if (!response.ok) throw new Error('Ошибка Cloudinary');
+      const result = await response.json();
+      return { name: file.name, type: file.type, url: result.secure_url };
     } catch (e: any) {
-      console.error('Upload error:', e);
-      throw e;
+      console.error('Cloudinary upload error:', e);
+      throw new Error('Не удалось загрузить файл в облако.');
     }
   };
 
@@ -114,7 +101,6 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
     }
 
     setIsSubmitting(true);
-    
     try {
       let fileAttachment: FileAttachment | null = null;
       if (values.file instanceof File) {
@@ -139,24 +125,14 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       };
 
       const messagesColRef = collection(firestore, 'rooms', roomId, 'messages');
-      addDoc(messagesColRef, messageData)
-        .catch(async (error) => {
-          const permissionError = new FirestorePermissionError({
-            path: messagesColRef.path,
-            operation: 'create',
-            requestResourceData: messageData,
-          });
-          errorEmitter.emit('permission-error', permissionError);
-        });
+      await addDoc(messagesColRef, messageData);
 
       form.reset();
       form.setValue('file', null);
-      const fileInput = document.getElementById('file-input') as HTMLInputElement;
-      if (fileInput) fileInput.value = '';
     } catch (error: any) {
       toast({ 
         title: 'Ошибка', 
-        description: error.message || 'Не удалось отправить сообщение.', 
+        description: error.message || 'Не удалось отправить.', 
         variant: 'destructive'
       });
     } finally {
@@ -175,13 +151,7 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
             <span className="text-xs truncate flex-1 font-medium">
               {selectedFile instanceof File ? selectedFile.name : 'Файл выбран'}
             </span>
-            <Button 
-              type="button" 
-              variant="ghost" 
-              size="icon" 
-              className="h-6 w-6" 
-              onClick={() => form.setValue('file', null)}
-            >
+            <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => form.setValue('file', null)}>
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -213,23 +183,14 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
                 </FormItem>
               )}
             />
-            <Button 
-              type="button" 
-              size="icon" 
-              variant="outline" 
-              onClick={() => document.getElementById('file-input')?.click()}
-              title="Прикрепить файл"
-            >
+            <Button type="button" size="icon" variant="outline" onClick={() => document.getElementById('file-input')?.click()} title="Прикрепить">
               <Paperclip className="h-4 w-4" />
             </Button>
             <input 
               id="file-input" 
               type="file" 
               className="hidden" 
-              onChange={(e) => {
-                const file = e.target.files?.[0] || null;
-                form.setValue('file', file);
-              }} 
+              onChange={(e) => form.setValue('file', e.target.files?.[0] || null)} 
             />
             <Button type="submit" size="icon" disabled={isSubmitting}>
               {isSubmitting ? <Loader2 className="animate-spin" /> : <Send className="h-4 w-4" />}
