@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { Card, CardContent } from './ui/card';
-import { Send, Paperclip, X, File as FileIcon, Loader2 } from 'lucide-react';
+import { Send, Paperclip, X, File as FileIcon, Loader2, AlertCircle } from 'lucide-react';
 import { useUser, useFirestore } from '@/firebase';
 import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -66,10 +66,28 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       }
     }
 
-    // 2. Для остальных пробуем прямую загрузку в Cloudinary
+    // 2. Файлы до 4.5 МБ - пробуем через серверный прокси (избегаем CORS)
+    if (file.size < 4.5 * 1024 * 1024) {
+      try {
+        const serverFormData = new FormData();
+        serverFormData.append('file', file);
+        const serverRes = await fetch('/api/upload', { method: 'POST', body: serverFormData });
+        
+        if (serverRes.ok) {
+          return await serverRes.json();
+        }
+      } catch (e) {
+        console.warn('Server upload failed, falling back to direct', e);
+      }
+    }
+
+    // 3. Для крупных файлов или при сбое прокси - прямая загрузка в Cloudinary
     try {
       const signResponse = await fetch('/api/sign-upload', { method: 'POST' });
-      if (!signResponse.ok) throw new Error('Не удалось получить подпись для облака');
+      if (!signResponse.ok) {
+        const errData = await signResponse.json();
+        throw new Error(errData.error || 'Ошибка авторизации облака');
+      }
       
       const { timestamp, signature, apiKey, cloudName, folder } = await signResponse.json();
 
@@ -90,28 +108,12 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
         return { name: file.name, type: file.type, url: result.secure_url };
       } else {
         const errText = await response.text();
-        console.error('Cloudinary response error:', errText);
-        throw new Error('Облачное хранилище отклонило файл');
+        console.error('Cloudinary direct upload error:', errText);
+        throw new Error('Облако отклонило файл (проверьте AdBlock или ключи)');
       }
     } catch (e: any) {
-      console.error('Upload process failed:', e);
-      
-      // Если это сетевая ошибка (CORS или блокировка браузером)
-      if (e.message.includes('fetch') || e.name === 'TypeError') {
-        if (file.size > 4 * 1024 * 1024) {
-          throw new Error('Крупный файл заблокирован настройками безопасности вашего браузера или сети.');
-        }
-        
-        // Попытка через прокси-сервер (если файл не слишком велик для Vercel)
-        const serverFormData = new FormData();
-        serverFormData.append('file', file);
-        const serverRes = await fetch('/api/upload', { method: 'POST', body: serverFormData });
-        
-        if (serverRes.ok) return await serverRes.json();
-        const errData = await serverRes.json();
-        throw new Error(errData.error || 'Ошибка загрузки');
-      }
-      throw e;
+      console.error('Final upload step failed:', e);
+      throw new Error(e.message || 'у меня не получается загрузить файл а должно получаться!!! посмотри что не так и разберись');
     }
   };
 
@@ -148,7 +150,7 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
     } catch (error: any) {
       toast({ 
         title: 'Ошибка', 
-        description: error.message || 'Не удалось отправить файл', 
+        description: error.message || 'Что-то пошло не так', 
         variant: 'destructive'
       });
     } finally {
