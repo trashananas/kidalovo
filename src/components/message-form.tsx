@@ -56,18 +56,18 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
   };
 
   const uploadFile = async (file: File): Promise<FileAttachment | null> => {
-    // 1. Совсем маленькие файлы (< 800 КБ) - в Firestore (Base64)
-    if (file.size < 800 * 1024) {
+    // 1. Маленькие файлы (до 1 МБ) - в Firestore (Base64) - ЖЕЛЕЗОБЕТОННО
+    if (file.size <= 1024 * 1024) {
       try {
         const base64 = await fileToBase64(file);
         return { name: file.name, type: file.type, url: base64 };
       } catch (e) {
-        console.error('Base64 conversion failed', e);
+        console.error('Base64 error:', e);
       }
     }
 
-    // 2. Файлы до 4.5 МБ - через серверный прокси (избегаем CORS)
-    if (file.size < 4.5 * 1024 * 1024) {
+    // 2. Средние файлы (до 4.5 МБ) - через серверный прокси (обход CORS)
+    if (file.size <= 4.5 * 1024 * 1024) {
       try {
         const serverFormData = new FormData();
         serverFormData.append('file', file);
@@ -76,19 +76,17 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
         if (serverRes.ok) {
           return await serverRes.json();
         }
-        console.warn('Server proxy upload failed, falling back to direct...');
+        const errData = await serverRes.json();
+        console.warn('Server upload failed:', errData.error);
       } catch (e) {
-        console.warn('Server upload failed, falling back to direct...', e);
+        console.warn('Server upload connection failed, fallback to direct...');
       }
     }
 
-    // 3. Прямая загрузка в Cloudinary (для крупных файлов)
+    // 3. Прямая загрузка в Cloudinary (свыше 4.5 МБ)
     try {
       const signResponse = await fetch('/api/sign-upload', { method: 'POST' });
-      if (!signResponse.ok) {
-        const errData = await signResponse.json();
-        throw new Error(errData.error || 'Ошибка авторизации облака');
-      }
+      if (!signResponse.ok) throw new Error('Ошибка авторизации облака');
       
       const { timestamp, signature, apiKey, cloudName, folder } = await signResponse.json();
 
@@ -109,11 +107,11 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
         return { name: file.name, type: file.type, url: result.secure_url };
       } else {
         const errText = await response.text();
-        throw new Error('Облако отклонило файл. Проверьте размер или AdBlock.');
+        throw new Error(`Облако отклонило файл: ${errText}`);
       }
     } catch (e: any) {
-      console.error('Upload failed:', e);
-      throw new Error(e.message || 'у меня не получается загрузить файл а должно получаться!!! посмотри что не так и разберись');
+      console.error('Direct upload failed:', e);
+      throw new Error(e.message || 'Ошибка при загрузке крупного файла. Проверьте соединение.');
     }
   };
 
@@ -150,7 +148,7 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
     } catch (error: any) {
       toast({ 
         title: 'Ошибка', 
-        description: error.message || 'Failed to fetch', 
+        description: error.message || 'Сетевая ошибка (Failed to fetch)', 
         variant: 'destructive'
       });
     } finally {
