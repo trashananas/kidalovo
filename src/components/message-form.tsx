@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
@@ -9,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { Card, CardContent } from './ui/card';
-import { Send, Paperclip, X, File as FileIcon, Loader2 } from 'lucide-react';
+import { Send, Paperclip, X, File as FileIcon, Loader2, AlertCircle } from 'lucide-react';
 import { useUser, useFirestore } from '@/firebase';
 import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -48,10 +47,31 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
     },
   });
 
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = error => reject(error);
+    });
+  };
+
   const uploadFile = async (file: File): Promise<FileAttachment | null> => {
+    // 1. Если файл маленький (< 800KB), сохраняем в Firestore как Base64
+    // Это самый надежный способ, так как он не блокируется AdBlock и не зависит от Cloudinary
+    if (file.size < 800 * 1024) {
+      try {
+        const base64 = await fileToBase64(file);
+        return { name: file.name, type: file.type, url: base64 };
+      } catch (e) {
+        console.error('Base64 conversion failed', e);
+      }
+    }
+
+    // 2. Если файл больше, пробуем Cloudinary
     try {
       const signResponse = await fetch('/api/sign-upload', { method: 'POST' });
-      if (!signResponse.ok) throw new Error('Не удалось получить подпись для загрузки');
+      if (!signResponse.ok) throw new Error('Не удалось получить подпись');
       
       const { timestamp, signature, apiKey, cloudName, folder } = await signResponse.json();
 
@@ -73,12 +93,12 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
           return { name: file.name, type: file.type, url: result.secure_url };
         }
       } catch (e: any) {
-        console.warn('Direct upload failed, likely blocked by extension:', e);
+        console.warn('Direct upload blocked (likely AdBlock). Trying server fallback...');
       }
 
-      // Fallback to server proxy for smaller files
+      // 3. Fallback: Загрузка через сервер (лимит Vercel 4.5MB)
       if (file.size > 4.4 * 1024 * 1024) {
-        throw new Error('Файл слишком велик (>4.5МБ) и заблокирован вашим AdBlock. Отключите его для прямой загрузки.');
+        throw new Error('Файл слишком велик (>4.5MB) и заблокирован вашим AdBlock. Отключите его для прямой загрузки.');
       }
 
       const serverFormData = new FormData();
@@ -114,6 +134,7 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       let fileAttachment: FileAttachment | null = null;
       if (values.file instanceof File) {
         fileAttachment = await uploadFile(values.file);
+        // Если была ошибка загрузки и нет текста - отменяем
         if (!fileAttachment && !values.message.trim()) {
            setIsSubmitting(false);
            return;
@@ -160,10 +181,13 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
     <Card className="shadow-xl">
       <CardContent className="p-3">
         {selectedFile && (
-          <div className="flex items-center gap-2 mb-2 p-2 bg-muted rounded-md">
-            <FileIcon className="h-4 w-4" />
-            <span className="text-xs truncate flex-1">
+          <div className="flex items-center gap-2 mb-2 p-2 bg-muted rounded-md border border-primary/20">
+            <FileIcon className="h-4 w-4 text-primary" />
+            <span className="text-xs truncate flex-1 font-medium">
               {selectedFile instanceof File ? selectedFile.name : 'Файл выбран'}
+              <span className="ml-2 text-[10px] text-muted-foreground">
+                ({(selectedFile.size / 1024).toFixed(0)} KB)
+              </span>
             </span>
             <Button 
               type="button" 
@@ -207,6 +231,7 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
               type="button" 
               size="icon" 
               variant="outline" 
+              className={selectedFile ? "border-primary text-primary" : ""}
               onClick={() => document.getElementById('file-input')?.click()}
             >
               <Paperclip className="h-4 w-4" />
