@@ -210,26 +210,32 @@ export default function Home() {
     }
   };
 
-  if (isUserLoading) {
-    return (
-      <div className="flex min-h-screen w-full items-center justify-center">
-        <Loader2 className="h-16 w-16 animate-spin" />
-      </div>
-    );
-  }
-
-  if (!auth) {
+  if (!auth && !isUserLoading) {
     return (
       <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 text-center gap-6">
         <AlertTriangle className="h-16 w-16 text-destructive" />
         <div className="space-y-2">
           <h1 className="text-3xl font-bold">Ошибка конфигурации</h1>
-          <p className="text-muted-foreground max-w-md">
-            API-ключи Firebase не найдены. Если вы видите это после деплоя, убедитесь, что вы добавили переменные окружения в настройках Vercel.
-          </p>
+          <div className="text-muted-foreground max-w-md space-y-2">
+            <p>API-ключи Firebase не найдены или указаны неверно.</p>
+            <p className="text-sm border p-4 rounded-md bg-muted/50 text-left font-mono">
+              1. Зайдите в настройки проекта Vercel<br/>
+              2. Откройте вкладку "Environment Variables"<br/>
+              3. Добавьте NEXT_PUBLIC_FIREBASE_API_KEY и другие ключи<br/>
+              4. Запустите новый деплой
+            </p>
+          </div>
         </div>
         <Button variant="outline" onClick={() => window.location.reload()}>Попробовать снова</Button>
       </main>
+    );
+  }
+
+  if (isUserLoading) {
+    return (
+      <div className="flex min-h-screen w-full items-center justify-center">
+        <Loader2 className="h-16 w-16 animate-spin" />
+      </div>
     );
   }
 

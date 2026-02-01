@@ -1,4 +1,3 @@
-
 import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
@@ -6,7 +5,13 @@ import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 export function initializeFirebase() {
-  const isConfigValid = !!firebaseConfig.apiKey && !!firebaseConfig.projectId;
+  const isConfigValid = 
+    typeof firebaseConfig.apiKey === 'string' && 
+    firebaseConfig.apiKey.length > 0 &&
+    firebaseConfig.apiKey !== 'undefined' &&
+    typeof firebaseConfig.projectId === 'string' && 
+    firebaseConfig.projectId.length > 0 &&
+    firebaseConfig.projectId !== 'undefined';
 
   if (typeof window === 'undefined') {
     return {
