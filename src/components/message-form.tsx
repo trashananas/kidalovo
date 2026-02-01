@@ -11,9 +11,10 @@ import { Card, CardContent } from './ui/card';
 import { Send, Paperclip, X, File as FileIcon, Loader2 } from 'lucide-react';
 import { useUser, useFirestore } from '@/firebase';
 import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
-import { getErrorMessage } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import type { FileAttachment, UserProfile } from '@/types';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 const messageSchema = z.object({
   message: z.string(),
@@ -57,6 +58,9 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
   const onSubmit = async (values: z.infer<typeof messageSchema>) => {
     if (!firestore || !user || !roomId) return;
     setIsSubmitting(true);
+    
+    const messagesCol = collection(firestore, 'rooms', roomId, 'messages');
+    
     try {
       let fileAttachment: FileAttachment | null = null;
       if (values.file instanceof File) {
@@ -68,7 +72,7 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
         fileAttachment = { name: (values.file as File).name, type: (values.file as File).type, url: dataUrl };
       }
 
-      await addDoc(collection(firestore, 'rooms', roomId, 'messages'), {
+      const messageData = {
         roomId,
         text: values.message,
         file: fileAttachment,
@@ -83,10 +87,16 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
           y: Math.random() * 200 - panOffset.y,
         },
         size: { width: 320, height: 140 }
-      });
+      };
+
+      await addDoc(messagesCol, messageData);
       form.reset();
-    } catch (error) {
-      toast({ title: 'Ошибка', description: getErrorMessage(error), variant: 'destructive' });
+    } catch (error: any) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: messagesCol.path,
+        operation: 'create',
+        requestResourceData: values
+      }));
     } finally {
       setIsSubmitting(false);
     }

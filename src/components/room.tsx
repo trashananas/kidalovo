@@ -23,7 +23,7 @@ import {
 import { Button } from './ui/button';
 import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { useState, useRef, useEffect } from 'react';
-import { cn, getErrorMessage } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { doc, collection, getDocs, writeBatch } from 'firebase/firestore';
 import {
@@ -44,6 +44,8 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { DrawingShape } from '@/types';
 import { initiateAnonymousSignIn } from '@/firebase/non-blocking-login';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 type RoomProps = {
   roomId: string;
@@ -206,23 +208,25 @@ export function Room({ roomId }: RoomProps) {
     try {
       const messagesCollectionRef = collection(firestore, 'rooms', roomId, 'messages');
       const drawingsCollectionRef = collection(firestore, 'rooms', roomId, 'drawings');
+      
       const [messagesSnapshot, drawingsSnapshot] = await Promise.all([
         getDocs(messagesCollectionRef),
         getDocs(drawingsCollectionRef),
       ]);
+      
       const batch = writeBatch(firestore);
       messagesSnapshot.docs.forEach((doc) => batch.delete(doc.ref));
       drawingsSnapshot.docs.forEach((doc) => batch.delete(doc.ref));
       batch.delete(roomDocRef);
+      
       await batch.commit();
       toast({ title: 'Комната удалена' });
       router.push('/');
-    } catch (error) {
-      toast({
-        title: 'Ошибка удаления',
-        description: getErrorMessage(error),
-        variant: 'destructive',
-      });
+    } catch (error: any) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: roomDocRef.path,
+        operation: 'delete'
+      }));
       setIsDeleting(false);
       setIsDeleteDialogOpen(false);
     }

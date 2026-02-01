@@ -11,6 +11,8 @@ import { Loader2, ArrowLeft, Users, Home, Database, MessageSquare } from 'lucide
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function AdminPage() {
   const { user, isUserLoading } = useUser();
@@ -47,8 +49,9 @@ export default function AdminPage() {
     const newStats: Record<string, { count: number, size: number }> = {};
 
     for (const room of roomsData) {
+      const msgsCol = collection(firestore, 'rooms', room.id, 'messages');
       try {
-        const msgsSnap = await getDocs(collection(firestore, 'rooms', room.id, 'messages'));
+        const msgsSnap = await getDocs(msgsCol);
         let totalSize = 0;
         msgsSnap.docs.forEach(d => {
             const data = d.data();
@@ -59,8 +62,11 @@ export default function AdminPage() {
           count: msgsSnap.size,
           size: Math.round(totalSize / 1024)
         };
-      } catch (e) {
-        console.error(e);
+      } catch (e: any) {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: msgsCol.path,
+          operation: 'list'
+        }));
       }
     }
     setRoomStats(newStats);
