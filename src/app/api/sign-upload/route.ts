@@ -11,7 +11,7 @@ export async function POST() {
 
   if (!CLOUD_NAME || !API_KEY || !API_SECRET) {
     return NextResponse.json(
-      { error: 'Конфигурация Cloudinary неполная (API_KEY или SECRET отсутствуют).' },
+      { error: 'Конфигурация Cloudinary неполная. Проверьте переменные окружения.' },
       { status: 500 }
     );
   }

@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { Card, CardContent } from './ui/card';
-import { Send, Paperclip, X, File as FileIcon, Loader2, AlertCircle } from 'lucide-react';
+import { Send, Paperclip, X, File as FileIcon, Loader2 } from 'lucide-react';
 import { useUser, useFirestore } from '@/firebase';
 import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -66,7 +66,7 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       }
     }
 
-    // 2. Файлы до 4.5 МБ - пробуем через серверный прокси (избегаем CORS)
+    // 2. Файлы до 4.5 МБ - через серверный прокси (избегаем CORS)
     if (file.size < 4.5 * 1024 * 1024) {
       try {
         const serverFormData = new FormData();
@@ -76,12 +76,13 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
         if (serverRes.ok) {
           return await serverRes.json();
         }
+        console.warn('Server proxy upload failed, falling back to direct...');
       } catch (e) {
-        console.warn('Server upload failed, falling back to direct', e);
+        console.warn('Server upload failed, falling back to direct...', e);
       }
     }
 
-    // 3. Для крупных файлов или при сбое прокси - прямая загрузка в Cloudinary
+    // 3. Прямая загрузка в Cloudinary (для крупных файлов)
     try {
       const signResponse = await fetch('/api/sign-upload', { method: 'POST' });
       if (!signResponse.ok) {
@@ -108,11 +109,10 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
         return { name: file.name, type: file.type, url: result.secure_url };
       } else {
         const errText = await response.text();
-        console.error('Cloudinary direct upload error:', errText);
-        throw new Error('Облако отклонило файл (проверьте AdBlock или ключи)');
+        throw new Error('Облако отклонило файл. Проверьте размер или AdBlock.');
       }
     } catch (e: any) {
-      console.error('Final upload step failed:', e);
+      console.error('Upload failed:', e);
       throw new Error(e.message || 'у меня не получается загрузить файл а должно получаться!!! посмотри что не так и разберись');
     }
   };
@@ -150,7 +150,7 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
     } catch (error: any) {
       toast({ 
         title: 'Ошибка', 
-        description: error.message || 'Что-то пошло не так', 
+        description: error.message || 'Failed to fetch', 
         variant: 'destructive'
       });
     } finally {
