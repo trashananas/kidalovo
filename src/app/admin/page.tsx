@@ -14,6 +14,8 @@ import { ru } from 'date-fns/locale';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
+export const dynamic = 'force-dynamic';
+
 export default function AdminPage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();

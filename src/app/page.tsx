@@ -31,6 +31,8 @@ import { signOut } from 'firebase/auth';
 import Link from 'next/link';
 import { RegistrationSuggestion } from '@/components/registration-suggestion';
 
+export const dynamic = 'force-dynamic';
+
 export default function Home() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();

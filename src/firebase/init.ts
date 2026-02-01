@@ -5,12 +5,32 @@ import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 export function initializeFirebase() {
+  const isConfigValid = !!firebaseConfig.apiKey && !!firebaseConfig.projectId;
+
+  if (typeof window === 'undefined' || !isConfigValid) {
+    return {
+      firebaseApp: null as any,
+      auth: null as any,
+      firestore: null as any,
+      storage: null as any,
+    };
+  }
+
   if (getApps().length) {
     return getSdks(getApp());
   }
 
-  const firebaseApp = initializeApp(firebaseConfig);
-  return getSdks(firebaseApp);
+  try {
+    const firebaseApp = initializeApp(firebaseConfig);
+    return getSdks(firebaseApp);
+  } catch (error) {
+    return {
+      firebaseApp: null as any,
+      auth: null as any,
+      firestore: null as any,
+      storage: null as any,
+    };
+  }
 }
 
 export function getSdks(firebaseApp: FirebaseApp) {
