@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
@@ -85,11 +84,11 @@ export default function Home() {
         <div className="space-y-2">
           <h1 className="text-3xl font-bold">Ошибка конфигурации</h1>
           <div className="text-muted-foreground max-w-md space-y-4">
-            <p>API-ключи Firebase не найдены. Это блокирует работу приложения.</p>
+            <p>API-ключи Firebase не найдены или неверны. Это блокирует работу приложения.</p>
             <div className="text-sm border p-4 rounded-md bg-muted/50 text-left font-mono space-y-2">
-              <p>1. Проверьте <b>NEXT_PUBLIC_FIREBASE_API_KEY</b> в Vercel/Render.</p>
-              <p>2. Ключ должен начинаться с <b>AIza</b>.</p>
-              <p>3. Убедитесь, что нет лишних пробелов.</p>
+              <p>1. Зайдите в Firebase Console -> Project Settings.</p>
+              <p>2. Скопируйте <b>apiKey</b> и <b>appId</b> из конфига.</p>
+              <p>3. Добавьте их в Environment Variables на Vercel/Render.</p>
             </div>
           </div>
         </div>
@@ -308,7 +307,7 @@ export default function Home() {
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Ошибка входа</AlertTitle>
             <AlertDescription className="flex flex-col gap-2">
-              <p>Firebase отклонил API-ключ. Проверьте <b>NEXT_PUBLIC_FIREBASE_API_KEY</b> в Vercel/Render.</p>
+              <p>Firebase отклонил API-ключ. Проверьте настройки на хостинге.</p>
               <Button size="sm" variant="outline" onClick={performSignIn} className="w-fit gap-2">
                 <RefreshCcw className="h-3 w-3" /> Повторить
               </Button>

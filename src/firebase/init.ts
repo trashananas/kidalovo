@@ -43,6 +43,7 @@ export function initializeFirebase() {
     const firebaseApp = initializeApp(firebaseConfig);
     return getSdks(firebaseApp);
   } catch (error) {
+    console.error('Firebase init error:', error);
     return {
       firebaseApp: null as any,
       auth: null as any,

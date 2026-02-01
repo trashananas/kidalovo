@@ -12,8 +12,6 @@ import { Send, Paperclip, X, File as FileIcon, Loader2 } from 'lucide-react';
 import { useUser, useFirestore } from '@/firebase';
 import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
 import type { FileAttachment, UserProfile } from '@/types';
 
 const messageSchema = z.object({
