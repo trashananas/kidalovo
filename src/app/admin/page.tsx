@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -79,7 +80,7 @@ export default function AdminPage() {
 
   const handleDeleteRoom = async (roomId: string) => {
     if (!firestore || !isAnanas) return;
-    if (!confirm(`Вы уверены, что хотите удалить комнату ${roomId}?`)) return;
+    if (!confirm(`Вы уверены, что хотите полностью удалить комнату ${roomId}?`)) return;
 
     setDeletingRoomId(roomId);
     try {
@@ -97,7 +98,7 @@ export default function AdminPage() {
       batch.delete(doc(firestore, 'rooms', roomId));
 
       await batch.commit();
-      toast({ title: 'Комната удалена' });
+      toast({ title: 'Комната и всё её содержимое удалены' });
     } catch (e: any) {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: `rooms/${roomId}`,
