@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { Card, CardContent } from './ui/card';
-import { Send, Paperclip, X, File as FileIcon, Loader2, AlertCircle } from 'lucide-react';
+import { Send, Paperclip, X, File as FileIcon, Loader2 } from 'lucide-react';
 import { useUser, useFirestore } from '@/firebase';
 import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -65,13 +65,21 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
     }
 
     try {
-      const signResponse = await fetch('/api/sign-upload', { method: 'POST' });
+      const signResponse = await fetch('/api/sign-upload', { 
+        method: 'POST',
+        cache: 'no-store'
+      });
+      
       if (!signResponse.ok) {
         const err = await signResponse.json();
-        throw new Error(err.error || 'Не удалось получить подпись для загрузки');
+        throw new Error(err.error || 'Ошибка сервера при подписи');
       }
       
       const { timestamp, signature, apiKey, cloudName, folder } = await signResponse.json();
+
+      if (!signature || !apiKey || !cloudName) {
+        throw new Error('Ключи Cloudinary не получены с сервера');
+      }
 
       const formData = new FormData();
       formData.append('file', file);
@@ -82,7 +90,7 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
 
       const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
         method: 'POST',
-        body: formData,
+        body: formData
       });
 
       if (response.ok) {
@@ -90,10 +98,13 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
         return { name: file.name, type: file.type, url: result.secure_url };
       } else {
         const errData = await response.json();
-        throw new Error(errData.error?.message || 'Ошибка загрузки в Cloudinary');
+        throw new Error(errData.error?.message || 'Ошибка Cloudinary');
       }
     } catch (e: any) {
-      console.error('Upload error:', e);
+      console.error('Detailed upload error:', e);
+      if (e.message === 'Failed to fetch') {
+        throw new Error('Сеть заблокировала запрос. Проверьте Cloudinary или AdBlock.');
+      }
       throw e;
     }
   };

@@ -9,8 +9,9 @@ export async function POST() {
   const API_SECRET = process.env.CLOUDINARY_API_SECRET;
 
   if (!CLOUD_NAME || !API_KEY || !API_SECRET) {
+    console.error('Missing keys:', { CLOUD_NAME: !!CLOUD_NAME, API_KEY: !!API_KEY, API_SECRET: !!API_SECRET });
     return NextResponse.json(
-      { error: 'Ключи Cloudinary не настроены в .env (CLOUDINARY_API_SECRET и др.)' },
+      { error: 'Ключи Cloudinary не настроены в Environment Variables' },
       { status: 500 }
     );
   }
@@ -34,7 +35,7 @@ export async function POST() {
     });
   } catch (error) {
     return NextResponse.json(
-      { error: `Ошибка подписи: ${error instanceof Error ? error.message : 'Unknown'}` },
+      { error: `Ошибка генерации подписи: ${error instanceof Error ? error.message : 'Unknown'}` },
       { status: 500 }
     );
   }
