@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Lock, Unlock, Plus, LogOut, Info, Eye, EyeOff, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { Loader2, Lock, Unlock, Plus, LogOut, Info, Eye, EyeOff, ShieldCheck, ShieldAlert, Settings } from 'lucide-react';
 import { useUser, useAuth, useFirestore } from '@/firebase';
 import { initiateAnonymousSignIn } from '@/firebase/non-blocking-login';
 import { useRouter } from 'next/navigation';
@@ -28,6 +28,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { signOut } from 'firebase/auth';
+import Link from 'next/link';
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
@@ -235,6 +236,13 @@ export default function Home() {
   return (
     <main className="relative flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
       <div className="absolute top-4 right-4 flex items-center gap-2">
+        {isAnanas && (
+          <Button variant="outline" size="icon" asChild title="Панель управления">
+            <Link href="/admin">
+              <Settings className="h-4 w-4" />
+            </Link>
+          </Button>
+        )}
         {user && !user.isAnonymous ? (
           <div className="flex items-center gap-3 bg-card p-2 rounded-lg border shadow-sm">
             <div className="flex items-center gap-1">
@@ -394,7 +402,7 @@ export default function Home() {
           </form>
           
           <Separator />
-          <div className="flex justify-center">
+          <div className="justify-center flex">
             <UserGuide />
           </div>
         </div>
