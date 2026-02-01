@@ -29,6 +29,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { signOut } from 'firebase/auth';
 import Link from 'next/link';
+import { RegistrationSuggestion } from '@/components/registration-suggestion';
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
@@ -235,6 +236,7 @@ export default function Home() {
 
   return (
     <main className="relative flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
+      <RegistrationSuggestion />
       <div className="absolute top-4 right-4 flex items-center gap-2">
         {isAnanas && (
           <Button variant="outline" size="icon" asChild title="Панель управления">
