@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
@@ -55,7 +56,7 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
   };
 
   const uploadFile = async (file: File): Promise<FileAttachment | null> => {
-    if (file.size <= 800 * 1024) {
+    if (file.size <= 1024 * 1024) {
       try {
         const base64 = await fileToBase64(file);
         return { name: file.name, type: file.type, url: base64 };
@@ -77,10 +78,6 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       
       const { timestamp, signature, apiKey, cloudName, folder } = await signResponse.json();
 
-      if (!signature || !apiKey || !cloudName) {
-        throw new Error('Ключи Cloudinary не получены с сервера');
-      }
-
       const formData = new FormData();
       formData.append('file', file);
       formData.append('api_key', apiKey);
@@ -101,10 +98,7 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
         throw new Error(errData.error?.message || 'Ошибка Cloudinary');
       }
     } catch (e: any) {
-      console.error('Detailed upload error:', e);
-      if (e.message === 'Failed to fetch') {
-        throw new Error('Сеть заблокировала запрос. Проверьте Cloudinary или AdBlock.');
-      }
+      console.error('Upload error:', e);
       throw e;
     }
   };

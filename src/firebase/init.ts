@@ -1,3 +1,4 @@
+
 import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
@@ -5,10 +6,13 @@ import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 export function initializeFirebase() {
+  const isKeyValid = (key: any) => 
+    typeof key === 'string' && 
+    key.length > 10 && 
+    key.startsWith('AIza');
+
   const isConfigValid = 
-    typeof firebaseConfig.apiKey === 'string' && 
-    firebaseConfig.apiKey.length > 0 &&
-    firebaseConfig.apiKey !== 'undefined' &&
+    isKeyValid(firebaseConfig.apiKey) &&
     typeof firebaseConfig.projectId === 'string' && 
     firebaseConfig.projectId.length > 0 &&
     firebaseConfig.projectId !== 'undefined';
@@ -39,6 +43,7 @@ export function initializeFirebase() {
     const firebaseApp = initializeApp(firebaseConfig);
     return getSdks(firebaseApp);
   } catch (error) {
+    console.error('Firebase initialization error:', error);
     return {
       firebaseApp: null as any,
       auth: null as any,
