@@ -1,4 +1,3 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -7,8 +6,12 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isAnonymous() {
+      return isSignedIn() && request.auth.token.firebase.sign_in_provider == 'anonymous';
+    }
+
     function isAuthorized() {
-      return isSignedIn() && request.auth.token.firebase.sign_in_provider != 'anonymous';
+      return isSignedIn() && !isAnonymous();
     }
 
     function isGlobalAdmin() {
@@ -21,15 +24,11 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function isExistingDoc() {
-      return resource != null;
-    }
-
     function isRoomMember(roomId) {
       let room = get(/databases/$(database)/documents/rooms/$(roomId)).data;
       return isSignedIn() && (
         isGlobalAdmin() ||
-        (room != null && room.get('members', {}) != null && request.auth.uid in room.members)
+        (room != null && room.members != null && request.auth.uid in room.members)
       );
     }
 
@@ -38,8 +37,8 @@ service cloud.firestore {
       return isSignedIn() && (
         isGlobalAdmin() ||
         (room != null && (
-          (room.get('members', {}) != null && room.members.get(request.auth.uid, {}).get('role', '') == 'owner') ||
-          (room.get('creatorId', '') == request.auth.uid)
+          (room.members != null && room.members.get(request.auth.uid, {}).get('role', '') == 'owner') ||
+          (room.creatorId == request.auth.uid)
         ))
       );
     }
@@ -48,32 +47,8 @@ service cloud.firestore {
       let room = get(/databases/$(database)/documents/rooms/$(roomId)).data;
       return isSignedIn() && (
         isGlobalAdmin() ||
-        (room != null && room.get('members', {}) != null && room.members.size() == 1 && request.auth.uid in room.members)
+        (room != null && room.members != null && room.members.size() == 1 && request.auth.uid in room.members)
       );
-    }
-
-    function isMessageCreator() {
-      return isGlobalAdmin() || request.resource.data.userId == request.auth.uid || request.resource.data.userId == 'system';
-    }
-
-    function isDrawingCreator() {
-      return isGlobalAdmin() || request.resource.data.userId == request.auth.uid;
-    }
-
-    function hasContent() {
-      let data = request.resource.data;
-      return (data.get('text', '') != null && data.get('text', '').size() > 0) 
-          || (data.get('file', null) != null) || data.get('type', '') == 'audit';
-    }
-
-    function isMessageOwner() {
-      return isGlobalAdmin() || resource.data.userId == request.auth.uid;
-    }
-
-    function isMessageUpdateValid() {
-      let incoming = request.resource.data;
-      let existing = resource.data;
-      return isGlobalAdmin() || incoming.userId == existing.userId;
     }
 
     match /users/{userId} {
@@ -88,35 +63,36 @@ service cloud.firestore {
       allow create: if isSignedIn() && (request.resource.data.creatorId == request.auth.uid || isGlobalAdmin());
       allow update: if isRoomOwner(roomId) || 
         (isSignedIn() && (!resource.data.get('onlyAuthorized', false) || isAuthorized())) || isGlobalAdmin();
-      allow delete: if (isLastMember(roomId) && isExistingDoc()) || isGlobalAdmin();
+      allow delete: if (isLastMember(roomId)) || isGlobalAdmin();
 
       match /messages/{messageId} {
-        allow read, list: if isRoomMember(roomId);
+        allow read, list: if isSignedIn() && (
+          isGlobalAdmin() ||
+          isRoomMember(roomId) ||
+          !get(/databases/$(database)/documents/rooms/$(roomId)).data.get('onlyAuthorized', false)
+        );
 
         allow create: if isSignedIn() && (
           isGlobalAdmin() ||
           isRoomMember(roomId) || 
           get(/databases/$(database)/documents/rooms/$(roomId)).data.creatorId == request.auth.uid
-        ) && isMessageCreator() && hasContent();
+        ) && (request.resource.data.userId == request.auth.uid || request.resource.data.userId == 'system');
 
-        allow update: if isExistingDoc() && isMessageUpdateValid() && (
+        allow update, delete: if isSignedIn() && (
           isGlobalAdmin() ||
-          (resource.data.get('type', '') == 'audit' && isGlobalAdmin()) ||
-          (resource.data.get('type', '') != 'audit' && (isMessageOwner() || (isRoomOwner(roomId) && isAuthorized())))
-        );
-
-        allow delete: if isExistingDoc() && (
-          isGlobalAdmin() ||
-          (resource.data.get('type', '') == 'audit' && isGlobalAdmin()) ||
-          (resource.data.get('type', '') != 'audit' && (isMessageOwner() || (isRoomOwner(roomId) && isAuthorized()) || isLastMember(roomId)))
+          (resource.data.userId == request.auth.uid) || 
+          (isRoomOwner(roomId) && isAuthorized())
         );
       }
       
       match /drawings/{drawingId} {
-        allow read, list: if isRoomMember(roomId);
-        allow create: if isRoomMember(roomId) && isDrawingCreator();
-        allow delete: if isRoomMember(roomId) || isGlobalAdmin();
-        allow update: if isRoomMember(roomId) || isGlobalAdmin();
+        allow read, list: if isSignedIn() && (
+          isGlobalAdmin() ||
+          isRoomMember(roomId) ||
+          !get(/databases/$(database)/documents/rooms/$(roomId)).data.get('onlyAuthorized', false)
+        );
+        allow create: if isRoomMember(roomId) && request.resource.data.userId == request.auth.uid;
+        allow delete, update: if isRoomMember(roomId) || isGlobalAdmin();
       }
     }
   }

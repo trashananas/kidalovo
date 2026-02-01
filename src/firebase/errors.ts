@@ -52,7 +52,7 @@ function buildAuthObject(currentUser: User | null): FirebaseAuthObject | null {
         }
         return acc;
       }, {} as Record<string, string[]>),
-      sign_in_provider: currentUser.providerData[0]?.providerId || 'custom',
+      sign_in_provider: currentUser.isAnonymous ? 'anonymous' : (currentUser.providerData[0]?.providerId || 'password'),
       tenant: currentUser.tenantId,
     },
   };
