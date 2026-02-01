@@ -25,14 +25,17 @@ service cloud.firestore {
     }
 
     function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+      return isSignedIn() && (request.auth.uid == userId || isGlobalAdmin());
     }
 
     function isRoomMember(roomId) {
       let room = get(/databases/$(database)/documents/rooms/$(roomId)).data;
       return isSignedIn() && (
         isGlobalAdmin() ||
-        (room != null && room.members != null && (request.auth.uid in room.members))
+        (room != null && (
+          !room.get('onlyAuthorized', false) || 
+          (room.members != null && (request.auth.uid in room.members))
+        ))
       );
     }
 
@@ -56,7 +59,7 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read, update, delete: if isOwner(userId) || isGlobalAdmin();
+      allow read, update, delete: if isOwner(userId);
       allow create: if isOwner(userId);
       allow list: if isGlobalAdmin();
     }
@@ -78,8 +81,7 @@ service cloud.firestore {
 
         allow create: if isSignedIn() && (
           isGlobalAdmin() ||
-          isRoomMember(roomId) || 
-          get(/databases/$(database)/documents/rooms/$(roomId)).data.creatorId == request.auth.uid
+          isRoomMember(roomId)
         ) && (request.resource.data.userId == request.auth.uid || request.resource.data.userId == 'system');
 
         allow update, delete: if isSignedIn() && (
@@ -92,10 +94,9 @@ service cloud.firestore {
       match /drawings/{drawingId} {
         allow read, list: if isSignedIn() && (
           isGlobalAdmin() ||
-          isRoomMember(roomId) ||
-          !get(/databases/$(database)/documents/rooms/$(roomId)).data.get('onlyAuthorized', false)
+          isRoomMember(roomId)
         );
-        allow create: if (isRoomMember(roomId) || isGlobalAdmin()) && request.resource.data.userId == request.auth.uid;
+        allow create: if (isRoomMember(roomId) || isGlobalAdmin()) && (request.resource.data.userId == request.auth.uid);
         allow delete, update: if isRoomMember(roomId) || isGlobalAdmin();
       }
     }

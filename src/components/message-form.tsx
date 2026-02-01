@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
@@ -32,14 +31,6 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
 
-  const form = useForm<z.infer<typeof messageSchema>>({
-    resolver: zodResolver(messageSchema),
-    defaultValues: {
-      message: '',
-      file: null,
-    },
-  });
-
   useEffect(() => {
     if (user && !user.isAnonymous && firestore) {
       getDoc(doc(firestore, 'users', user.uid)).then(snap => {
@@ -48,13 +39,19 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
     }
   }, [user, firestore]);
 
+  const form = useForm<z.infer<typeof messageSchema>>({
+    resolver: zodResolver(messageSchema),
+    defaultValues: {
+      message: '',
+      file: null,
+    },
+  });
+
   const uploadFile = async (file: File): Promise<FileAttachment | null> => {
     try {
+      // 1. Пытаемся получить подпись для прямой загрузки (лучше для больших файлов)
       const signResponse = await fetch('/api/sign-upload', { method: 'POST' });
-      if (!signResponse.ok) {
-        const err = await signResponse.json();
-        throw new Error(err.error || 'Ошибка получения подписи');
-      }
+      if (!signResponse.ok) throw new Error('Ошибка связи с сервером подписи');
       
       const { timestamp, signature, apiKey, cloudName, folder } = await signResponse.json();
 
@@ -65,33 +62,47 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       formData.append('signature', signature);
       formData.append('folder', folder);
 
-      const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
-        method: 'POST',
-        body: formData,
-        mode: 'cors',
-      });
+      try {
+        const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
+          method: 'POST',
+          body: formData,
+          mode: 'cors',
+        });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || `Cloudinary error: ${response.status}`);
+        if (response.ok) {
+          const result = await response.json();
+          return { name: file.name, type: file.type, url: result.secure_url };
+        }
+      } catch (e: any) {
+        // Если Failed to fetch - скорее всего AdBlock
+        if (e.message === 'Failed to fetch') {
+          console.warn('Direct upload blocked by browser (AdBlock?). Trying server fallback...');
+        } else {
+          throw e;
+        }
       }
 
-      const result = await response.json();
-      return {
-        name: file.name,
-        type: file.type,
-        url: result.secure_url,
-      };
+      // 2. Fallback: загрузка через наш сервер (если файл < 4.5MB)
+      if (file.size > 4.5 * 1024 * 1024) {
+        throw new Error('Файл слишком велик (>4.5MB) и заблокирован вашим AdBlock. Отключите его для прямой загрузки.');
+      }
+
+      const serverFormData = new FormData();
+      serverFormData.append('file', file);
+      const serverResponse = await fetch('/api/upload', { method: 'POST', body: serverFormData });
+      
+      if (!serverResponse.ok) {
+        const errData = await serverResponse.json();
+        throw new Error(errData.error || 'Ошибка серверной загрузки');
+      }
+
+      return await serverResponse.json();
+
     } catch (error: any) {
       console.error('Upload error:', error);
-      
-      const isBlocked = error?.message === 'Failed to fetch' || error?.name === 'TypeError';
-      
       toast({ 
         title: 'Ошибка загрузки', 
-        description: isBlocked 
-          ? 'Запрос заблокирован браузером. Пожалуйста, ОТКЛЮЧИТЕ ADBLOCK или uBlock для этого сайта!' 
-          : `у меня не получается загрузить файл а должно получаться!!! Детали: ${error.message}`, 
+        description: `у меня не получается загрузить файл а должно получаться!!! Детали: ${error.message}`, 
         variant: 'destructive',
         duration: 10000,
       });
@@ -118,7 +129,7 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
 
       messageData = {
         roomId,
-        text: values.message,
+        text: values.message || '',
         userId: user.uid,
         authorName: profile?.username || (user.isAnonymous ? 'Аноним' : (user.displayName || 'Пользователь')),
         authorColor: profile?.color || '#666666',
@@ -138,6 +149,7 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
 
       await addDoc(messagesCol, messageData);
       form.reset();
+      form.setValue('file', null);
     } catch (error: any) {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: messagesCol.path,
