@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
@@ -57,8 +58,7 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
   };
 
   const uploadFile = async (file: File): Promise<FileAttachment | null> => {
-    // 1. Если файл маленький (< 800KB), сохраняем в Firestore как Base64
-    // Это самый надежный способ, так как он не блокируется AdBlock и не зависит от Cloudinary
+    // 1. Совсем маленькие файлы - в Firestore (Base64)
     if (file.size < 800 * 1024) {
       try {
         const base64 = await fileToBase64(file);
@@ -68,7 +68,7 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       }
     }
 
-    // 2. Если файл больше, пробуем Cloudinary
+    // 2. Попытка прямой загрузки в Cloudinary (Без лимитов Vercel)
     try {
       const signResponse = await fetch('/api/sign-upload', { method: 'POST' });
       if (!signResponse.ok) throw new Error('Не удалось получить подпись');
@@ -82,45 +82,44 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       formData.append('signature', signature);
       formData.append('folder', folder);
 
-      try {
-        const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
-          method: 'POST',
-          body: formData,
-        });
-
-        if (response.ok) {
-          const result = await response.json();
-          return { name: file.name, type: file.type, url: result.secure_url };
-        }
-      } catch (e: any) {
-        console.warn('Direct upload blocked (likely AdBlock). Trying server fallback...');
-      }
-
-      // 3. Fallback: Загрузка через сервер (лимит Vercel 4.5MB)
-      if (file.size > 4.4 * 1024 * 1024) {
-        throw new Error('Файл слишком велик (>4.5MB) и заблокирован вашим AdBlock. Отключите его для прямой загрузки.');
-      }
-
-      const serverFormData = new FormData();
-      serverFormData.append('file', file);
-      const serverResponse = await fetch('/api/upload', { method: 'POST', body: serverFormData });
-      
-      if (!serverResponse.ok) {
-        const errData = await serverResponse.json();
-        throw new Error(errData.error || 'Ошибка серверной загрузки');
-      }
-
-      return await serverResponse.json();
-
-    } catch (error: any) {
-      toast({ 
-        title: 'Ошибка загрузки', 
-        description: error.message || 'Не удалось загрузить файл', 
-        variant: 'destructive',
-        duration: 8000,
+      const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
+        method: 'POST',
+        body: formData,
+        mode: 'cors',
       });
-      return null;
+
+      if (response.ok) {
+        const result = await response.json();
+        return { name: file.name, type: file.type, url: result.secure_url };
+      } else {
+        const errText = await response.text();
+        console.error('Cloudinary upload failed:', errText);
+      }
+    } catch (e: any) {
+      console.warn('Direct upload failed. Reason:', e.message);
+      
+      // Если это блокировка браузером (AdBlock)
+      if (e.message.includes('fetch') || e.message.includes('Network')) {
+        if (file.size > 4.4 * 1024 * 1024) {
+          throw new Error('Файл > 4.5МБ. Загрузка заблокирована вашим AdBlock. Отключите его для прямой работы с хранилищем.');
+        }
+        
+        // 3. Fallback: Загрузка через сервер Vercel (Только если < 4.5МБ)
+        console.log('Attempting server-side fallback for small file...');
+        const serverFormData = new FormData();
+        serverFormData.append('file', file);
+        const serverResponse = await fetch('/api/upload', { method: 'POST', body: serverFormData });
+        
+        if (serverResponse.ok) {
+          return await serverResponse.json();
+        } else {
+          const errData = await serverResponse.json();
+          throw new Error(errData.error || 'Ошибка загрузки');
+        }
+      }
     }
+
+    throw new Error('Не удалось загрузить файл. Попробуйте отключить AdBlock или проверить соединение.');
   };
 
   const onSubmit = async (values: z.infer<typeof messageSchema>) => {
@@ -134,7 +133,6 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       let fileAttachment: FileAttachment | null = null;
       if (values.file instanceof File) {
         fileAttachment = await uploadFile(values.file);
-        // Если была ошибка загрузки и нет текста - отменяем
         if (!fileAttachment && !values.message.trim()) {
            setIsSubmitting(false);
            return;
@@ -165,11 +163,12 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       form.reset();
       form.setValue('file', null);
     } catch (error: any) {
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: messagesCol.path,
-        operation: 'create',
-        requestResourceData: messageData || values
-      }));
+      toast({ 
+        title: 'Ошибка', 
+        description: error.message || 'Не удалось отправить сообщение', 
+        variant: 'destructive',
+        duration: 8000
+      });
     } finally {
       setIsSubmitting(false);
     }
