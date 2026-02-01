@@ -80,7 +80,7 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       console.error('Upload failed:', error);
       toast({ 
         title: 'Ошибка загрузки файла', 
-        description: 'не удается загрузить файл на сервер,что-то не так', 
+        description: ' у меня не получается загрузить файл а должно получаться!!! посмотри что не так и разберись', 
         variant: 'destructive' 
       });
       return null;
