@@ -77,12 +77,12 @@ service cloud.firestore {
     match /users/{userId} {
       allow read, update, delete: if isOwner(userId) || isGlobalAdmin();
       allow create: if isOwner(userId);
-      allow list: if false;
+      allow list: if isGlobalAdmin();
     }
 
     match /rooms/{roomId} {
       allow get: if isSignedIn();
-      allow list: if false;
+      allow list: if isGlobalAdmin();
       allow create: if isSignedIn() && (request.resource.data.creatorId == request.auth.uid || isGlobalAdmin());
       allow update: if isRoomOwner(roomId) || 
         (isSignedIn() && (!resource.data.get('onlyAuthorized', false) || isAuthorized())) || isGlobalAdmin();
