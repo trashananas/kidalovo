@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
@@ -60,6 +59,27 @@ export default function Home() {
       initiateAnonymousSignIn(auth);
     }
   }, [user, isUserLoading, auth]);
+
+  if (!auth && !isUserLoading) {
+    return (
+      <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 text-center gap-6">
+        <AlertTriangle className="h-16 w-16 text-destructive" />
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold">Ошибка конфигурации</h1>
+          <div className="text-muted-foreground max-w-md space-y-4">
+            <p>API-ключи Firebase не найдены или указаны неверно. Это блокирует работу приложения.</p>
+            <div className="text-sm border p-4 rounded-md bg-muted/50 text-left font-mono space-y-2">
+              <p>1. Проверьте <b>NEXT_PUBLIC_FIREBASE_API_KEY</b> в Vercel/Render.</p>
+              <p>2. Ключ должен начинаться с <b>AIza</b>.</p>
+              <p>3. Убедитесь, что нет лишних пробелов в начале или конце.</p>
+              <p>4. После исправления запустите <b>Redeploy</b>.</p>
+            </div>
+          </div>
+        </div>
+        <Button variant="outline" onClick={() => window.location.reload()}>Попробовать снова</Button>
+      </main>
+    );
+  }
 
   const handleCreateRoom = async () => {
     if (!firestore || !user) return;
@@ -209,27 +229,6 @@ export default function Home() {
       toast({ title: 'Ошибка', description: getErrorMessage(error), variant: 'destructive' });
     }
   };
-
-  if (!auth && !isUserLoading) {
-    return (
-      <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 text-center gap-6">
-        <AlertTriangle className="h-16 w-16 text-destructive" />
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold">Ошибка конфигурации</h1>
-          <div className="text-muted-foreground max-w-md space-y-2">
-            <p>API-ключи Firebase не найдены или указаны неверно.</p>
-            <p className="text-sm border p-4 rounded-md bg-muted/50 text-left font-mono">
-              1. Зайдите в настройки проекта Vercel<br/>
-              2. Откройте вкладку "Environment Variables"<br/>
-              3. Добавьте NEXT_PUBLIC_FIREBASE_API_KEY и другие ключи<br/>
-              4. Запустите новый деплой
-            </p>
-          </div>
-        </div>
-        <Button variant="outline" onClick={() => window.location.reload()}>Попробовать снова</Button>
-      </main>
-    );
-  }
 
   if (isUserLoading) {
     return (

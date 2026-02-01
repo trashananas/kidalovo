@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
@@ -13,6 +12,8 @@ import { Send, Paperclip, X, File as FileIcon, Loader2 } from 'lucide-react';
 import { useUser, useFirestore } from '@/firebase';
 import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 import type { FileAttachment, UserProfile } from '@/types';
 
 const messageSchema = z.object({
@@ -136,7 +137,17 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
         ...(fileAttachment && { file: fileAttachment })
       };
 
-      await addDoc(collection(firestore, 'rooms', roomId, 'messages'), messageData);
+      const messagesColRef = collection(firestore, 'rooms', roomId, 'messages');
+      addDoc(messagesColRef, messageData)
+        .catch(async (error) => {
+          const permissionError = new FirestorePermissionError({
+            path: messagesColRef.path,
+            operation: 'create',
+            requestResourceData: messageData,
+          });
+          errorEmitter.emit('permission-error', permissionError);
+        });
+
       form.reset();
       form.setValue('file', null);
       const fileInput = document.getElementById('file-input') as HTMLInputElement;
