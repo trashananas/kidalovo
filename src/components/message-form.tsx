@@ -78,7 +78,11 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       };
     } catch (error) {
       console.error('Upload failed:', error);
-      toast({ title: 'Ошибка загрузки файла', description: 'Не удалось загрузить файл на сервер.', variant: 'destructive' });
+      toast({ 
+        title: 'Ошибка загрузки файла', 
+        description: 'не удается загрузить файл на сервер,что-то не так', 
+        variant: 'destructive' 
+      });
       return null;
     }
   };
