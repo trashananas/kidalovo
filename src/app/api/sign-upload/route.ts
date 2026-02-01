@@ -4,13 +4,13 @@ import crypto from 'crypto';
 export const dynamic = 'force-dynamic';
 
 export async function POST() {
-  const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_CLOUD_NAME;
+  const CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME || process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
   const API_KEY = process.env.CLOUDINARY_API_KEY || process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY;
   const API_SECRET = process.env.CLOUDINARY_API_SECRET;
 
   if (!CLOUD_NAME || !API_KEY || !API_SECRET) {
     return NextResponse.json(
-      { error: 'Конфигурация Cloudinary неполная в .env. Настройте ключи в панели управления хостингом.' },
+      { error: 'Ключи Cloudinary не настроены в .env (CLOUDINARY_API_SECRET и др.)' },
       { status: 500 }
     );
   }
@@ -19,11 +19,10 @@ export async function POST() {
     const timestamp = Math.round(new Date().getTime() / 1000);
     const folder = 'kidalovo_uploads';
     
-    // Подпись Cloudinary: параметры в алфавитном порядке + секретный ключ
-    const paramsToSign = `folder=${folder}&timestamp=${timestamp}${API_SECRET}`;
+    const paramsToSign = `folder=${folder}&timestamp=${timestamp}`;
     const signature = crypto
       .createHash('sha1')
-      .update(paramsToSign)
+      .update(`${paramsToSign}${API_SECRET}`)
       .digest('hex');
 
     return NextResponse.json({
@@ -35,7 +34,7 @@ export async function POST() {
     });
   } catch (error) {
     return NextResponse.json(
-      { error: `Ошибка при создании подписи: ${error instanceof Error ? error.message : 'Unknown'}` },
+      { error: `Ошибка подписи: ${error instanceof Error ? error.message : 'Unknown'}` },
       { status: 500 }
     );
   }

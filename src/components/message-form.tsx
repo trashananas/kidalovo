@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { Card, CardContent } from './ui/card';
-import { Send, Paperclip, X, File as FileIcon, Loader2 } from 'lucide-react';
+import { Send, Paperclip, X, File as FileIcon, Loader2, AlertCircle } from 'lucide-react';
 import { useUser, useFirestore } from '@/firebase';
 import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -55,7 +55,6 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
   };
 
   const uploadFile = async (file: File): Promise<FileAttachment | null> => {
-    // 1. МАЛЕНЬКИЕ ФАЙЛЫ (до 800 КБ) -> в Firestore как Base64
     if (file.size <= 800 * 1024) {
       try {
         const base64 = await fileToBase64(file);
@@ -65,12 +64,11 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       }
     }
 
-    // 2. ОСТАЛЬНЫЕ ФАЙЛЫ -> НАПРЯМУЮ в Cloudinary (минуя сервер)
     try {
       const signResponse = await fetch('/api/sign-upload', { method: 'POST' });
       if (!signResponse.ok) {
         const err = await signResponse.json();
-        throw new Error(err.error || 'Ошибка подписи. Проверьте ENV-ключи Cloudinary.');
+        throw new Error(err.error || 'Не удалось получить подпись для загрузки');
       }
       
       const { timestamp, signature, apiKey, cloudName, folder } = await signResponse.json();
@@ -85,25 +83,29 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
         method: 'POST',
         body: formData,
-        mode: 'cors',
       });
 
       if (response.ok) {
         const result = await response.json();
         return { name: file.name, type: file.type, url: result.secure_url };
       } else {
-        const errText = await response.text();
-        console.error('Cloudinary rejected upload:', errText);
-        throw new Error('Cloudinary отклонил файл. Проверьте консоль или ключи.');
+        const errData = await response.json();
+        throw new Error(errData.error?.message || 'Ошибка загрузки в Cloudinary');
       }
     } catch (e: any) {
-      console.error('Upload process failed:', e);
+      console.error('Upload error:', e);
       throw e;
     }
   };
 
   const onSubmit = async (values: z.infer<typeof messageSchema>) => {
     if (!firestore || !user || !roomId) return;
+
+    if (values.message.toLowerCase().includes('валикова')) {
+      form.setError('message', { message: 'your message contains a nature error' });
+      return;
+    }
+
     setIsSubmitting(true);
     
     try {
@@ -122,8 +124,8 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
         createdAt: serverTimestamp(),
         isDeleted: false,
         position: {
-          x: Math.random() * 400 - panOffset.x,
-          y: Math.random() * 200 - panOffset.y,
+          x: (Math.random() - 0.5) * 200 - panOffset.x,
+          y: (Math.random() - 0.5) * 200 - panOffset.y,
         },
         size: { width: 320, height: 140 },
         ...(fileAttachment && { file: fileAttachment })
@@ -132,9 +134,8 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       await addDoc(collection(firestore, 'rooms', roomId, 'messages'), messageData);
       form.reset();
       form.setValue('file', null);
-      if (document.getElementById('file-input')) {
-        (document.getElementById('file-input') as HTMLInputElement).value = '';
-      }
+      const fileInput = document.getElementById('file-input') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
     } catch (error: any) {
       toast({ 
         title: 'Ошибка', 
