@@ -1,4 +1,3 @@
-
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 
@@ -11,7 +10,7 @@ export async function POST() {
 
   if (!CLOUD_NAME || !API_KEY || !API_SECRET) {
     return NextResponse.json(
-      { error: 'Конфигурация Cloudinary неполная. Проверьте переменные окружения.' },
+      { error: 'Конфигурация Cloudinary неполная в .env. Настройте ключи в панели управления хостингом.' },
       { status: 500 }
     );
   }
@@ -20,7 +19,7 @@ export async function POST() {
     const timestamp = Math.round(new Date().getTime() / 1000);
     const folder = 'kidalovo_uploads';
     
-    // Параметры для подписи должны быть в алфавитном порядке
+    // Подпись Cloudinary: параметры в алфавитном порядке + секретный ключ
     const paramsToSign = `folder=${folder}&timestamp=${timestamp}${API_SECRET}`;
     const signature = crypto
       .createHash('sha1')

@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { Card, CardContent } from './ui/card';
-import { Send, Paperclip, X, File as FileIcon, Loader2, AlertCircle } from 'lucide-react';
+import { Send, Paperclip, X, File as FileIcon, Loader2 } from 'lucide-react';
 import { useUser, useFirestore } from '@/firebase';
 import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -55,7 +55,7 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
   };
 
   const uploadFile = async (file: File): Promise<FileAttachment | null> => {
-    // 1. Мелкие файлы (до 800 КБ) - в Firestore (Base64)
+    // 1. МАЛЕНЬКИЕ ФАЙЛЫ (до 800 КБ) -> в Firestore как Base64
     if (file.size <= 800 * 1024) {
       try {
         const base64 = await fileToBase64(file);
@@ -65,12 +65,12 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       }
     }
 
-    // 2. Все остальные файлы - НАПРЯМУЮ в Cloudinary (минуя сервер приложения)
+    // 2. ОСТАЛЬНЫЕ ФАЙЛЫ -> НАПРЯМУЮ в Cloudinary (минуя сервер)
     try {
       const signResponse = await fetch('/api/sign-upload', { method: 'POST' });
       if (!signResponse.ok) {
         const err = await signResponse.json();
-        throw new Error(err.error || 'Ошибка авторизации в облаке');
+        throw new Error(err.error || 'Ошибка подписи. Проверьте ENV-ключи Cloudinary.');
       }
       
       const { timestamp, signature, apiKey, cloudName, folder } = await signResponse.json();
@@ -93,11 +93,11 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
         return { name: file.name, type: file.type, url: result.secure_url };
       } else {
         const errText = await response.text();
-        console.error('Cloudinary error response:', errText);
-        throw new Error('Облачное хранилище отклонило файл. Проверьте AdBlock или ключи.');
+        console.error('Cloudinary rejected upload:', errText);
+        throw new Error('Cloudinary отклонил файл. Проверьте консоль или ключи.');
       }
     } catch (e: any) {
-      console.error('Upload failed:', e);
+      console.error('Upload process failed:', e);
       throw e;
     }
   };
@@ -132,10 +132,13 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       await addDoc(collection(firestore, 'rooms', roomId, 'messages'), messageData);
       form.reset();
       form.setValue('file', null);
+      if (document.getElementById('file-input')) {
+        (document.getElementById('file-input') as HTMLInputElement).value = '';
+      }
     } catch (error: any) {
       toast({ 
-        title: 'Ошибка загрузки', 
-        description: error.message || 'Не удалось отправить файл.', 
+        title: 'Ошибка', 
+        description: error.message || 'Не удалось отправить сообщение.', 
         variant: 'destructive'
       });
     } finally {
