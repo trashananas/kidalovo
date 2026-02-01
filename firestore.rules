@@ -7,97 +7,35 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isAnonymous() {
-      return isSignedIn() && request.auth.token.firebase.sign_in_provider == 'anonymous';
-    }
-
-    function isAuthorized() {
-      return isSignedIn() && !isAnonymous();
-    }
-
     function isGlobalAdmin() {
       return isSignedIn() && (
         request.auth.token.email == 'ananas@kidalovo.internal' || 
         request.auth.uid == 'TTw3ZuEvyXerRBc7jr90PESYdcy1' ||
-        request.auth.uid == 'Csr3hpbOWPbbcdP72cOKHp51NOa2' ||
         request.auth.uid == 'Csr3hpbOWPbbcdP72cOKHp51NOa2'
       );
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && (request.auth.uid == userId || isGlobalAdmin());
-    }
-
-    function isRoomMember(roomId) {
-      let room = get(/databases/$(database)/documents/rooms/$(roomId)).data;
-      return isSignedIn() && (
-        isGlobalAdmin() ||
-        (room != null && (
-          !room.get('onlyAuthorized', false) || 
-          (room.members != null && (request.auth.uid in room.members))
-        ))
-      );
-    }
-
-    function isRoomOwner(roomId) {
-      let room = get(/databases/$(database)/documents/rooms/$(roomId)).data;
-      return isSignedIn() && (
-        isGlobalAdmin() ||
-        (room != null && (
-          (room.members != null && room.members.get(request.auth.uid, {}).get('role', '') == 'owner') ||
-          (room.creatorId == request.auth.uid)
-        ))
-      );
-    }
-    
-    function isLastMember(roomId) {
-      let room = get(/databases/$(database)/documents/rooms/$(roomId)).data;
-      return isSignedIn() && (
-        isGlobalAdmin() ||
-        (room != null && room.members != null && room.members.size() <= 1 && request.auth.uid in room.members)
-      );
-    }
-
     match /users/{userId} {
-      allow read, update, delete: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow list: if isGlobalAdmin();
+      allow read, write: if isGlobalAdmin() || (isSignedIn() && request.auth.uid == userId);
     }
 
     match /rooms/{roomId} {
       allow get: if isSignedIn();
       allow list: if isGlobalAdmin();
-      allow create: if isSignedIn() && (request.resource.data.creatorId == request.auth.uid || isGlobalAdmin());
-      allow update: if isRoomOwner(roomId) || isGlobalAdmin() ||
-        (isSignedIn() && (!resource.data.get('onlyAuthorized', false) || isAuthorized()));
-      allow delete: if isLastMember(roomId) || isRoomOwner(roomId) || isGlobalAdmin();
+      allow create: if isSignedIn();
+      allow delete: if isGlobalAdmin() || (isSignedIn() && (resource.data.creatorId == request.auth.uid));
+      allow update: if isGlobalAdmin() || isSignedIn();
 
       match /messages/{messageId} {
-        allow read, list: if isSignedIn() && (
-          isGlobalAdmin() ||
-          isRoomMember(roomId) ||
-          !get(/databases/$(database)/documents/rooms/$(roomId)).data.get('onlyAuthorized', false)
-        );
-
-        allow create: if isSignedIn() && (
-          isGlobalAdmin() ||
-          isRoomMember(roomId)
-        ) && (request.resource.data.userId == request.auth.uid || request.resource.data.userId == 'system');
-
-        allow update, delete: if isSignedIn() && (
-          isGlobalAdmin() ||
-          (resource.data.userId == request.auth.uid) || 
-          (isRoomOwner(roomId) && isAuthorized())
-        );
+        allow read, list: if isSignedIn();
+        allow create: if isGlobalAdmin() || (isSignedIn() && (request.resource.data.userId == request.auth.uid || request.resource.data.userId == 'system'));
+        allow update, delete: if isGlobalAdmin() || (isSignedIn() && (resource.data.userId == request.auth.uid));
       }
       
       match /drawings/{drawingId} {
-        allow read, list: if isSignedIn() && (
-          isGlobalAdmin() ||
-          isRoomMember(roomId)
-        );
-        allow create: if (isRoomMember(roomId) || isGlobalAdmin()) && (request.resource.data.userId == request.auth.uid);
-        allow delete, update: if isRoomMember(roomId) || isGlobalAdmin();
+        allow read, list: if isSignedIn();
+        allow create: if isGlobalAdmin() || (isSignedIn() && request.resource.data.userId == request.auth.uid);
+        allow delete, update: if isGlobalAdmin() || isSignedIn();
       }
     }
   }

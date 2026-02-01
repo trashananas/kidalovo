@@ -9,13 +9,11 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { Card, CardContent } from './ui/card';
-import { Send, Paperclip, X, File as FileIcon, Loader2, AlertCircle } from 'lucide-react';
+import { Send, Paperclip, X, File as FileIcon, Loader2 } from 'lucide-react';
 import { useUser, useFirestore } from '@/firebase';
 import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import type { FileAttachment, UserProfile } from '@/types';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
 
 const messageSchema = z.object({
   message: z.string(),
@@ -58,7 +56,7 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
   };
 
   const uploadFile = async (file: File): Promise<FileAttachment | null> => {
-    // 1. Совсем маленькие файлы - в Firestore (Base64)
+    // 1. Совсем маленькие файлы (< 800 КБ) - в Firestore (Base64)
     if (file.size < 800 * 1024) {
       try {
         const base64 = await fileToBase64(file);
@@ -68,10 +66,10 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       }
     }
 
-    // 2. Попытка прямой загрузки в Cloudinary (Без лимитов Vercel)
+    // 2. Для остальных пробуем прямую загрузку в Cloudinary
     try {
       const signResponse = await fetch('/api/sign-upload', { method: 'POST' });
-      if (!signResponse.ok) throw new Error('Не удалось получить подпись');
+      if (!signResponse.ok) throw new Error('Не удалось получить подпись для облака');
       
       const { timestamp, signature, apiKey, cloudName, folder } = await signResponse.json();
 
@@ -85,7 +83,6 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
         method: 'POST',
         body: formData,
-        mode: 'cors',
       });
 
       if (response.ok) {
@@ -93,53 +90,42 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
         return { name: file.name, type: file.type, url: result.secure_url };
       } else {
         const errText = await response.text();
-        console.error('Cloudinary upload failed:', errText);
+        console.error('Cloudinary response error:', errText);
+        throw new Error('Облачное хранилище отклонило файл');
       }
     } catch (e: any) {
-      console.warn('Direct upload failed. Reason:', e.message);
+      console.error('Upload process failed:', e);
       
-      // Если это блокировка браузером (AdBlock)
-      if (e.message.includes('fetch') || e.message.includes('Network')) {
-        if (file.size > 4.4 * 1024 * 1024) {
-          throw new Error('Файл > 4.5МБ. Загрузка заблокирована вашим AdBlock. Отключите его для прямой работы с хранилищем.');
+      // Если это сетевая ошибка (CORS или блокировка браузером)
+      if (e.message.includes('fetch') || e.name === 'TypeError') {
+        if (file.size > 4 * 1024 * 1024) {
+          throw new Error('Крупный файл заблокирован настройками безопасности вашего браузера или сети.');
         }
         
-        // 3. Fallback: Загрузка через сервер Vercel (Только если < 4.5МБ)
-        console.log('Attempting server-side fallback for small file...');
+        // Попытка через прокси-сервер (если файл не слишком велик для Vercel)
         const serverFormData = new FormData();
         serverFormData.append('file', file);
-        const serverResponse = await fetch('/api/upload', { method: 'POST', body: serverFormData });
+        const serverRes = await fetch('/api/upload', { method: 'POST', body: serverFormData });
         
-        if (serverResponse.ok) {
-          return await serverResponse.json();
-        } else {
-          const errData = await serverResponse.json();
-          throw new Error(errData.error || 'Ошибка загрузки');
-        }
+        if (serverRes.ok) return await serverRes.json();
+        const errData = await serverRes.json();
+        throw new Error(errData.error || 'Ошибка загрузки');
       }
+      throw e;
     }
-
-    throw new Error('Не удалось загрузить файл. Попробуйте отключить AdBlock или проверить соединение.');
   };
 
   const onSubmit = async (values: z.infer<typeof messageSchema>) => {
     if (!firestore || !user || !roomId) return;
     setIsSubmitting(true);
     
-    const messagesCol = collection(firestore, 'rooms', roomId, 'messages');
-    let messageData: any = null;
-
     try {
       let fileAttachment: FileAttachment | null = null;
       if (values.file instanceof File) {
         fileAttachment = await uploadFile(values.file);
-        if (!fileAttachment && !values.message.trim()) {
-           setIsSubmitting(false);
-           return;
-        }
       }
 
-      messageData = {
+      const messageData = {
         roomId,
         text: values.message || '',
         userId: user.uid,
@@ -152,22 +138,18 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
           x: Math.random() * 400 - panOffset.x,
           y: Math.random() * 200 - panOffset.y,
         },
-        size: { width: 320, height: 140 }
+        size: { width: 320, height: 140 },
+        ...(fileAttachment && { file: fileAttachment })
       };
 
-      if (fileAttachment) {
-        messageData.file = fileAttachment;
-      }
-
-      await addDoc(messagesCol, messageData);
+      await addDoc(collection(firestore, 'rooms', roomId, 'messages'), messageData);
       form.reset();
       form.setValue('file', null);
     } catch (error: any) {
       toast({ 
         title: 'Ошибка', 
-        description: error.message || 'Не удалось отправить сообщение', 
-        variant: 'destructive',
-        duration: 8000
+        description: error.message || 'Не удалось отправить файл', 
+        variant: 'destructive'
       });
     } finally {
       setIsSubmitting(false);
@@ -184,9 +166,6 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
             <FileIcon className="h-4 w-4 text-primary" />
             <span className="text-xs truncate flex-1 font-medium">
               {selectedFile instanceof File ? selectedFile.name : 'Файл выбран'}
-              <span className="ml-2 text-[10px] text-muted-foreground">
-                ({(selectedFile.size / 1024).toFixed(0)} KB)
-              </span>
             </span>
             <Button 
               type="button" 
@@ -230,7 +209,6 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
               type="button" 
               size="icon" 
               variant="outline" 
-              className={selectedFile ? "border-primary text-primary" : ""}
               onClick={() => document.getElementById('file-input')?.click()}
             >
               <Paperclip className="h-4 w-4" />
