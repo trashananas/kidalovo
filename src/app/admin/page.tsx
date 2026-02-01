@@ -2,22 +2,24 @@
 
 import { useEffect, useState } from 'react';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, doc, writeBatch } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, ArrowLeft, Users, Home, Database, MessageSquare } from 'lucide-react';
+import { Loader2, ArrowLeft, Users, Home, Database, MessageSquare, ExternalLink, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { useToast } from '@/hooks/use-toast';
 
 export default function AdminPage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
+  const { toast } = useToast();
   
   const isAnanas = user?.email === 'ananas@kidalovo.internal';
 
@@ -36,6 +38,7 @@ export default function AdminPage() {
 
   const [roomStats, setRoomStats] = useState<Record<string, { count: number, size: number }>>({});
   const [isStatsLoading, setIsStatsLoading] = useState(false);
+  const [deletingRoomId, setDeletingRoomId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isUserLoading && !isAnanas) {
@@ -71,6 +74,37 @@ export default function AdminPage() {
     }
     setRoomStats(newStats);
     setIsStatsLoading(false);
+  };
+
+  const handleDeleteRoom = async (roomId: string) => {
+    if (!firestore || !isAnanas) return;
+    if (!confirm(`Вы уверены, что хотите удалить комнату ${roomId}?`)) return;
+
+    setDeletingRoomId(roomId);
+    try {
+      const batch = writeBatch(firestore);
+      const messagesCol = collection(firestore, 'rooms', roomId, 'messages');
+      const drawingsCol = collection(firestore, 'rooms', roomId, 'drawings');
+      
+      const [messagesSnap, drawingsSnap] = await Promise.all([
+        getDocs(messagesCol),
+        getDocs(drawingsCol)
+      ]);
+
+      messagesSnap.docs.forEach(d => batch.delete(d.ref));
+      drawingsSnap.docs.forEach(d => batch.delete(d.ref));
+      batch.delete(doc(firestore, 'rooms', roomId));
+
+      await batch.commit();
+      toast({ title: 'Комната удалена' });
+    } catch (e: any) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: `rooms/${roomId}`,
+        operation: 'delete'
+      }));
+    } finally {
+      setDeletingRoomId(null);
+    }
   };
 
   if (isUserLoading || !isAnanas) {
@@ -161,8 +195,8 @@ export default function AdminPage() {
                   <TableRow>
                     <TableHead>Код</TableHead>
                     <TableHead>Дата создания</TableHead>
-                    <TableHead className="text-right">Сообщений</TableHead>
-                    <TableHead className="text-right">Память (КБ)</TableHead>
+                    <TableHead className="text-right">МБ</TableHead>
+                    <TableHead className="text-right">Действия</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -170,10 +204,27 @@ export default function AdminPage() {
                     <TableRow key={r.id}>
                       <TableCell className="font-bold">{r.id}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">
-                        {r.createdAt ? format(r.createdAt.toDate(), 'dd.MM.yyyy HH:mm', { locale: ru }) : '—'}
+                        {r.createdAt ? format(r.createdAt.toDate(), 'dd.MM.yy HH:mm', { locale: ru }) : '—'}
                       </TableCell>
-                      <TableCell className="text-right">{roomStats[r.id]?.count ?? '—'}</TableCell>
                       <TableCell className="text-right">{roomStats[r.id]?.size ?? '—'}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button variant="ghost" size="icon" asChild>
+                            <Link href={`/${r.id}`}>
+                              <ExternalLink className="h-4 w-4" />
+                            </Link>
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => handleDeleteRoom(r.id)}
+                            disabled={deletingRoomId === r.id}
+                          >
+                            {deletingRoomId === r.id ? <Loader2 className="animate-spin h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))}
                   {isRoomsLoading && <TableRow><TableCell colSpan={4} className="text-center py-4"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>}
