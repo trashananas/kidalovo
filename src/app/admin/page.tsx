@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, getDocs, doc, writeBatch } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, doc, writeBatch, deleteDoc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -39,6 +39,7 @@ export default function AdminPage() {
   const [roomStats, setRoomStats] = useState<Record<string, { count: number, size: number }>>({});
   const [isStatsLoading, setIsStatsLoading] = useState(false);
   const [deletingRoomId, setDeletingRoomId] = useState<string | null>(null);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isUserLoading && !isAnanas) {
@@ -107,6 +108,28 @@ export default function AdminPage() {
     }
   };
 
+  const handleDeleteUser = async (userId: string, login?: string) => {
+    if (!firestore || !isAnanas) return;
+    if (login === 'ananas') {
+        toast({ title: 'Ошибка', description: 'Нельзя удалить главного ананаса' });
+        return;
+    }
+    if (!confirm(`Вы уверены, что хотите удалить пользователя ${login || userId}?`)) return;
+
+    setDeletingUserId(userId);
+    try {
+      await deleteDoc(doc(firestore, 'users', userId));
+      toast({ title: 'Профиль пользователя удален' });
+    } catch (e: any) {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: `users/${userId}`,
+            operation: 'delete'
+        }));
+    } finally {
+        setDeletingUserId(null);
+    }
+  };
+
   if (isUserLoading || !isAnanas) {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-10 w-10" /></div>;
   }
@@ -170,6 +193,7 @@ export default function AdminPage() {
                   <TableRow>
                     <TableHead>Никнейм</TableHead>
                     <TableHead>Логин</TableHead>
+                    <TableHead className="text-right">Действия</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -177,9 +201,22 @@ export default function AdminPage() {
                     <TableRow key={u.id}>
                       <TableCell className="font-medium">{u.username}</TableCell>
                       <TableCell>{u.login || '—'}</TableCell>
+                      <TableCell className="text-right">
+                        {u.login !== 'ananas' && (
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => handleDeleteUser(u.id, u.login)}
+                            disabled={deletingUserId === u.id}
+                          >
+                            {deletingUserId === u.id ? <Loader2 className="animate-spin h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
+                          </Button>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))}
-                  {isUsersLoading && <TableRow><TableCell colSpan={2} className="text-center py-4"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>}
+                  {isUsersLoading && <TableRow><TableCell colSpan={3} className="text-center py-4"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>}
                 </TableBody>
               </Table>
             </CardContent>
@@ -195,6 +232,7 @@ export default function AdminPage() {
                   <TableRow>
                     <TableHead>Код</TableHead>
                     <TableHead>Дата создания</TableHead>
+                    <TableHead className="text-right">МСГ</TableHead>
                     <TableHead className="text-right">МБ</TableHead>
                     <TableHead className="text-right">Действия</TableHead>
                   </TableRow>
@@ -206,9 +244,10 @@ export default function AdminPage() {
                       <TableCell className="text-xs text-muted-foreground">
                         {r.createdAt ? format(r.createdAt.toDate(), 'dd.MM.yy HH:mm', { locale: ru }) : '—'}
                       </TableCell>
-                      <TableCell className="text-right">{roomStats[r.id]?.size ?? '—'}</TableCell>
+                      <TableCell className="text-right font-mono text-xs">{roomStats[r.id]?.count ?? '—'}</TableCell>
+                      <TableCell className="text-right font-mono text-xs">{roomStats[r.id]?.size ?? '—'}</TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
+                        <div className="flex justify-end gap-1">
                           <Button variant="ghost" size="icon" asChild>
                             <Link href={`/${r.id}`}>
                               <ExternalLink className="h-4 w-4" />
@@ -227,7 +266,7 @@ export default function AdminPage() {
                       </TableCell>
                     </TableRow>
                   ))}
-                  {isRoomsLoading && <TableRow><TableCell colSpan={4} className="text-center py-4"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>}
+                  {isRoomsLoading && <TableRow><TableCell colSpan={5} className="text-center py-4"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>}
                 </TableBody>
               </Table>
             </CardContent>
