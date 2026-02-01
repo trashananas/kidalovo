@@ -26,6 +26,7 @@ export function initializeFirebase() {
   }
 
   if (!isConfigValid) {
+    console.warn('Firebase configuration is missing or invalid.');
     return {
       firebaseApp: null as any,
       auth: null as any,
@@ -43,7 +44,7 @@ export function initializeFirebase() {
     const firebaseApp = initializeApp(firebaseConfig);
     return getSdks(firebaseApp);
   } catch (error) {
-    console.error('Firebase init error:', error);
+    console.error('Firebase initialization error:', error);
     return {
       firebaseApp: null as any,
       auth: null as any,

@@ -55,12 +55,12 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
   };
 
   const uploadFile = async (file: File): Promise<FileAttachment | null> => {
-    if (file.size <= 1024 * 1024) {
+    if (file.size <= 800 * 1024) {
       try {
         const base64 = await fileToBase64(file);
         return { name: file.name, type: file.type, url: base64 };
       } catch (e) {
-        console.error('Base64 error:', e);
+        console.error('Base64 conversion error:', e);
       }
     }
 
@@ -81,12 +81,16 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
         body: formData,
       });
 
-      if (!response.ok) throw new Error('Ошибка Cloudinary');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'Ошибка Cloudinary');
+      }
+      
       const result = await response.json();
       return { name: file.name, type: file.type, url: result.secure_url };
     } catch (e: any) {
-      console.error('Cloudinary upload error:', e);
-      throw new Error('Не удалось загрузить файл в облако.');
+      console.error('Upload error:', e);
+      throw new Error(e.message || 'Не удалось загрузить файл.');
     }
   };
 
