@@ -49,47 +49,26 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
 
   const uploadFile = async (file: File): Promise<FileAttachment | null> => {
     try {
-      const signResponse = await fetch('/api/sign-upload', { 
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      
-      if (!signResponse.ok) {
-        const errorData = await signResponse.json().catch(() => ({}));
-        throw new Error(errorData.error || `Ошибка сервера: ${signResponse.status}`);
-      }
-
-      const signData = await signResponse.json();
-
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('api_key', signData.apiKey);
-      formData.append('timestamp', signData.timestamp.toString());
-      formData.append('signature', signData.signature);
 
-      const uploadResponse = await fetch(
-        `https://api.cloudinary.com/v1_1/${signData.cloudName}/auto/upload`,
-        { method: 'POST', body: formData }
-      );
-      
-      if (!uploadResponse.ok) {
-        const uploadData = await uploadResponse.json().catch(() => ({}));
-        throw new Error(uploadData.error?.message || 'Ошибка Cloudinary');
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Ошибка сервера: ${response.status}`);
       }
 
-      const uploadData = await uploadResponse.json();
-
-      return {
-        name: file.name,
-        type: file.type,
-        url: uploadData.secure_url,
-      };
+      return await response.json();
     } catch (error) {
       console.error('Upload error details:', error);
       const message = error instanceof Error ? error.message : 'Неизвестная ошибка сети';
       toast({ 
         title: 'Ошибка загрузки', 
-        description: `Детали: ${message}. Проверьте соединение и настройки Vercel.`, 
+        description: `у меня не получается загрузить файл а должно получаться!!! Детали: ${message}`, 
         variant: 'destructive' 
       });
       return null;
