@@ -55,23 +55,24 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       const signData = await signResponse.json();
 
       if (!signResponse.ok || signData.error) {
-        throw new Error(signData.error || `Server responded with ${signResponse.status}`);
+        throw new Error(signData.error || `Ошибка сервера подписи: ${signResponse.status}`);
       }
 
       const formData = new FormData();
       formData.append('file', file);
       formData.append('api_key', signData.apiKey);
-      formData.append('timestamp', signData.timestamp);
+      formData.append('timestamp', signData.timestamp.toString());
       formData.append('signature', signData.signature);
 
       const uploadResponse = await fetch(
         `https://api.cloudinary.com/v1_1/${signData.cloudName}/auto/upload`,
         { method: 'POST', body: formData }
       );
+      
       const uploadData = await uploadResponse.json();
 
       if (!uploadResponse.ok || uploadData.error) {
-        throw new Error(uploadData.error?.message || 'Ошибка при передаче файла в Cloudinary');
+        throw new Error(uploadData.error?.message || 'Ошибка Cloudinary при загрузке');
       }
 
       return {
@@ -80,11 +81,10 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
         url: uploadData.secure_url,
       };
     } catch (error) {
-      console.error('Upload failed:', error);
       const message = error instanceof Error ? error.message : 'Неизвестная ошибка';
       toast({ 
         title: 'Ошибка загрузки', 
-        description: `Детали: ${message}. Проверьте логи сервера.`, 
+        description: `Детали: ${message}. Проверьте соединение и настройки Vercel.`, 
         variant: 'destructive' 
       });
       return null;
