@@ -49,26 +49,42 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
 
   const uploadFile = async (file: File): Promise<FileAttachment | null> => {
     try {
+      const signResponse = await fetch('/api/sign-upload', { method: 'POST' });
+      if (!signResponse.ok) {
+        const err = await signResponse.json();
+        throw new Error(err.error || 'Ошибка получения подписи');
+      }
+      
+      const { timestamp, signature, apiKey, cloudName, folder } = await signResponse.json();
+
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('api_key', apiKey);
+      formData.append('timestamp', timestamp.toString());
+      formData.append('signature', signature);
+      formData.append('folder', folder);
 
-      const response = await fetch('/api/upload', {
+      const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
         method: 'POST',
         body: formData,
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Ошибка сервера: ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || `Cloudinary error: ${response.status}`);
       }
 
-      return await response.json();
+      const result = await response.json();
+      return {
+        name: file.name,
+        type: file.type,
+        url: result.secure_url,
+      };
     } catch (error) {
-      console.error('Upload error details:', error);
-      const message = error instanceof Error ? error.message : 'Неизвестная ошибка сети';
+      console.error('Upload error:', error);
       toast({ 
         title: 'Ошибка загрузки', 
-        description: `у меня не получается загрузить файл а должно получаться!!! Детали: ${message}`, 
+        description: `у меня не получается загрузить файл а должно получаться!!! Детали: ${error instanceof Error ? error.message : 'Unknown'}`, 
         variant: 'destructive' 
       });
       return null;
@@ -108,6 +124,8 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
         },
         size: { width: 320, height: 140 }
       };
+
+      if (messageData.file === null) delete messageData.file;
 
       await addDoc(messagesCol, messageData);
       form.reset();

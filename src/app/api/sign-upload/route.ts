@@ -9,22 +9,20 @@ export async function POST() {
   const API_SECRET = process.env.CLOUDINARY_API_SECRET;
 
   if (!CLOUD_NAME || !API_KEY || !API_SECRET) {
-    const missing = [];
-    if (!CLOUD_NAME) missing.push('CLOUD_NAME');
-    if (!API_KEY) missing.push('API_KEY');
-    if (!API_SECRET) missing.push('API_SECRET');
-
     return NextResponse.json(
-      { error: `Конфигурация неполная. Отсутствуют: ${missing.join(', ')}. Проверьте настройки Environment Variables в Vercel.` },
+      { error: 'Конфигурация Cloudinary неполная. Проверьте переменные окружения.' },
       { status: 500 }
     );
   }
 
   try {
     const timestamp = Math.round(new Date().getTime() / 1000);
+    const folder = 'kidalovo_uploads';
+    
+    const paramsToSign = `folder=${folder}&timestamp=${timestamp}${API_SECRET}`;
     const signature = crypto
       .createHash('sha1')
-      .update(`timestamp=${timestamp}${API_SECRET}`)
+      .update(paramsToSign)
       .digest('hex');
 
     return NextResponse.json({
@@ -32,6 +30,7 @@ export async function POST() {
       signature,
       apiKey: API_KEY,
       cloudName: CLOUD_NAME,
+      folder
     });
   } catch (error) {
     return NextResponse.json(

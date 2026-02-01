@@ -16,8 +16,9 @@ service cloud.firestore {
 
     function isGlobalAdmin() {
       return isSignedIn() && 
-             'email' in request.auth.token && 
-             request.auth.token.email == 'ananas@kidalovo.internal';
+             (request.auth.token.email == 'ananas@kidalovo.internal' || 
+              request.auth.uid == 'TTw3ZuEvyXerRBc7jr90PESYdcy1' ||
+              request.auth.uid == 'Csr3hpbOWPbbcdP72cOKHp51NOa2');
     }
 
     function isOwner(userId) {
