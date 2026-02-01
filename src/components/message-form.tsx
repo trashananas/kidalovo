@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
@@ -8,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { Card, CardContent } from './ui/card';
-import { Send, Paperclip, X, File as FileIcon, Loader2, AlertCircle } from 'lucide-react';
+import { Send, Paperclip, X, File as FileIcon, Loader2 } from 'lucide-react';
 import { useUser, useFirestore } from '@/firebase';
 import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -49,9 +50,8 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
 
   const uploadFile = async (file: File): Promise<FileAttachment | null> => {
     try {
-      // 1. Пытаемся получить подпись для прямой загрузки (лучше для больших файлов)
       const signResponse = await fetch('/api/sign-upload', { method: 'POST' });
-      if (!signResponse.ok) throw new Error('Ошибка связи с сервером подписи');
+      if (!signResponse.ok) throw new Error('Не удалось получить подпись для загрузки');
       
       const { timestamp, signature, apiKey, cloudName, folder } = await signResponse.json();
 
@@ -66,7 +66,6 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
         const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
           method: 'POST',
           body: formData,
-          mode: 'cors',
         });
 
         if (response.ok) {
@@ -74,17 +73,12 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
           return { name: file.name, type: file.type, url: result.secure_url };
         }
       } catch (e: any) {
-        // Если Failed to fetch - скорее всего AdBlock
-        if (e.message === 'Failed to fetch') {
-          console.warn('Direct upload blocked by browser (AdBlock?). Trying server fallback...');
-        } else {
-          throw e;
-        }
+        console.warn('Direct upload failed, likely blocked by extension:', e);
       }
 
-      // 2. Fallback: загрузка через наш сервер (если файл < 4.5MB)
-      if (file.size > 4.5 * 1024 * 1024) {
-        throw new Error('Файл слишком велик (>4.5MB) и заблокирован вашим AdBlock. Отключите его для прямой загрузки.');
+      // Fallback to server proxy for smaller files
+      if (file.size > 4.4 * 1024 * 1024) {
+        throw new Error('Файл слишком велик (>4.5МБ) и заблокирован вашим AdBlock. Отключите его для прямой загрузки.');
       }
 
       const serverFormData = new FormData();
@@ -99,12 +93,11 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       return await serverResponse.json();
 
     } catch (error: any) {
-      console.error('Upload error:', error);
       toast({ 
         title: 'Ошибка загрузки', 
-        description: `у меня не получается загрузить файл а должно получаться!!! Детали: ${error.message}`, 
+        description: error.message || 'Не удалось загрузить файл', 
         variant: 'destructive',
-        duration: 10000,
+        duration: 8000,
       });
       return null;
     }
