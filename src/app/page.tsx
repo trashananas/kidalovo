@@ -1,12 +1,13 @@
+
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Lock, Unlock, Plus, LogOut, Info, Eye, EyeOff, ShieldCheck, ShieldAlert, Settings, AlertTriangle } from 'lucide-react';
+import { Loader2, Lock, Unlock, Plus, LogOut, Info, Eye, EyeOff, ShieldCheck, ShieldAlert, Settings, AlertTriangle, RefreshCcw } from 'lucide-react';
 import { useUser, useAuth, useFirestore } from '@/firebase';
-import { initiateAnonymousSignIn } from '@/firebase/non-blocking-login';
+import { signInAnonymously } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { doc, getDoc, setDoc, serverTimestamp, collection, addDoc } from 'firebase/firestore';
 import { generateRoomCode, getErrorMessage } from '@/lib/utils';
@@ -30,6 +31,7 @@ import { Switch } from '@/components/ui/switch';
 import { signOut } from 'firebase/auth';
 import Link from 'next/link';
 import { RegistrationSuggestion } from '@/components/registration-suggestion';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,6 +45,8 @@ export default function Home() {
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [isJoiningRoom, setIsJoiningRoom] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
   const joinCodeRef = useRef<HTMLInputElement>(null);
 
   const [customCode, setCustomCode] = useState('');
@@ -54,9 +58,23 @@ export default function Home() {
 
   const isAnanas = user?.email === 'ananas@kidalovo.internal';
 
+  const performSignIn = async () => {
+    if (!auth || user || isAuthenticating) return;
+    setIsAuthenticating(true);
+    setAuthError(null);
+    try {
+      await signInAnonymously(auth);
+    } catch (error: any) {
+      console.error('Auth error:', error);
+      setAuthError(error.message || 'Ошибка при подключении к Firebase.');
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
+
   useEffect(() => {
     if (!user && !isUserLoading && auth) {
-      initiateAnonymousSignIn(auth);
+      performSignIn();
     }
   }, [user, isUserLoading, auth]);
 
@@ -67,12 +85,11 @@ export default function Home() {
         <div className="space-y-2">
           <h1 className="text-3xl font-bold">Ошибка конфигурации</h1>
           <div className="text-muted-foreground max-w-md space-y-4">
-            <p>API-ключи Firebase не найдены или указаны неверно. Это блокирует работу приложения.</p>
+            <p>API-ключи Firebase не найдены. Это блокирует работу приложения.</p>
             <div className="text-sm border p-4 rounded-md bg-muted/50 text-left font-mono space-y-2">
               <p>1. Проверьте <b>NEXT_PUBLIC_FIREBASE_API_KEY</b> в Vercel/Render.</p>
               <p>2. Ключ должен начинаться с <b>AIza</b>.</p>
-              <p>3. Убедитесь, что нет лишних пробелов в начале или конце.</p>
-              <p>4. После исправления запустите <b>Redeploy</b>.</p>
+              <p>3. Убедитесь, что нет лишних пробелов.</p>
             </div>
           </div>
         </div>
@@ -230,14 +247,6 @@ export default function Home() {
     }
   };
 
-  if (isUserLoading) {
-    return (
-      <div className="flex min-h-screen w-full items-center justify-center">
-        <Loader2 className="h-16 w-16 animate-spin" />
-      </div>
-    );
-  }
-
   const handleCodeInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rusToEngMap: { [key: string]: string } = {
         'й': 'q', 'ц': 'w', 'у': 'e', 'к': 'r', 'е': 't', 'н': 'y', 'г': 'u', 'ш': 'i', 'щ': 'o', 'з': 'p',
@@ -283,7 +292,7 @@ export default function Home() {
         )}
       </div>
 
-      <div className="flex flex-col items-center gap-8">
+      <div className="flex flex-col items-center gap-8 w-full max-w-md">
         <div className="flex flex-col items-center gap-2 select-none">
           <KidalovoLogo />
           <h1 className="text-5xl font-bold tracking-tight text-center">
@@ -293,143 +302,165 @@ export default function Home() {
             Интерактивная доска для сообщений в реальном времени.
           </p>
         </div>
-        <div className="flex flex-col items-stretch gap-4 rounded-lg border bg-card p-6 shadow-sm w-full max-w-md">
-          
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="lg" disabled={!user}>
-                <Plus className="mr-2 h-5 w-5" />
-                Создать комнату
+
+        {authError && (
+          <Alert variant="destructive" className="animate-in fade-in slide-in-from-top-4">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Ошибка входа</AlertTitle>
+            <AlertDescription className="flex flex-col gap-2">
+              <p>Firebase отклонил API-ключ. Проверьте <b>NEXT_PUBLIC_FIREBASE_API_KEY</b> в Vercel/Render.</p>
+              <Button size="sm" variant="outline" onClick={performSignIn} className="w-fit gap-2">
+                <RefreshCcw className="h-3 w-3" /> Повторить
               </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Настройка комнаты</DialogTitle>
-                <DialogDescription>
-                  Создайте уникальную доску для обсуждений.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="code" className="flex items-center gap-2">
-                    Код комнаты
-                    {user?.isAnonymous && <Info className="h-3 w-3 text-destructive" title="Только для авторизованных" />}
-                  </Label>
-                  <Input
-                    id="code"
-                    placeholder={user?.isAnonymous ? "Случайный код (авторизуйтесь)" : (isAnanas ? "Любая длина (админ)" : "Оставьте пустым для случайного")}
-                    value={customCode}
-                    onChange={(e) => setCustomCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
-                    maxLength={10}
-                    disabled={user?.isAnonymous}
-                    className="uppercase tracking-widest"
-                  />
-                  {user?.isAnonymous && <p className="text-[10px] text-destructive">Кастомные коды доступны только после входа в аккаунт.</p>}
-                </div>
-                <Separator />
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label className="flex items-center gap-2">
-                      {isPrivate ? <Lock className="h-4 w-4 text-primary" /> : <Unlock className="h-4 w-4 text-muted-foreground" />}
-                      Приватная комната
-                    </Label>
-                    <p className="text-[10px] text-muted-foreground">Доступ только по паролю</p>
-                  </div>
-                  <Switch
-                    checked={isPrivate}
-                    onCheckedChange={setIsPrivate}
-                  />
-                </div>
+            </AlertDescription>
+          </Alert>
+        )}
 
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label className="flex items-center gap-2">
-                      {onlyAuthorized ? <ShieldCheck className="h-4 w-4 text-primary" /> : <ShieldAlert className="h-4 w-4 text-muted-foreground" />}
-                      Только для авторизованных
-                    </Label>
-                    <p className="text-[10px] text-muted-foreground">Анонимы не смогут войти</p>
-                  </div>
-                  <Switch
-                    checked={onlyAuthorized}
-                    onCheckedChange={(val) => {
-                      if (user?.isAnonymous) {
-                         toast({ title: 'Доступ ограничен', description: 'Сначала войдите в аккаунт' });
-                         return;
-                      }
-                      setOnlyAuthorized(val);
-                    }}
-                    disabled={user?.isAnonymous}
-                  />
-                </div>
-
-                {isPrivate && (
-                  <div className="grid gap-2">
-                    <Label htmlFor="password">Пароль</Label>
-                    <div className="relative">
+        <div className="flex flex-col items-stretch gap-4 rounded-lg border bg-card p-6 shadow-sm w-full">
+          {isUserLoading || isAuthenticating ? (
+            <div className="flex flex-col items-center justify-center py-8 gap-4">
+              <Loader2 className="h-10 w-10 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground animate-pulse">Устанавливаем связь с доской...</p>
+            </div>
+          ) : (
+            <>
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button size="lg" disabled={!user}>
+                    <Plus className="mr-2 h-5 w-5" />
+                    Создать комнату
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[425px]">
+                  <DialogHeader>
+                    <DialogTitle>Настройка комнаты</DialogTitle>
+                    <DialogDescription>
+                      Создайте уникальную доску для обсуждений.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="code" className="flex items-center gap-2">
+                        Код комнаты
+                        {user?.isAnonymous && <Info className="h-3 w-3 text-destructive" title="Только для авторизованных" />}
+                      </Label>
                       <Input
-                        id="password"
-                        type={showRoomPassword ? "text" : "password"}
-                        placeholder="Введите пароль"
-                        value={roomPassword}
-                        onChange={(e) => setRoomPassword(e.target.value)}
-                        required={isPrivate}
-                        className="pr-10"
+                        id="code"
+                        placeholder={user?.isAnonymous ? "Случайный код (авторизуйтесь)" : (isAnanas ? "Любая длина (админ)" : "Оставьте пустым для случайного")}
+                        value={customCode}
+                        onChange={(e) => setCustomCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                        maxLength={10}
+                        disabled={user?.isAnonymous}
+                        className="uppercase tracking-widest"
                       />
-                      <button
-                        type="button"
-                        onClick={() => setShowRoomPassword(!showRoomPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        {showRoomPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
+                      {user?.isAnonymous && <p className="text-[10px] text-destructive">Кастомные коды доступны только после входа в аккаунт.</p>}
                     </div>
-                  </div>
-                )}
-              </div>
-              <DialogFooter>
-                <Button onClick={handleCreateRoom} disabled={isCreatingRoom} className="w-full">
-                   {isCreatingRoom ? <Loader2 className="animate-spin" /> : 'Создать'}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+                    <Separator />
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label className="flex items-center gap-2">
+                          {isPrivate ? <Lock className="h-4 w-4 text-primary" /> : <Unlock className="h-4 w-4 text-muted-foreground" />}
+                          Приватная комната
+                        </Label>
+                        <p className="text-[10px] text-muted-foreground">Доступ только по паролю</p>
+                      </div>
+                      <Switch
+                        checked={isPrivate}
+                        onCheckedChange={setIsPrivate}
+                      />
+                    </div>
 
-          <div className="relative w-full text-center">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">Или войти</span>
-            </div>
-          </div>
-          
-          <form onSubmit={handleJoinRoom} className="flex items-start gap-2">
-            <div className="space-y-1 flex-grow">
-              <Input
-                ref={joinCodeRef}
-                name="code"
-                placeholder="A1B2"
-                className="w-full text-center text-lg font-semibold tracking-widest uppercase"
-                maxLength={10}
-                onChange={handleCodeInputChange}
-                required
-                disabled={isJoiningRoom}
-              />
-              {joinError && (
-                <p className="text-[0.8rem] font-medium text-destructive text-center">
-                  {joinError}
-                </p>
-              )}
-            </div>
-            <Button type="submit" size="lg" variant="secondary" disabled={isJoiningRoom || !user}>
-              {isJoiningRoom ? <Loader2 className="animate-spin" /> : 'Войти'}
-            </Button>
-          </form>
-          
-          <Separator />
-          <div className="justify-center flex">
-            <UserGuide />
-          </div>
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label className="flex items-center gap-2">
+                          {onlyAuthorized ? <ShieldCheck className="h-4 w-4 text-primary" /> : <ShieldAlert className="h-4 w-4 text-muted-foreground" />}
+                          Только для авторизованных
+                        </Label>
+                        <p className="text-[10px] text-muted-foreground">Анонимы не смогут войти</p>
+                      </div>
+                      <Switch
+                        checked={onlyAuthorized}
+                        onCheckedChange={(val) => {
+                          if (user?.isAnonymous) {
+                             toast({ title: 'Доступ ограничен', description: 'Сначала войдите в аккаунт' });
+                             return;
+                          }
+                          setOnlyAuthorized(val);
+                        }}
+                        disabled={user?.isAnonymous}
+                      />
+                    </div>
+
+                    {isPrivate && (
+                      <div className="grid gap-2">
+                        <Label htmlFor="password">Пароль</Label>
+                        <div className="relative">
+                          <Input
+                            id="password"
+                            type={showRoomPassword ? "text" : "password"}
+                            placeholder="Введите пароль"
+                            value={roomPassword}
+                            onChange={(e) => setRoomPassword(e.target.value)}
+                            required={isPrivate}
+                            className="pr-10"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowRoomPassword(!showRoomPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            {showRoomPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <DialogFooter>
+                    <Button onClick={handleCreateRoom} disabled={isCreatingRoom} className="w-full">
+                       {isCreatingRoom ? <Loader2 className="animate-spin" /> : 'Создать'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              <div className="relative w-full text-center">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">Или войти</span>
+                </div>
+              </div>
+              
+              <form onSubmit={handleJoinRoom} className="flex items-start gap-2">
+                <div className="space-y-1 flex-grow">
+                  <Input
+                    ref={joinCodeRef}
+                    name="code"
+                    placeholder="A1B2"
+                    className="w-full text-center text-lg font-semibold tracking-widest uppercase"
+                    maxLength={10}
+                    onChange={handleCodeInputChange}
+                    required
+                    disabled={isJoiningRoom}
+                  />
+                  {joinError && (
+                    <p className="text-[0.8rem] font-medium text-destructive text-center">
+                      {joinError}
+                    </p>
+                  )}
+                </div>
+                <Button type="submit" size="lg" variant="secondary" disabled={isJoiningRoom || !user}>
+                  {isJoiningRoom ? <Loader2 className="animate-spin" /> : 'Войти'}
+                </Button>
+              </form>
+              
+              <Separator />
+              <div className="justify-center flex">
+                <UserGuide />
+              </div>
+            </>
+          )}
         </div>
       </div>
       <footer className="absolute bottom-4 text-xs text-muted-foreground">
