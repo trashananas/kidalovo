@@ -28,35 +28,36 @@ service cloud.firestore {
     function isRoomMember(roomId) {
       let room = get(/databases/$(database)/documents/rooms/$(roomId)).data;
       return isSignedIn() && (
-        (room != null && room.get('members', {}) != null && request.auth.uid in room.members) || 
-        isGlobalAdmin()
+        isGlobalAdmin() ||
+        (room != null && room.get('members', {}) != null && request.auth.uid in room.members)
       );
     }
 
     function isRoomOwner(roomId) {
       let room = get(/databases/$(database)/documents/rooms/$(roomId)).data;
       return isSignedIn() && (
+        isGlobalAdmin() ||
         (room != null && (
           (room.get('members', {}) != null && room.members.get(request.auth.uid, {}).get('role', '') == 'owner') ||
           (room.get('creatorId', '') == request.auth.uid)
-        )) || isGlobalAdmin()
+        ))
       );
     }
     
     function isLastMember(roomId) {
       let room = get(/databases/$(database)/documents/rooms/$(roomId)).data;
       return isSignedIn() && (
-        (room != null && room.get('members', {}) != null && room.members.size() == 1 && request.auth.uid in room.members) || 
-        isGlobalAdmin()
+        isGlobalAdmin() ||
+        (room != null && room.get('members', {}) != null && room.members.size() == 1 && request.auth.uid in room.members)
       );
     }
 
     function isMessageCreator() {
-      return request.resource.data.userId == request.auth.uid || request.resource.data.userId == 'system';
+      return isGlobalAdmin() || request.resource.data.userId == request.auth.uid || request.resource.data.userId == 'system';
     }
 
     function isDrawingCreator() {
-      return request.resource.data.userId == request.auth.uid;
+      return isGlobalAdmin() || request.resource.data.userId == request.auth.uid;
     }
 
     function hasContent() {
@@ -66,13 +67,13 @@ service cloud.firestore {
     }
 
     function isMessageOwner() {
-      return resource.data.userId == request.auth.uid;
+      return isGlobalAdmin() || resource.data.userId == request.auth.uid;
     }
 
     function isMessageUpdateValid() {
       let incoming = request.resource.data;
       let existing = resource.data;
-      return incoming.userId == existing.userId;
+      return isGlobalAdmin() || incoming.userId == existing.userId;
     }
 
     match /users/{userId} {
@@ -93,19 +94,21 @@ service cloud.firestore {
         allow read, list: if isRoomMember(roomId);
 
         allow create: if isSignedIn() && (
+          isGlobalAdmin() ||
           isRoomMember(roomId) || 
-          get(/databases/$(database)/documents/rooms/$(roomId)).data.creatorId == request.auth.uid ||
-          isGlobalAdmin()
+          get(/databases/$(database)/documents/rooms/$(roomId)).data.creatorId == request.auth.uid
         ) && isMessageCreator() && hasContent();
 
         allow update: if isExistingDoc() && isMessageUpdateValid() && (
+          isGlobalAdmin() ||
           (resource.data.get('type', '') == 'audit' && isGlobalAdmin()) ||
-          (resource.data.get('type', '') != 'audit' && (isMessageOwner() || (isRoomOwner(roomId) && isAuthorized()) || isGlobalAdmin()))
+          (resource.data.get('type', '') != 'audit' && (isMessageOwner() || (isRoomOwner(roomId) && isAuthorized())))
         );
 
         allow delete: if isExistingDoc() && (
+          isGlobalAdmin() ||
           (resource.data.get('type', '') == 'audit' && isGlobalAdmin()) ||
-          (resource.data.get('type', '') != 'audit' && (isMessageOwner() || (isRoomOwner(roomId) && isAuthorized()) || isLastMember(roomId) || isGlobalAdmin()))
+          (resource.data.get('type', '') != 'audit' && (isMessageOwner() || (isRoomOwner(roomId) && isAuthorized()) || isLastMember(roomId)))
         );
       }
       

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
@@ -22,13 +23,7 @@ const messageSchema = z.object({
 }).refine(data => {
   const hasText = typeof data.message === 'string' && data.message.trim().length > 0;
   return hasText || !!data.file;
-}, { message: 'Пустое сообщение', path: ['message'] })
-.refine(data => {
-  if (typeof data.message === 'string' && /валикова/gi.test(data.message)) {
-    return false;
-  }
-  return true;
-}, { message: 'your message contains a nature error', path: ['message'] });
+}, { message: 'Пустое сообщение', path: ['message'] });
 
 export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: { x: number; y: number } }) {
   const { user } = useUser();
@@ -55,29 +50,62 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
     }
   }, [user, firestore]);
 
+  const uploadFile = async (file: File): Promise<FileAttachment | null> => {
+    try {
+      const signResponse = await fetch('/api/sign-upload', { method: 'POST' });
+      const signData = await signResponse.json();
+
+      if (signData.error) throw new Error(signData.error);
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('api_key', signData.apiKey);
+      formData.append('timestamp', signData.timestamp);
+      formData.append('signature', signData.signature);
+
+      const uploadResponse = await fetch(
+        `https://api.cloudinary.com/v1_1/${signData.cloudName}/auto/upload`,
+        { method: 'POST', body: formData }
+      );
+      const uploadData = await uploadResponse.json();
+
+      if (uploadData.error) throw new Error(uploadData.error.message);
+
+      return {
+        name: file.name,
+        type: file.type,
+        url: uploadData.secure_url,
+      };
+    } catch (error) {
+      console.error('Upload failed:', error);
+      toast({ title: 'Ошибка загрузки файла', description: 'Не удалось загрузить файл на сервер.', variant: 'destructive' });
+      return null;
+    }
+  };
+
   const onSubmit = async (values: z.infer<typeof messageSchema>) => {
     if (!firestore || !user || !roomId) return;
     setIsSubmitting(true);
     
     const messagesCol = collection(firestore, 'rooms', roomId, 'messages');
-    
+    let messageData: any = null;
+
     try {
       let fileAttachment: FileAttachment | null = null;
       if (values.file instanceof File) {
-        const reader = new FileReader();
-        const dataUrl = await new Promise<string>((res) => {
-          reader.onload = () => res(reader.result as string);
-          reader.readAsDataURL(values.file as File);
-        });
-        fileAttachment = { name: (values.file as File).name, type: (values.file as File).type, url: dataUrl };
+        fileAttachment = await uploadFile(values.file);
+        if (!fileAttachment && !values.message.trim()) {
+           setIsSubmitting(false);
+           return;
+        }
       }
 
-      const messageData = {
+      messageData = {
         roomId,
         text: values.message,
         file: fileAttachment,
         userId: user.uid,
-        authorName: profile?.username || 'Аноним',
+        authorName: profile?.username || (user.isAnonymous ? 'Аноним' : (user.displayName || 'Пользователь')),
         authorColor: profile?.color || '#666666',
         authorLogin: profile?.login || null,
         createdAt: serverTimestamp(),
@@ -95,7 +123,7 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: messagesCol.path,
         operation: 'create',
-        requestResourceData: values
+        requestResourceData: messageData || values
       }));
     } finally {
       setIsSubmitting(false);
