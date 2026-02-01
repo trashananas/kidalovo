@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, getDocs } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
@@ -36,6 +36,7 @@ export default function AdminPage() {
 
   const [roomStats, setRoomStats] = useState<Record<string, { count: number, size: number }>>({});
   const [isStatsLoading, setIsStatsLoading] = useState(false);
+  const hasAutoFetched = useRef(false);
 
   useEffect(() => {
     if (!isUserLoading && !isAnanas) {
@@ -73,6 +74,13 @@ export default function AdminPage() {
     setIsStatsLoading(false);
   };
 
+  useEffect(() => {
+    if (roomsData && roomsData.length > 0 && !hasAutoFetched.current && !isRoomsLoading) {
+      hasAutoFetched.current = true;
+      fetchStats();
+    }
+  }, [roomsData, isRoomsLoading]);
+
   if (isUserLoading || !isAnanas) {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-10 w-10" /></div>;
   }
@@ -85,7 +93,7 @@ export default function AdminPage() {
             <Button variant="outline" size="icon" asChild>
               <Link href="/"><ArrowLeft className="h-4 w-4" /></Link>
             </Button>
-            <h1 className="text-3xl font-bold">Панель администратора Ananas</h1>
+            <h1 className="text-3xl font-bold">Панель администратора</h1>
           </div>
           <Button onClick={fetchStats} disabled={isStatsLoading || !roomsData}>
             {isStatsLoading ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Database className="mr-2 h-4 w-4" />}
@@ -162,7 +170,7 @@ export default function AdminPage() {
                     <TableHead>Код</TableHead>
                     <TableHead>Дата создания</TableHead>
                     <TableHead className="text-right">МСГ</TableHead>
-                    <TableHead className="text-right">МБ</TableHead>
+                    <TableHead className="text-right">КБ</TableHead>
                     <TableHead className="text-right">Вход</TableHead>
                   </TableRow>
                 </TableHeader>
