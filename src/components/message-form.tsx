@@ -44,19 +44,22 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       getDoc(doc(firestore, 'users', user.uid)).then(snap => {
         if (snap.exists()) setProfile(snap.data() as UserProfile);
       });
-    } else {
-      setProfile(null);
     }
   }, [user, firestore]);
 
   const uploadFile = async (file: File): Promise<FileAttachment | null> => {
     try {
-      const signResponse = await fetch('/api/sign-upload', { method: 'POST' });
-      const signData = await signResponse.json();
-
-      if (!signResponse.ok || signData.error) {
-        throw new Error(signData.error || `Ошибка сервера подписи: ${signResponse.status}`);
+      const signResponse = await fetch('/api/sign-upload', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (!signResponse.ok) {
+        const errorData = await signResponse.json().catch(() => ({}));
+        throw new Error(errorData.error || `Ошибка сервера: ${signResponse.status}`);
       }
+
+      const signData = await signResponse.json();
 
       const formData = new FormData();
       formData.append('file', file);
@@ -69,11 +72,12 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
         { method: 'POST', body: formData }
       );
       
-      const uploadData = await uploadResponse.json();
-
-      if (!uploadResponse.ok || uploadData.error) {
-        throw new Error(uploadData.error?.message || 'Ошибка Cloudinary при загрузке');
+      if (!uploadResponse.ok) {
+        const uploadData = await uploadResponse.json().catch(() => ({}));
+        throw new Error(uploadData.error?.message || 'Ошибка Cloudinary');
       }
+
+      const uploadData = await uploadResponse.json();
 
       return {
         name: file.name,
@@ -81,7 +85,8 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
         url: uploadData.secure_url,
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Неизвестная ошибка';
+      console.error('Upload error details:', error);
+      const message = error instanceof Error ? error.message : 'Неизвестная ошибка сети';
       toast({ 
         title: 'Ошибка загрузки', 
         description: `Детали: ${message}. Проверьте соединение и настройки Vercel.`, 

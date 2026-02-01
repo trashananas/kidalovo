@@ -3,19 +3,19 @@ import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
-const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_CLOUD_NAME;
-const API_KEY = process.env.CLOUDINARY_API_KEY || process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY;
-const API_SECRET = process.env.CLOUDINARY_API_SECRET;
-
 export async function POST() {
+  const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_CLOUD_NAME;
+  const API_KEY = process.env.CLOUDINARY_API_KEY || process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY;
+  const API_SECRET = process.env.CLOUDINARY_API_SECRET;
+
   if (!CLOUD_NAME || !API_KEY || !API_SECRET) {
-    let missing = [];
+    const missing = [];
     if (!CLOUD_NAME) missing.push('CLOUD_NAME');
     if (!API_KEY) missing.push('API_KEY');
     if (!API_SECRET) missing.push('API_SECRET');
 
     return NextResponse.json(
-      { error: `Конфигурация неполная. Отсутствуют: ${missing.join(', ')}. Проверьте Environment Variables в Vercel.` },
+      { error: `Конфигурация неполная. Отсутствуют: ${missing.join(', ')}. Проверьте настройки Environment Variables в Vercel.` },
       { status: 500 }
     );
   }
