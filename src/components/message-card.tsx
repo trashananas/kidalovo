@@ -293,14 +293,42 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
         </div>
         
         {message.file && !isCollapsed && !isAuditLog && (
-          message.file.type.startsWith('image') ? (
-            <img src={message.file.url} alt={message.file.name} className="w-full h-auto max-h-96 rounded-md mb-2 object-contain pointer-events-none" />
-          ) : (
-            <div className="flex items-center gap-3 p-2 rounded-md border bg-muted/20 mb-2">
-              <FileIcon className="h-6 w-6 text-muted-foreground" />
-              <span className="text-xs truncate">{message.file.name}</span>
-            </div>
-          )
+          <div className="relative group/file mb-2">
+            {message.file.type.startsWith('image') ? (
+              <div className="relative">
+                <img 
+                  src={message.file.url} 
+                  alt={message.file.name} 
+                  className="w-full h-auto max-h-96 rounded-md object-contain pointer-events-none" 
+                />
+                <a 
+                  href={message.file.url} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="absolute top-2 right-2 p-1.5 bg-background/80 backdrop-blur-sm rounded-md shadow-sm opacity-0 group-hover/file:opacity-100 transition-opacity hover:bg-primary hover:text-primary-foreground"
+                  onClick={(e) => e.stopPropagation()}
+                  title="Скачать"
+                >
+                  <Download className="h-4 w-4" />
+                </a>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 p-2 rounded-md border bg-muted/20 hover:bg-muted/30 transition-colors">
+                <FileIcon className="h-6 w-6 text-muted-foreground" />
+                <span className="text-xs truncate flex-1">{message.file.name}</span>
+                <a 
+                  href={message.file.url} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="p-1.5 bg-background rounded-md shadow-sm hover:bg-primary hover:text-primary-foreground transition-colors"
+                  onClick={(e) => e.stopPropagation()}
+                  title="Скачать"
+                >
+                  <Download className="h-4 w-4" />
+                </a>
+              </div>
+            )}
+          </div>
         )}
 
         <div className="flex items-start gap-2 flex-grow min-h-0">
