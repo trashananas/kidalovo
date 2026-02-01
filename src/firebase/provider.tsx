@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
@@ -60,7 +59,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 }) => {
   const [userAuthState, setUserAuthState] = useState<UserAuthState>({
     user: null,
-    isUserLoading: !!auth,
+    isUserLoading: true,
   });
 
   useEffect(() => {
@@ -117,7 +116,7 @@ export const useFirebase = (): FirebaseServicesAndUser => {
       auth: null as any,
       storage: null as any,
       user: null,
-      isUserLoading: false,
+      isUserLoading: context.isUserLoading,
       userError: context.userError,
     };
   }
