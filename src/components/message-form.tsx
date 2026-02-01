@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
@@ -8,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { Card, CardContent } from './ui/card';
-import { Send, Paperclip, X, File as FileIcon, Loader2 } from 'lucide-react';
+import { Send, Paperclip, X, File as FileIcon, Loader2, AlertCircle } from 'lucide-react';
 import { useUser, useFirestore } from '@/firebase';
 import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -67,6 +68,7 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
         method: 'POST',
         body: formData,
+        mode: 'cors',
       });
 
       if (!response.ok) {
@@ -80,12 +82,18 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
         type: file.type,
         url: result.secure_url,
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Upload error:', error);
+      
+      const isBlocked = error?.message === 'Failed to fetch' || error?.name === 'TypeError';
+      
       toast({ 
         title: 'Ошибка загрузки', 
-        description: `у меня не получается загрузить файл а должно получаться!!! Детали: ${error instanceof Error ? error.message : 'Unknown'}`, 
-        variant: 'destructive' 
+        description: isBlocked 
+          ? 'Запрос заблокирован браузером. Пожалуйста, ОТКЛЮЧИТЕ ADBLOCK или uBlock для этого сайта!' 
+          : `у меня не получается загрузить файл а должно получаться!!! Детали: ${error.message}`, 
+        variant: 'destructive',
+        duration: 10000,
       });
       return null;
     }
@@ -111,7 +119,6 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       messageData = {
         roomId,
         text: values.message,
-        file: fileAttachment,
         userId: user.uid,
         authorName: profile?.username || (user.isAnonymous ? 'Аноним' : (user.displayName || 'Пользователь')),
         authorColor: profile?.color || '#666666',
@@ -125,7 +132,9 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
         size: { width: 320, height: 140 }
       };
 
-      if (messageData.file === null) delete messageData.file;
+      if (fileAttachment) {
+        messageData.file = fileAttachment;
+      }
 
       await addDoc(messagesCol, messageData);
       form.reset();
