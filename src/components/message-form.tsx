@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
@@ -55,7 +54,9 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       const signResponse = await fetch('/api/sign-upload', { method: 'POST' });
       const signData = await signResponse.json();
 
-      if (signData.error) throw new Error(signData.error);
+      if (!signResponse.ok || signData.error) {
+        throw new Error(signData.error || `Server responded with ${signResponse.status}`);
+      }
 
       const formData = new FormData();
       formData.append('file', file);
@@ -69,7 +70,9 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       );
       const uploadData = await uploadResponse.json();
 
-      if (uploadData.error) throw new Error(uploadData.error.message);
+      if (!uploadResponse.ok || uploadData.error) {
+        throw new Error(uploadData.error?.message || 'Ошибка при передаче файла в Cloudinary');
+      }
 
       return {
         name: file.name,
@@ -78,9 +81,10 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       };
     } catch (error) {
       console.error('Upload failed:', error);
+      const message = error instanceof Error ? error.message : 'Неизвестная ошибка';
       toast({ 
-        title: 'Ошибка загрузки файла', 
-        description: ' у меня не получается загрузить файл а должно получаться!!! посмотри что не так и разберись', 
+        title: 'Ошибка загрузки', 
+        description: `Детали: ${message}. Проверьте логи сервера.`, 
         variant: 'destructive' 
       });
       return null;
