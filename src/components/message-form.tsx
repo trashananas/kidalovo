@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
@@ -9,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { Card, CardContent } from './ui/card';
-import { Send, Paperclip, X, File as FileIcon, Loader2 } from 'lucide-react';
+import { Send, Paperclip, X, File as FileIcon, Loader2, AlertCircle } from 'lucide-react';
 import { useUser, useFirestore } from '@/firebase';
 import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -56,37 +55,23 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
   };
 
   const uploadFile = async (file: File): Promise<FileAttachment | null> => {
-    // 1. Маленькие файлы (до 1 МБ) - в Firestore (Base64) - ЖЕЛЕЗОБЕТОННО
-    if (file.size <= 1024 * 1024) {
+    // 1. Мелкие файлы (до 800 КБ) - в Firestore (Base64)
+    if (file.size <= 800 * 1024) {
       try {
         const base64 = await fileToBase64(file);
         return { name: file.name, type: file.type, url: base64 };
       } catch (e) {
-        console.error('Base64 error:', e);
+        console.error('Base64 conversion failed:', e);
       }
     }
 
-    // 2. Средние файлы (до 4.5 МБ) - через серверный прокси (обход CORS)
-    if (file.size <= 4.5 * 1024 * 1024) {
-      try {
-        const serverFormData = new FormData();
-        serverFormData.append('file', file);
-        const serverRes = await fetch('/api/upload', { method: 'POST', body: serverFormData });
-        
-        if (serverRes.ok) {
-          return await serverRes.json();
-        }
-        const errData = await serverRes.json();
-        console.warn('Server upload failed:', errData.error);
-      } catch (e) {
-        console.warn('Server upload connection failed, fallback to direct...');
-      }
-    }
-
-    // 3. Прямая загрузка в Cloudinary (свыше 4.5 МБ)
+    // 2. Все остальные файлы - НАПРЯМУЮ в Cloudinary (минуя сервер приложения)
     try {
       const signResponse = await fetch('/api/sign-upload', { method: 'POST' });
-      if (!signResponse.ok) throw new Error('Ошибка авторизации облака');
+      if (!signResponse.ok) {
+        const err = await signResponse.json();
+        throw new Error(err.error || 'Ошибка авторизации в облаке');
+      }
       
       const { timestamp, signature, apiKey, cloudName, folder } = await signResponse.json();
 
@@ -100,6 +85,7 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
         method: 'POST',
         body: formData,
+        mode: 'cors',
       });
 
       if (response.ok) {
@@ -107,11 +93,12 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
         return { name: file.name, type: file.type, url: result.secure_url };
       } else {
         const errText = await response.text();
-        throw new Error(`Облако отклонило файл: ${errText}`);
+        console.error('Cloudinary error response:', errText);
+        throw new Error('Облачное хранилище отклонило файл. Проверьте AdBlock или ключи.');
       }
     } catch (e: any) {
-      console.error('Direct upload failed:', e);
-      throw new Error(e.message || 'Ошибка при загрузке крупного файла. Проверьте соединение.');
+      console.error('Upload failed:', e);
+      throw e;
     }
   };
 
@@ -147,8 +134,8 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       form.setValue('file', null);
     } catch (error: any) {
       toast({ 
-        title: 'Ошибка', 
-        description: error.message || 'Сетевая ошибка (Failed to fetch)', 
+        title: 'Ошибка загрузки', 
+        description: error.message || 'Не удалось отправить файл.', 
         variant: 'destructive'
       });
     } finally {
@@ -210,6 +197,7 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
               size="icon" 
               variant="outline" 
               onClick={() => document.getElementById('file-input')?.click()}
+              title="Прикрепить файл"
             >
               <Paperclip className="h-4 w-4" />
             </Button>
