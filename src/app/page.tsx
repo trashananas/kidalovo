@@ -1,10 +1,11 @@
+
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Lock, Unlock, Plus, LogOut, Info, Eye, EyeOff, ShieldCheck, ShieldAlert, Settings } from 'lucide-react';
+import { Loader2, Lock, Unlock, Plus, LogOut, Info, Eye, EyeOff, ShieldCheck, ShieldAlert, Settings, AlertTriangle } from 'lucide-react';
 import { useUser, useAuth, useFirestore } from '@/firebase';
 import { initiateAnonymousSignIn } from '@/firebase/non-blocking-login';
 import { useRouter } from 'next/navigation';
@@ -209,11 +210,26 @@ export default function Home() {
     }
   };
 
-  if (isUserLoading || !auth) {
+  if (isUserLoading) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center">
         <Loader2 className="h-16 w-16 animate-spin" />
       </div>
+    );
+  }
+
+  if (!auth) {
+    return (
+      <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 text-center gap-6">
+        <AlertTriangle className="h-16 w-16 text-destructive" />
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold">Ошибка конфигурации</h1>
+          <p className="text-muted-foreground max-w-md">
+            API-ключи Firebase не найдены. Если вы видите это после деплоя, убедитесь, что вы добавили переменные окружения в настройках Vercel.
+          </p>
+        </div>
+        <Button variant="outline" onClick={() => window.location.reload()}>Попробовать снова</Button>
+      </main>
     );
   }
 

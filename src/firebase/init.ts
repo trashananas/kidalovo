@@ -1,3 +1,4 @@
+
 import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
@@ -7,7 +8,16 @@ import { getStorage } from 'firebase/storage';
 export function initializeFirebase() {
   const isConfigValid = !!firebaseConfig.apiKey && !!firebaseConfig.projectId;
 
-  if (typeof window === 'undefined' || !isConfigValid) {
+  if (typeof window === 'undefined') {
+    return {
+      firebaseApp: null as any,
+      auth: null as any,
+      firestore: null as any,
+      storage: null as any,
+    };
+  }
+
+  if (!isConfigValid) {
     return {
       firebaseApp: null as any,
       auth: null as any,
