@@ -315,7 +315,7 @@ export default function Home() {
           </Alert>
         )}
 
-        <div className="flex flex-col items-stretch gap-4 rounded-lg border bg-card p-6 shadow-sm w-full">
+        <div className="flex flex-col items-stretch gap-4 w-full">
           {isUserLoading || isAuthenticating ? (
             <div className="flex flex-col items-center justify-center py-8 gap-4">
               <Loader2 className="h-10 w-10 animate-spin text-primary" />
@@ -427,7 +427,7 @@ export default function Home() {
                   <span className="w-full border-t" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">Или войти</span>
+                  <span className="bg-background px-2 text-muted-foreground">Или войти</span>
                 </div>
               </div>
               
