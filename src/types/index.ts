@@ -3,7 +3,10 @@ import type { Timestamp } from 'firebase/firestore';
 export type FileAttachment = {
   name: string;
   type: string;
-  url: string;
+  url?: string;
+  fileId?: string;
+  totalChunks?: number;
+  size: number;
 };
 
 export type Message = {

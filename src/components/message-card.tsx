@@ -10,7 +10,7 @@ import { GripVertical, Copy, File as FileIcon, Download, Pencil, Loader2, Trash2
 import { formatDistanceToNow } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { PineappleBadge } from './pineapple-badge';
 
@@ -89,6 +89,7 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editText, setEditText] = useState(message.text || '');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const lastDeleteClickRef = useRef<number>(0);
 
   const cardRef = useRef<HTMLDivElement>(null);
@@ -97,20 +98,13 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
   const dragOffset = useRef({ x: 0, y: 0 });
 
   const isGlobalAdmin = user?.email === 'ananas@kidalovo.internal';
-  
   const isAuditLog = message.type === 'audit';
-
   const isOwner = isAuditLog 
     ? isGlobalAdmin 
     : ((user?.uid === message.userId) || (isRoomOwner && user && !user.isAnonymous) || isGlobalAdmin);
 
-  useEffect(() => {
-    setPosition(message.position);
-  }, [message.position]);
-
-  useEffect(() => {
-    if (message.size) setSize(message.size);
-  }, [message.size]);
+  useEffect(() => { setPosition(message.position); }, [message.position]);
+  useEffect(() => { if (message.size) setSize(message.size); }, [message.size]);
 
   useEffect(() => {
     if (!message.createdAt) { setTimeAgo('только что'); return; }
@@ -134,15 +128,11 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
 
   const handleCardPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isOwner || isEditing) return;
-
     if (!isDragging && dragStartRef.current) {
       const dx = Math.abs(e.clientX - dragStartRef.current.x);
       const dy = Math.abs(e.clientY - dragStartRef.current.y);
-      if (dx > 5 || dy > 5) {
-        setIsDragging(true);
-      }
+      if (dx > 5 || dy > 5) setIsDragging(true);
     }
-
     if (isDragging) {
       const board = document.getElementById('board');
       if (!board) return;
@@ -155,12 +145,8 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
   };
 
   const handleCardPointerUp = async (e: React.PointerEvent<HTMLDivElement>) => {
-    if (dragStartRef.current && !isDragging && !isResizing) {
-      setIsCollapsed((p) => !p);
-    }
-
+    if (dragStartRef.current && !isDragging && !isResizing) setIsCollapsed((p) => !p);
     dragStartRef.current = null;
-    
     if (isDragging && isOwner) {
       cardRef.current?.releasePointerCapture(e.pointerId);
       setIsDragging(false);
@@ -168,9 +154,7 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
         try {
           const messageDocRef = doc(firestore, 'rooms', roomId, 'messages', message.id);
           await updateDoc(messageDocRef, { position });
-        } catch (error) {
-          toast({ title: 'Ошибка', description: getErrorMessage(error), variant: 'destructive' });
-        }
+        } catch (error) { toast({ title: 'Ошибка', description: getErrorMessage(error), variant: 'destructive' }); }
       }
     }
   };
@@ -223,32 +207,33 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
 
   const handleDownload = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!message.file) return;
-
-    const { url, name } = message.file;
+    if (!message.file || !firestore) return;
+    setIsDownloading(true);
 
     try {
-      if (url.startsWith('data:')) {
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = name;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      } else {
-        const response = await fetch(url);
-        const blob = await response.blob();
-        const blobUrl = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = blobUrl;
-        a.download = name;
-        document.body.appendChild(a);
-        a.click();
-        URL.revokeObjectURL(blobUrl);
-        document.body.removeChild(a);
+      const { url, fileId, name, totalChunks } = message.file;
+      let finalBase64 = '';
+
+      if (url) {
+        finalBase64 = url;
+      } else if (fileId && totalChunks) {
+        const chunksCol = collection(firestore, 'rooms', roomId, 'file_chunks', fileId, 'chunks');
+        const q = query(chunksCol, orderBy('index', 'asc'));
+        const snap = await getDocs(q);
+        snap.docs.forEach(d => { finalBase64 += d.data().data.split(',')[1] || d.data().data; });
+        if (!finalBase64.startsWith('data:')) finalBase64 = `data:${message.file.type};base64,${finalBase64}`;
       }
+
+      const link = document.createElement('a');
+      link.href = finalBase64;
+      link.download = name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     } catch (err) {
-      window.open(url, '_blank');
+      toast({ title: 'Ошибка скачивания', description: getErrorMessage(err), variant: 'destructive' });
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -275,14 +260,11 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
       data-message-card="true"
     >
       <div className="relative p-4 flex flex-col gap-2 flex-grow overflow-hidden">
-        
         <div className="flex justify-between items-start">
           {isAuditLog ? (
             <div className="flex items-center gap-2 mb-1">
               <ShieldCheck className="h-4 w-4 text-primary" />
-              <div className="text-[10px] font-bold uppercase tracking-wider text-primary">
-                Список участников
-              </div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-primary">Список участников</div>
             </div>
           ) : (
              message.authorName && !isCollapsed && (
@@ -298,45 +280,17 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
           {!isCollapsed && !isEditing && (
             <div className="flex gap-1 ml-auto">
               {!isAuditLog && (
-                <div 
-                  className="p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer" 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigator.clipboard.writeText(message.text || '');
-                    toast({ title: "Скопировано!" });
-                  }} 
-                  title="Копировать"
-                >
+                <div className="p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(message.text || ''); toast({ title: "Скопировано!" }); }} title="Копировать">
                   <Copy className="h-4 w-4" />
                 </div>
               )}
               {isOwner && (
-                <div 
-                  className="p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer" 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsEditing(true);
-                  }} 
-                  title="Изменить"
-                >
+                <div className="p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer" onClick={(e) => { e.stopPropagation(); setIsEditing(true); }} title="Изменить">
                   <Pencil className="h-4 w-4" />
                 </div>
               )}
               {isOwner && (
-                <div 
-                  className="p-1 text-destructive/50 hover:text-destructive cursor-pointer" 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const now = Date.now();
-                    if (now - lastDeleteClickRef.current < 500) {
-                      handleDelete();
-                    } else {
-                      toast({ title: "Удаление", description: "Нажмите еще раз для подтверждения" });
-                    }
-                    lastDeleteClickRef.current = now;
-                  }} 
-                  title="Удалить"
-                >
+                <div className="p-1 text-destructive/50 hover:text-destructive cursor-pointer" onClick={(e) => { e.stopPropagation(); const now = Date.now(); if (now - lastDeleteClickRef.current < 500) handleDelete(); else toast({ title: "Удаление", description: "Нажмите еще раз для подтверждения" }); lastDeleteClickRef.current = now; }} title="Удалить">
                   <Trash2 className="h-4 w-4" />
                 </div>
               )}
@@ -346,31 +300,22 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
         
         {message.file && !isCollapsed && !isAuditLog && (
           <div className="relative group/file mb-2">
-            {message.file.type.startsWith('image') ? (
+            {message.file.type.startsWith('image') && message.file.url ? (
               <div className="relative">
-                <img 
-                  src={message.file.url} 
-                  alt={message.file.name} 
-                  className="w-full h-auto max-h-96 rounded-md object-contain pointer-events-none" 
-                />
-                <div 
-                  className="absolute top-2 right-2 p-1.5 bg-background/80 backdrop-blur-sm rounded-md shadow-sm opacity-0 group-hover/file:opacity-100 transition-opacity hover:bg-primary hover:text-primary-foreground cursor-pointer"
-                  onClick={handleDownload}
-                  title="Скачать"
-                >
-                  <Download className="h-4 w-4" />
+                <img src={message.file.url} alt={message.file.name} className="w-full h-auto max-h-96 rounded-md object-contain pointer-events-none" />
+                <div className="absolute top-2 right-2 p-1.5 bg-background/80 backdrop-blur-sm rounded-md shadow-sm opacity-0 group-hover/file:opacity-100 transition-opacity hover:bg-primary hover:text-primary-foreground cursor-pointer" onClick={handleDownload} title="Скачать">
+                  {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                 </div>
               </div>
             ) : (
               <div className="flex items-center gap-3 p-2 rounded-md border bg-muted/20 hover:bg-muted/30 transition-colors">
                 <FileIcon className="h-6 w-6 text-muted-foreground" />
-                <span className="text-xs truncate flex-1">{message.file.name}</span>
-                <div 
-                  className="p-1.5 bg-background rounded-md shadow-sm hover:bg-primary hover:text-primary-foreground transition-colors cursor-pointer"
-                  onClick={handleDownload}
-                  title="Скачать"
-                >
-                  <Download className="h-4 w-4" />
+                <div className="flex flex-col flex-1 min-w-0">
+                  <span className="text-xs truncate font-medium">{message.file.name}</span>
+                  <span className="text-[10px] text-muted-foreground">{(message.file.size / 1024 / 1024).toFixed(2)} MB</span>
+                </div>
+                <div className="p-1.5 bg-background rounded-md shadow-sm hover:bg-primary hover:text-primary-foreground transition-colors cursor-pointer" onClick={handleDownload} title="Скачать">
+                  {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                 </div>
               </div>
             )}
@@ -379,14 +324,10 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
 
         <div className="flex items-start gap-2 flex-grow min-h-0">
           {isOwner && !isEditing && (
-            <div 
-              className="p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer shrink-0" 
-              onPointerDown={handleGripPointerDown}
-            >
+            <div className="p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-pointer shrink-0" onPointerDown={handleGripPointerDown}>
               <GripVertical className="h-5 w-5" />
             </div>
           )}
-
           <div className="flex-1 min-w-0 overflow-y-auto pr-1 custom-scrollbar">
             {isEditing ? (
               <div className="flex flex-col gap-2">
@@ -420,16 +361,12 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
 
         {!isCollapsed && !isEditing && !isAuditLog && (
           <div className="mt-auto text-[10px] text-muted-foreground pt-1 border-t flex justify-between shrink-0">
-            <span>{timeAgo}</span>
+            <span>{timeAgo}{message.updatedAt ? ' (отред.)' : ''}</span>
           </div>
         )}
       </div>
       {isOwner && !isCollapsed && (
-        <div 
-          className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize hover:bg-primary/20 transition-colors rounded-br-lg" 
-          onPointerDown={handleResizePointerDown} 
-          data-resize-handle="true"
-        />
+        <div className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize hover:bg-primary/20 transition-colors rounded-br-lg" onPointerDown={handleResizePointerDown} data-resize-handle="true" />
       )}
     </Card>
   );
