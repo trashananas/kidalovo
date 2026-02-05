@@ -13,6 +13,7 @@ import { useUser, useFirestore } from '@/firebase';
 import { doc, updateDoc, serverTimestamp, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { PineappleBadge } from './pineapple-badge';
+import { Progress } from './ui/progress';
 
 const renderFormattedText = (text: string): React.ReactNode[] => {
   const nodes: React.ReactNode[] = [];
@@ -239,6 +240,9 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
 
   const isAuthorAdmin = message.authorLogin?.toLowerCase() === 'ananas';
   const isFileUploading = message.file?.isUploading;
+  const uploadProgress = (message.file?.totalChunks && message.file?.uploadedChunks !== undefined) 
+    ? Math.round((message.file.uploadedChunks / message.file.totalChunks) * 100) 
+    : 0;
 
   return (
     <Card
@@ -302,9 +306,12 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
         {message.file && !isCollapsed && !isAuditLog && (
           <div className="relative group/file mb-2">
             {isFileUploading ? (
-              <div className="flex items-center gap-2 p-4 border rounded-md bg-muted/30 animate-pulse">
-                <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                <span className="text-xs font-medium">Загрузка файла...</span>
+              <div className="flex flex-col gap-2 p-3 border rounded-md bg-muted/30">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  <span className="text-xs font-medium">Загрузка файла: {uploadProgress}%</span>
+                </div>
+                <Progress value={uploadProgress} className="h-1.5" />
               </div>
             ) : (
               message.file.type.startsWith('image') && message.file.url ? (
@@ -347,7 +354,7 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
               </div>
             ) : isCollapsed ? (
               <div className="text-xs italic text-muted-foreground truncate opacity-70">
-                {isAuditLog ? 'Тут были...' : (isFileUploading ? 'Загрузка файла...' : (message.text || 'Файл...'))}
+                {isAuditLog ? 'Тут были...' : (isFileUploading ? `Загрузка... ${uploadProgress}%` : (message.text || 'Файл...'))}
               </div>
             ) : isAuditLog ? (
               <div className="space-y-2">

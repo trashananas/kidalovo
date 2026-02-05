@@ -64,6 +64,7 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
 
     try {
       const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+      const messageRef = doc(firestore, 'rooms', roomId, 'messages', messageId);
       
       for (let i = 0; i < totalChunks; i++) {
         const start = i * CHUNK_SIZE;
@@ -76,6 +77,11 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
         batch.set(chunkRef, { data: base64, index: i });
         await batch.commit();
         
+        // Обновляем публичный прогресс в Firestore
+        await updateDoc(messageRef, {
+          'file.uploadedChunks': i + 1
+        });
+        
         const progress = Math.round(((i + 1) / totalChunks) * 100);
         updateToast({
           id: toastId,
@@ -84,7 +90,6 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
         });
       }
 
-      const messageRef = doc(firestore, 'rooms', roomId, 'messages', messageId);
       await updateDoc(messageRef, {
         'file.isUploading': false
       });
@@ -118,7 +123,7 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       if (values.file instanceof File) {
         if (values.file.size <= CHUNK_SIZE) {
           const base64 = await fileToBase64(values.file);
-          fileData = { name: values.file.name, type: values.file.type, url: base64, size: values.file.size };
+          fileData = { name: values.file.name, type: values.file.type, url: base64, size: values.file.size, uploadedChunks: 1, totalChunks: 1 };
         } else {
           generatedFileId = crypto.randomUUID();
           fileToUpload = values.file;
@@ -127,6 +132,7 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
             type: values.file.type,
             fileId: generatedFileId,
             totalChunks: Math.ceil(values.file.size / CHUNK_SIZE),
+            uploadedChunks: 0,
             size: values.file.size,
             isUploading: true
           };

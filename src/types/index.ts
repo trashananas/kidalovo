@@ -6,6 +6,7 @@ export type FileAttachment = {
   url?: string;
   fileId?: string;
   totalChunks?: number;
+  uploadedChunks?: number;
   size: number;
   isUploading?: boolean;
 };
