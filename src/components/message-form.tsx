@@ -77,7 +77,6 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
         batch.set(chunkRef, { data: base64, index: i });
         await batch.commit();
         
-        // Обновляем публичный прогресс в Firestore
         await updateDoc(messageRef, {
           'file.uploadedChunks': i + 1
         });
@@ -152,7 +151,7 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
           x: (Math.random() - 0.5) * 400 - panOffset.x,
           y: (Math.random() - 0.5) * 400 - panOffset.y,
         },
-        size: { width: 320, height: 140 },
+        size: { width: 320, height: fileData ? 170 : 140 },
         ...(fileData && { file: fileData })
       };
 

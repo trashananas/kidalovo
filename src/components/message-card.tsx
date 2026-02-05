@@ -80,7 +80,7 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
   const { toast } = useToast();
 
   const [position, setPosition] = useState(message.position);
-  const [size, setSize] = useState(message.size || { width: 320, height: 140 });
+  const [size, setSize] = useState(message.size || { width: 320, height: message.file ? 170 : 140 });
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
