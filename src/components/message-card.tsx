@@ -21,6 +21,24 @@ const renderFormattedText = (text: string): React.ReactNode[] => {
   const replacer = (str: string) => {
     let processed = str.replace(/_=/g, '≡');
     processed = processed.replace(/<3/g, '❤️');
+    
+    const greekMap: Record<string, string> = {
+      pi: 'π', Pi: 'Π', PI: 'Π',
+      alpha: 'α', Alpha: 'Α', ALPHA: 'Α',
+      beta: 'β', Beta: 'Β', BETA: 'Β',
+      gamma: 'γ', Gamma: 'Γ', GAMMA: 'Γ',
+      delta: 'δ', Delta: 'Δ', DELTA: 'Δ',
+      phi: 'φ', Phi: 'Φ', PHI: 'Φ',
+      omega: 'ω', Omega: 'Ω', OMEGA: 'Ω',
+      theta: 'θ', Theta: 'Θ', THETA: 'Θ',
+      sigma: 'σ', Sigma: 'Σ', SIGMA: 'Σ'
+    };
+
+    const greekRegex = /(?<![a-zA-Zа-яА-Я])(alpha|beta|gamma|delta|phi|omega|theta|sigma|pi)(?![a-zA-Zа-яА-Я])/gi;
+    processed = processed.replace(greekRegex, (match) => {
+      return greekMap[match] || greekMap[match.toLowerCase()] || match;
+    });
+
     return processed;
   };
 
