@@ -17,18 +17,16 @@ export function RegistrationSuggestion() {
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
+    // Показываем окно при каждой загрузке, если пользователь анонимный
     if (!isUserLoading && user?.isAnonymous) {
-      const dismissed = sessionStorage.getItem('registration_suggestion_dismissed');
-      if (!dismissed) {
-        const timer = setTimeout(() => setIsOpen(true), 3000);
-        return () => clearTimeout(timer);
-      }
+      const timer = setTimeout(() => setIsOpen(true), 1500);
+      return () => clearTimeout(timer);
     }
   }, [user, isUserLoading]);
 
   const handleClose = () => {
     setIsOpen(false);
-    sessionStorage.setItem('registration_suggestion_dismissed', 'true');
+    // Больше не сохраняем в sessionStorage, чтобы окно появилось снова при перезагрузке
   };
 
   return (
