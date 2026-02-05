@@ -7,6 +7,7 @@ export type FileAttachment = {
   fileId?: string;
   totalChunks?: number;
   size: number;
+  isUploading?: boolean;
 };
 
 export type Message = {

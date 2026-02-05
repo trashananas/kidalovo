@@ -207,7 +207,7 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
 
   const handleDownload = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!message.file || !firestore) return;
+    if (!message.file || !firestore || message.file.isUploading) return;
     setIsDownloading(true);
 
     try {
@@ -238,6 +238,7 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
   };
 
   const isAuthorAdmin = message.authorLogin?.toLowerCase() === 'ananas';
+  const isFileUploading = message.file?.isUploading;
 
   return (
     <Card
@@ -300,24 +301,31 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
         
         {message.file && !isCollapsed && !isAuditLog && (
           <div className="relative group/file mb-2">
-            {message.file.type.startsWith('image') && message.file.url ? (
-              <div className="relative">
-                <img src={message.file.url} alt={message.file.name} className="w-full h-auto max-h-96 rounded-md object-contain pointer-events-none" />
-                <div className="absolute top-2 right-2 p-1.5 bg-background/80 backdrop-blur-sm rounded-md shadow-sm opacity-0 group-hover/file:opacity-100 transition-opacity hover:bg-primary hover:text-primary-foreground cursor-pointer" onClick={handleDownload} title="Скачать">
-                  {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                </div>
+            {isFileUploading ? (
+              <div className="flex items-center gap-2 p-4 border rounded-md bg-muted/30 animate-pulse">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                <span className="text-xs font-medium">Загрузка файла...</span>
               </div>
             ) : (
-              <div className="flex items-center gap-3 p-2 rounded-md border bg-muted/20 hover:bg-muted/30 transition-colors">
-                <FileIcon className="h-6 w-6 text-muted-foreground" />
-                <div className="flex flex-col flex-1 min-w-0">
-                  <span className="text-xs truncate font-medium">{message.file.name}</span>
-                  <span className="text-[10px] text-muted-foreground">{(message.file.size / 1024 / 1024).toFixed(2)} MB</span>
+              message.file.type.startsWith('image') && message.file.url ? (
+                <div className="relative">
+                  <img src={message.file.url} alt={message.file.name} className="w-full h-auto max-h-96 rounded-md object-contain pointer-events-none" />
+                  <div className="absolute top-2 right-2 p-1.5 bg-background/80 backdrop-blur-sm rounded-md shadow-sm opacity-0 group-hover/file:opacity-100 transition-opacity hover:bg-primary hover:text-primary-foreground cursor-pointer" onClick={handleDownload} title="Скачать">
+                    {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                  </div>
                 </div>
-                <div className="p-1.5 bg-background rounded-md shadow-sm hover:bg-primary hover:text-primary-foreground transition-colors cursor-pointer" onClick={handleDownload} title="Скачать">
-                  {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              ) : (
+                <div className="flex items-center gap-3 p-2 rounded-md border bg-muted/20 hover:bg-muted/30 transition-colors">
+                  <FileIcon className="h-6 w-6 text-muted-foreground" />
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <span className="text-xs truncate font-medium">{message.file.name}</span>
+                    <span className="text-[10px] text-muted-foreground">{(message.file.size / 1024 / 1024).toFixed(2)} MB</span>
+                  </div>
+                  <div className="p-1.5 bg-background rounded-md shadow-sm hover:bg-primary hover:text-primary-foreground transition-colors cursor-pointer" onClick={handleDownload} title="Скачать">
+                    {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                  </div>
                 </div>
-              </div>
+              )
             )}
           </div>
         )}
@@ -339,7 +347,7 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
               </div>
             ) : isCollapsed ? (
               <div className="text-xs italic text-muted-foreground truncate opacity-70">
-                {isAuditLog ? 'Тут были...' : (message.text || 'Файл...')}
+                {isAuditLog ? 'Тут были...' : (isFileUploading ? 'Загрузка файла...' : (message.text || 'Файл...'))}
               </div>
             ) : isAuditLog ? (
               <div className="space-y-2">

@@ -10,11 +10,12 @@ import { Form, FormControl, FormField, FormItem, FormMessage } from '@/component
 import { Card, CardContent } from './ui/card';
 import { Send, Paperclip, X, File as FileIcon, Loader2 } from 'lucide-react';
 import { useUser, useFirestore } from '@/firebase';
-import { collection, addDoc, serverTimestamp, doc, getDoc, writeBatch } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, getDoc, writeBatch, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import type { FileAttachment, UserProfile } from '@/types';
 
 const CHUNK_SIZE = 750000;
+let isGlobalUploading = false;
 
 const messageSchema = z.object({
   message: z.string(),
@@ -28,8 +29,6 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [profile, setProfile] = useState<UserProfile | null>(null);
 
   useEffect(() => {
@@ -54,54 +53,84 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
     });
   };
 
-  const uploadChunkedFile = async (file: File): Promise<FileAttachment | null> => {
-    if (!firestore) return null;
-
-    if (file.size <= CHUNK_SIZE) {
-      const base64 = await fileToBase64(file);
-      return { name: file.name, type: file.type, url: base64, size: file.size };
-    }
-
-    const fileId = crypto.randomUUID();
-    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+  const handleBackgroundUpload = async (file: File, messageId: string, fileId: string) => {
+    if (!firestore) return;
+    isGlobalUploading = true;
     
-    for (let i = 0; i < totalChunks; i++) {
-      const start = i * CHUNK_SIZE;
-      const end = Math.min(file.size, start + CHUNK_SIZE);
-      const chunk = file.slice(start, end);
-      const base64 = await fileToBase64(chunk);
-      
-      const chunkRef = doc(firestore, 'rooms', roomId, 'file_chunks', fileId, 'chunks', `chunk_${i}`);
-      const batch = writeBatch(firestore);
-      batch.set(chunkRef, { data: base64, index: i });
-      await batch.commit();
-      
-      setProgress(Math.round(((i + 1) / totalChunks) * 100));
-    }
+    const { id: toastId, update: updateToast } = toast({
+      title: "Загрузка файла...",
+      description: `Файл ${file.name} готовится к отправке.`,
+    });
 
-    return {
-      name: file.name,
-      type: file.type,
-      fileId,
-      totalChunks,
-      size: file.size
-    };
+    try {
+      const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+      
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(file.size, start + CHUNK_SIZE);
+        const chunk = file.slice(start, end);
+        const base64 = await fileToBase64(chunk);
+        
+        const chunkRef = doc(firestore, 'rooms', roomId, 'file_chunks', fileId, 'chunks', `chunk_${i}`);
+        const batch = writeBatch(firestore);
+        batch.set(chunkRef, { data: base64, index: i });
+        await batch.commit();
+        
+        const progress = Math.round(((i + 1) / totalChunks) * 100);
+        updateToast({
+          id: toastId,
+          title: `Загрузка: ${progress}%`,
+          description: `Отправка ${file.name}...`,
+        });
+      }
+
+      const messageRef = doc(firestore, 'rooms', roomId, 'messages', messageId);
+      await updateDoc(messageRef, {
+        'file.isUploading': false
+      });
+
+      updateToast({
+        id: toastId,
+        title: "Готово!",
+        description: `Файл ${file.name} успешно загружен.`,
+      });
+    } catch (error: any) {
+      toast({ title: 'Ошибка загрузки', description: error.message, variant: 'destructive' });
+    } finally {
+      isGlobalUploading = false;
+    }
   };
 
   const onSubmit = async (values: z.infer<typeof messageSchema>) => {
     if (!firestore || !user || !roomId) return;
 
-    if (values.message.toLowerCase().includes('валикова')) {
+    const lowerMsg = values.message.toLowerCase();
+    if (lowerMsg.includes('валикова')) {
       form.setError('message', { message: 'your message contains a nature error' });
       return;
     }
 
-    setIsSubmitting(true);
-    setProgress(0);
     try {
-      let fileAttachment: FileAttachment | null = null;
+      let fileData: FileAttachment | null = null;
+      let fileToUpload: File | null = null;
+      let generatedFileId = "";
+
       if (values.file instanceof File) {
-        fileAttachment = await uploadChunkedFile(values.file);
+        if (file.size <= CHUNK_SIZE) {
+          const base64 = await fileToBase64(values.file);
+          fileData = { name: values.file.name, type: values.file.type, url: base64, size: values.file.size };
+        } else {
+          generatedFileId = crypto.randomUUID();
+          fileToUpload = values.file;
+          fileData = {
+            name: values.file.name,
+            type: values.file.type,
+            fileId: generatedFileId,
+            totalChunks: Math.ceil(values.file.size / CHUNK_SIZE),
+            size: values.file.size,
+            isUploading: true
+          };
+        }
       }
 
       const messageData = {
@@ -114,23 +143,33 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
         createdAt: serverTimestamp(),
         isDeleted: false,
         position: {
-          x: (Math.random() - 0.5) * 200 - panOffset.x,
-          y: (Math.random() - 0.5) * 200 - panOffset.y,
+          x: (Math.random() - 0.5) * 400 - panOffset.x,
+          y: (Math.random() - 0.5) * 400 - panOffset.y,
         },
         size: { width: 320, height: 140 },
-        ...(fileAttachment && { file: fileAttachment })
+        ...(fileData && { file: fileData })
       };
 
-      await addDoc(collection(firestore, 'rooms', roomId, 'messages'), messageData);
+      const docRef = await addDoc(collection(firestore, 'rooms', roomId, 'messages'), messageData);
+
+      if (fileToUpload && generatedFileId) {
+        handleBackgroundUpload(fileToUpload, docRef.id, generatedFileId);
+      }
 
       form.reset();
       form.setValue('file', null);
     } catch (error: any) {
-      toast({ title: 'Ошибка', description: error.message || 'Не удалось отправить.', variant: 'destructive' });
-    } finally {
-      setIsSubmitting(false);
-      setProgress(0);
+      toast({ title: 'Ошибка', description: 'Не удалось отправить.', variant: 'destructive' });
     }
+  };
+
+  const onFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isGlobalUploading) {
+      toast({ title: "Подождите", description: "Дождитесь окончания загрузки прошлого файла." });
+      return;
+    }
+    const selected = e.target.files?.[0];
+    if (selected) form.setValue('file', selected);
   };
 
   const selectedFile = form.watch('file');
@@ -145,17 +184,10 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
               <span className="text-xs truncate font-medium">
                 {selectedFile instanceof File ? selectedFile.name : 'Файл выбран'}
               </span>
-              {isSubmitting && progress > 0 && progress < 100 && (
-                <div className="w-full bg-zinc-200 h-1 mt-1 rounded-full overflow-hidden">
-                  <div className="bg-primary h-full transition-all" style={{ width: `${progress}%` }} />
-                </div>
-              )}
             </div>
-            {!isSubmitting && (
-              <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => form.setValue('file', null)}>
-                <X className="h-4 w-4" />
-              </Button>
-            )}
+            <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => form.setValue('file', null)}>
+              <X className="h-4 w-4" />
+            </Button>
           </div>
         )}
         <Form {...form}>
@@ -172,7 +204,6 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
                         placeholder="Сообщение..." 
                         className="min-h-[40px] max-h-[200px] resize-none py-2" 
                         rows={1}
-                        disabled={isSubmitting}
                         onKeyDown={(e) => { 
                           if (e.key === 'Enter' && !e.shiftKey) { 
                             e.preventDefault(); 
@@ -186,17 +217,17 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
                 </FormItem>
               )}
             />
-            <Button type="button" size="icon" variant="outline" disabled={isSubmitting} onClick={() => document.getElementById('file-input')?.click()} title="Прикрепить">
+            <Button type="button" size="icon" variant="outline" onClick={() => document.getElementById('file-input')?.click()} title="Прикрепить">
               <Paperclip className="h-4 w-4" />
             </Button>
             <input 
               id="file-input" 
               type="file" 
               className="hidden" 
-              onChange={(e) => form.setValue('file', e.target.files?.[0] || null)} 
+              onChange={onFileSelect} 
             />
-            <Button type="submit" size="icon" disabled={isSubmitting}>
-              {isSubmitting ? <Loader2 className="animate-spin" /> : <Send className="h-4 w-4" />}
+            <Button type="submit" size="icon">
+              <Send className="h-4 w-4" />
             </Button>
           </form>
         </Form>
