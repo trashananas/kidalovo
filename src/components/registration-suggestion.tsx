@@ -24,9 +24,15 @@ export function RegistrationSuggestion() {
     }
   }, [user, isUserLoading]);
 
+  // Закрываем предложение, если пользователь перестал быть анонимным (вошел/зарегался)
+  useEffect(() => {
+    if (!isUserLoading && !user?.isAnonymous && isOpen) {
+      setIsOpen(false);
+    }
+  }, [user, isUserLoading, isOpen]);
+
   const handleClose = () => {
     setIsOpen(false);
-    // Больше не сохраняем в sessionStorage, чтобы окно появилось снова при перезагрузке
   };
 
   return (
@@ -47,8 +53,11 @@ export function RegistrationSuggestion() {
           <Button variant="ghost" onClick={handleClose}>
             Позже
           </Button>
-          <div onClick={handleClose}>
-            <AuthModal />
+          <div onClick={(e) => e.stopPropagation()}>
+            <AuthModal 
+              defaultTab="register" 
+              trigger={<Button>Зарегистрироваться</Button>} 
+            />
           </div>
         </div>
       </DialogContent>

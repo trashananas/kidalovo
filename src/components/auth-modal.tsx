@@ -42,7 +42,12 @@ const USER_COLORS = [
 
 const INTERNAL_AUTH_DOMAIN = '@kidalovo.internal';
 
-export function AuthModal() {
+interface AuthModalProps {
+  defaultTab?: 'login' | 'register';
+  trigger?: React.ReactNode;
+}
+
+export function AuthModal({ defaultTab = 'login', trigger }: AuthModalProps) {
   const auth = useAuth();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -145,16 +150,18 @@ export function AuthModal() {
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="gap-2">
-          <UserIcon className="h-4 w-4" />
-          Аккаунт
-        </Button>
+        {trigger || (
+          <Button variant="outline" className="gap-2">
+            <UserIcon className="h-4 w-4" />
+            Аккаунт
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[400px]">
         <DialogHeader>
           <DialogTitle>Авторизация</DialogTitle>
         </DialogHeader>
-        <Tabs defaultValue="login" className="w-full">
+        <Tabs defaultValue={defaultTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="login">Вход</TabsTrigger>
             <TabsTrigger value="register">Регистрация</TabsTrigger>
