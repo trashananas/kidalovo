@@ -116,7 +116,7 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
       let generatedFileId = "";
 
       if (values.file instanceof File) {
-        if (file.size <= CHUNK_SIZE) {
+        if (values.file.size <= CHUNK_SIZE) {
           const base64 = await fileToBase64(values.file);
           fileData = { name: values.file.name, type: values.file.type, url: base64, size: values.file.size };
         } else {
