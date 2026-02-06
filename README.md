@@ -8,6 +8,7 @@
 - Рисование: векторные инструменты (перо, фигуры, стрелки) с синхронизацией.
 - Приватность: доступ по паролю и режим только для авторизованных.
 - Аудит: автоматический список участников в закрытых комнатах.
+- Хранилище: загрузка файлов до 1 ГБ с использованием системы чанков в Firestore.
 
 ## Технологии
 
@@ -15,7 +16,6 @@
 - TypeScript
 - Tailwind CSS
 - Firebase (Firestore, Auth)
-- Cloudinary
 
 ## Безопасность
 
@@ -27,10 +27,6 @@ NEXT_PUBLIC_FIREBASE_APP_ID=ваш_id
 NEXT_PUBLIC_FIREBASE_API_KEY=ваш_ключ
 NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=ваш_домен
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=ваш_id
-
-NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=ваш_name
-CLOUDINARY_API_KEY=ваш_key
-CLOUDINARY_API_SECRET=ваш_secret
 ```
 
 Файл `.env.local` автоматически игнорируется Git и не попадет в публичный доступ.
