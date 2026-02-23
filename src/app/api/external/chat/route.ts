@@ -1,4 +1,3 @@
-
 import { NextResponse } from 'next/server';
 import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, doc, setDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -8,29 +7,39 @@ import { firebaseConfig } from '@/firebase/config';
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 const db = getFirestore(app);
 
+// Хелпер для CORS заголовков
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, x-api-key',
+};
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
 export async function POST(request: Request) {
   const secret = request.headers.get('x-api-key');
-  const serverSecret = process.env.EXTERNAL_API_SECRET;
+  // Используем ключ из .env или жестко заданный дефолт для прототипа
+  const serverSecret = process.env.EXTERNAL_API_SECRET || 'kid_prod_secret_2024_safe_key';
   
-  // Проверка: настроен ли секрет на сервере вообще
-  if (!serverSecret) {
-    console.error('API Error: EXTERNAL_API_SECRET is not configured on the server.');
-    return NextResponse.json({ 
-      error: 'Server Configuration Error', 
-      details: 'API secret is not set in environment variables.' 
-    }, { status: 500 });
-  }
-
-  if (secret !== serverSecret) {
+  if (!secret || secret !== serverSecret) {
     return NextResponse.json({ 
       error: 'Unauthorized', 
-      details: 'The provided x-api-key does not match the server secret.' 
-    }, { status: 401 });
+      details: 'The provided x-api-key is invalid or missing.' 
+    }, { 
+      status: 401,
+      headers: corsHeaders
+    });
   }
 
   try {
     const body = await request.json();
     const { action, chatId, userId, text, authorName } = body;
+
+    if (!chatId) {
+       return NextResponse.json({ error: 'chatId is required' }, { status: 400, headers: corsHeaders });
+    }
 
     // Действие: Создание чата
     if (action === 'create_chat') {
@@ -42,11 +51,11 @@ export async function POST(request: Request) {
         createdAt: serverTimestamp(),
         creatorId: 'external_system',
         members: {
-          [userId]: { role: 'member', name: authorName || 'User' },
+          [userId || 'user_1']: { role: 'member', name: authorName || 'User' },
           'system': { role: 'owner', name: 'Support' }
         }
       }, { merge: true });
-      return NextResponse.json({ success: true, chatId });
+      return NextResponse.json({ success: true, chatId }, { headers: corsHeaders });
     }
 
     // Действие: Отправка сообщения
@@ -55,7 +64,7 @@ export async function POST(request: Request) {
       await addDoc(messagesCol, {
         roomId: chatId,
         userId: userId || 'system',
-        text: text,
+        text: text || '',
         authorName: authorName || 'System',
         authorColor: '#3b82f6',
         createdAt: serverTimestamp(),
@@ -63,11 +72,12 @@ export async function POST(request: Request) {
         position: { x: 0, y: 0 },
         size: { width: 300, height: 100 }
       });
-      return NextResponse.json({ success: true });
+      return NextResponse.json({ success: true }, { headers: corsHeaders });
     }
 
-    return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid action' }, { status: 400, headers: corsHeaders });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('External API Error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500, headers: corsHeaders });
   }
 }
