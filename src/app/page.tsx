@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Lock, Unlock, Plus, LogOut, Info, Eye, EyeOff, ShieldCheck, ShieldAlert, Settings, AlertTriangle, RefreshCcw } from 'lucide-react';
+import { Loader2, Lock, Unlock, Plus, LogOut, Info, Eye, EyeOff, ShieldCheck, ShieldAlert, Settings, AlertTriangle, RefreshCcw, Code } from 'lucide-react';
 import { useUser, useAuth, useFirestore } from '@/firebase';
 import { signInAnonymously } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
@@ -76,26 +76,6 @@ export default function Home() {
       performSignIn();
     }
   }, [user, isUserLoading, auth]);
-
-  if (!auth && !isUserLoading) {
-    return (
-      <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 text-center gap-6">
-        <AlertTriangle className="h-16 w-16 text-destructive" />
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold">Ошибка конфигурации</h1>
-          <div className="text-muted-foreground max-w-md space-y-4">
-            <p>API-ключи Firebase не найдены или неверны. Это блокирует работу приложения.</p>
-            <div className="text-sm border p-4 rounded-md bg-muted/50 text-left font-mono space-y-2">
-              <p>1. Зайдите в Firebase Console -> Project Settings.</p>
-              <p>2. Скопируйте <b>apiKey</b> и <b>appId</b> из конфига.</p>
-              <p>3. Добавьте их в Environment Variables на Vercel/Render.</p>
-            </div>
-          </div>
-        </div>
-        <Button variant="outline" onClick={() => window.location.reload()}>Попробовать снова</Button>
-      </main>
-    );
-  }
 
   const handleCreateRoom = async () => {
     if (!firestore || !user) return;
@@ -269,6 +249,12 @@ export default function Home() {
     <main className="relative flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
       <RegistrationSuggestion />
       <div className="absolute top-4 right-4 flex items-center gap-2">
+        <Button variant="outline" size="sm" asChild className="gap-2">
+          <Link href="/dev">
+            <Code className="h-4 w-4" />
+            <span className="hidden sm:inline">Для разработчиков</span>
+          </Link>
+        </Button>
         {isAnanas && (
           <Button variant="outline" size="icon" asChild title="Панель управления">
             <Link href="/admin">
