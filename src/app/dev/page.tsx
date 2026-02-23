@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
-import { ArrowLeft, Copy, Key, Terminal, Code, Globe, MessageSquare, Check, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Copy, Key, Terminal, Code, Globe, MessageSquare, Check, AlertTriangle, Info } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -20,6 +20,7 @@ export default function DevPage() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      // Сохраняем текущий origin для удобства тестирования, но предупреждаем пользователя
       setOrigin(window.location.origin);
     }
   }, []);
@@ -55,12 +56,12 @@ export default function DevPage() {
 const fetch = require('node-fetch');
 
 async function sendMessage() {
-  // Используется ваш текущий домен: ${origin}
+  // ВНИМАНИЕ: Замените '${origin}' на ваш реальный домен в продакшене
   const response = await fetch('${origin}/api/external/chat', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': '${apiKey}' // Этот ключ должен быть в EXTERNAL_API_SECRET на сервере
+      'x-api-key': '${apiKey}'
     },
     body: JSON.stringify({
       action: 'send_message',
@@ -88,14 +89,23 @@ async function sendMessage() {
           </div>
         </div>
 
-        <Alert variant="destructive" className="bg-amber-50 border-amber-200 text-amber-900">
-          <AlertTriangle className="h-4 w-4 text-amber-600" />
-          <AlertTitle className="text-amber-800">Важно для авторизации</AlertTitle>
-          <AlertDescription>
-            Если вы получаете ошибку <strong>"Unauthorized"</strong>, это значит, что ключ в вашем запросе не совпадает с переменной <strong>EXTERNAL_API_SECRET</strong> на сервере. 
-            Просто сгенерировать ключ здесь недостаточно — его нужно прописать в настройках вашего хостинга (Vercel, Docker или .env.local).
-          </AlertDescription>
-        </Alert>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Alert variant="destructive" className="bg-amber-50 border-amber-200 text-amber-900">
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <AlertTitle className="text-amber-800">Важно для авторизации</AlertTitle>
+            <AlertDescription className="text-xs">
+              Ключ ниже нужно прописать в переменную <strong>EXTERNAL_API_SECRET</strong> на вашем хостинге (Vercel/Docker), иначе запросы будут отклонены.
+            </AlertDescription>
+          </Alert>
+
+          <Alert className="bg-blue-50 border-blue-200 text-blue-900">
+            <Info className="h-4 w-4 text-blue-600" />
+            <AlertTitle className="text-blue-800">Про домены</AlertTitle>
+            <AlertDescription className="text-xs">
+              Сейчас в примерах указан <code>{origin}</code>. Для работы на внешних сайтах замените его на ваш основной домен (например, .vercel.app).
+            </AlertDescription>
+          </Alert>
+        </div>
 
         <Card>
           <CardHeader>
@@ -162,13 +172,21 @@ async function sendMessage() {
                     Встраивание (Iframe)
                   </CardTitle>
                   <p className="text-sm text-muted-foreground">
-                    Вы можете встроить чат на свой сайт, используя следующий код:
+                    Скопируйте этот код для вставки на ваш сайт. <strong>Внимание:</strong> если вы используете локальный адрес (localhost), чат будет виден только вам.
                   </p>
-                  <div className="bg-zinc-900 text-zinc-100 p-4 rounded-lg font-mono text-xs overflow-x-auto">
-                    {`<iframe src="${origin}/chat/YOUR_ID" width="400" height="600"></iframe>`}
+                  <div className="bg-zinc-900 text-zinc-100 p-4 rounded-lg font-mono text-xs overflow-x-auto relative group">
+                    <pre>{`<iframe src="${origin}/chat/YOUR_ID" width="400" height="600"></iframe>`}</pre>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="absolute top-2 right-2 text-zinc-400 hover:text-white"
+                      onClick={() => copyToClipboard(`<iframe src="${origin}/chat/YOUR_ID" width="400" height="600"></iframe>`)}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
                   </div>
                   <p className="text-[10px] text-muted-foreground italic">
-                    Замените YOUR_ID на уникальный идентификатор вашего чата.
+                    * Замените YOUR_ID на уникальный идентификатор вашего чата (например, номер заказа).
                   </p>
                 </div>
               </CardContent>
