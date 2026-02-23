@@ -15,7 +15,14 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 export default function DevPage() {
   const [apiKey, setApiKey] = useState('');
   const [isCopied, setIsCopied] = useState(false);
+  const [origin, setOrigin] = useState('https://kidalovo.vercel.app');
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setOrigin(window.location.origin);
+    }
+  }, []);
 
   const generateTimeBasedKey = () => {
     const timestamp = Date.now().toString(36);
@@ -48,7 +55,8 @@ export default function DevPage() {
 const fetch = require('node-fetch');
 
 async function sendMessage() {
-  const response = await fetch('https://kidalovo.vercel.app/api/external/chat', {
+  // Используется ваш текущий домен: ${origin}
+  const response = await fetch('${origin}/api/external/chat', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -146,17 +154,22 @@ async function sendMessage() {
                   </div>
                 </div>
 
+                <Separator />
+
                 <div className="space-y-3">
                   <CardTitle className="text-md flex items-center gap-2">
                     <MessageSquare className="h-5 w-5 text-primary" />
                     Встраивание (Iframe)
                   </CardTitle>
                   <p className="text-sm text-muted-foreground">
-                    Вы можете встроить чат на свой сайт:
+                    Вы можете встроить чат на свой сайт, используя следующий код:
                   </p>
                   <div className="bg-zinc-900 text-zinc-100 p-4 rounded-lg font-mono text-xs overflow-x-auto">
-                    {`<iframe src="${typeof window !== 'undefined' ? window.location.origin : ''}/chat/YOUR_ID" width="400" height="600"></iframe>`}
+                    {`<iframe src="${origin}/chat/YOUR_ID" width="400" height="600"></iframe>`}
                   </div>
+                  <p className="text-[10px] text-muted-foreground italic">
+                    Замените YOUR_ID на уникальный идентификатор вашего чата.
+                  </p>
                 </div>
               </CardContent>
             </Card>
