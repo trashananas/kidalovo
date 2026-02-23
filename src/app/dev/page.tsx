@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -7,23 +6,18 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
-import { ArrowLeft, Copy, Key, Terminal, Code, Globe, MessageSquare, Check, AlertTriangle, Info } from 'lucide-react';
+import { ArrowLeft, Copy, Key, Terminal, Code, Globe, MessageSquare, Check, AlertTriangle, Info, Settings2 } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Label } from '@/components/ui/label';
 
 export default function DevPage() {
   const [apiKey, setApiKey] = useState('');
   const [isCopied, setIsCopied] = useState(false);
-  const [origin, setOrigin] = useState('https://kidalovo.vercel.app');
+  // По умолчанию ставим рабочий домен, чтобы код из примеров сразу "смотрел" в интернет
+  const [prodDomain, setProdDomain] = useState('https://kidalovo.vercel.app');
   const { toast } = useToast();
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      // Сохраняем текущий origin для удобства тестирования, но предупреждаем пользователя
-      setOrigin(window.location.origin);
-    }
-  }, []);
 
   const generateTimeBasedKey = () => {
     const timestamp = Date.now().toString(36);
@@ -56,8 +50,8 @@ export default function DevPage() {
 const fetch = require('node-fetch');
 
 async function sendMessage() {
-  // ВНИМАНИЕ: Замените '${origin}' на ваш реальный домен в продакшене
-  const response = await fetch('${origin}/api/external/chat', {
+  // Запрос отправляется на ваш основной сервер
+  const response = await fetch('${prodDomain}/api/external/chat', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -68,7 +62,7 @@ async function sendMessage() {
       chatId: 'my_room_id',
       userId: 'system',
       authorName: 'Бот-Помощник',
-      text: 'Привет! Это автоматическое сообщение.'
+      text: 'Привет! Это автоматическое сообщение из внешней системы.'
     })
   });
   
@@ -92,19 +86,29 @@ async function sendMessage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Alert variant="destructive" className="bg-amber-50 border-amber-200 text-amber-900">
             <AlertTriangle className="h-4 w-4 text-amber-600" />
-            <AlertTitle className="text-amber-800">Важно для авторизации</AlertTitle>
+            <AlertTitle className="text-amber-800">Настройка секретов</AlertTitle>
             <AlertDescription className="text-xs">
-              Ключ ниже нужно прописать в переменную <strong>EXTERNAL_API_SECRET</strong> на вашем хостинге (Vercel/Docker), иначе запросы будут отклонены.
+              Чтобы API принимало запросы, пропишите <strong>EXTERNAL_API_SECRET</strong> в настройках вашего хостинга (Vercel/Docker).
             </AlertDescription>
           </Alert>
 
-          <Alert className="bg-blue-50 border-blue-200 text-blue-900">
-            <Info className="h-4 w-4 text-blue-600" />
-            <AlertTitle className="text-blue-800">Про домены</AlertTitle>
-            <AlertDescription className="text-xs">
-              Сейчас в примерах указан <code>{origin}</code>. Для работы на внешних сайтах замените его на ваш основной домен (например, .vercel.app).
-            </AlertDescription>
-          </Alert>
+          <Card className="border-blue-100 bg-blue-50/30">
+            <CardHeader className="py-3 px-4">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Settings2 className="h-4 w-4 text-blue-600" />
+                Ваш рабочий домен
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="py-0 px-4 pb-3">
+              <Input 
+                value={prodDomain} 
+                onChange={(e) => setProdDomain(e.target.value)}
+                placeholder="https://your-site.vercel.app"
+                className="h-8 text-xs bg-white"
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">Все примеры ниже обновляются автоматически.</p>
+            </CardContent>
+          </Card>
         </div>
 
         <Card>
@@ -155,7 +159,7 @@ async function sendMessage() {
                       <h4 className="font-semibold text-sm mb-2 text-primary">Как исправить "Unauthorized":</h4>
                       <ol className="text-xs list-decimal pl-4 space-y-2 text-muted-foreground">
                         <li>Скопируйте сгенерированный выше ключ.</li>
-                        <li>В файле <code>.env.local</code> (или в панели управления хостингом) добавьте строку:<br/>
+                        <li>В файле <code>.env.local</code> (или в панели управления Vercel) добавьте строку:<br/>
                           <code className="bg-zinc-200 p-1 rounded text-black select-all">EXTERNAL_API_SECRET={apiKey}</code>
                         </li>
                         <li>Перезапустите сервер. Теперь запросы с этим ключом будут приниматься.</li>
@@ -172,21 +176,21 @@ async function sendMessage() {
                     Встраивание (Iframe)
                   </CardTitle>
                   <p className="text-sm text-muted-foreground">
-                    Скопируйте этот код для вставки на ваш сайт. <strong>Внимание:</strong> если вы используете локальный адрес (localhost), чат будет виден только вам.
+                    Этот код можно вставить на любой сайт. Он сразу ссылается на ваш рабочий домен.
                   </p>
                   <div className="bg-zinc-900 text-zinc-100 p-4 rounded-lg font-mono text-xs overflow-x-auto relative group">
-                    <pre>{`<iframe src="${origin}/chat/YOUR_ID" width="400" height="600"></iframe>`}</pre>
+                    <pre>{`<iframe src="${prodDomain}/chat/YOUR_CHAT_ID" width="400" height="600" frameborder="0"></iframe>`}</pre>
                     <Button 
                       variant="ghost" 
                       size="icon" 
                       className="absolute top-2 right-2 text-zinc-400 hover:text-white"
-                      onClick={() => copyToClipboard(`<iframe src="${origin}/chat/YOUR_ID" width="400" height="600"></iframe>`)}
+                      onClick={() => copyToClipboard(`<iframe src="${prodDomain}/chat/YOUR_CHAT_ID" width="400" height="600" frameborder="0"></iframe>`)}
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
                   </div>
                   <p className="text-[10px] text-muted-foreground italic">
-                    * Замените YOUR_ID на уникальный идентификатор вашего чата (например, номер заказа).
+                    * Замените YOUR_CHAT_ID на уникальную строку (например, ID заказа или имя клиента).
                   </p>
                 </div>
               </CardContent>
@@ -203,7 +207,7 @@ async function sendMessage() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-2">
-                  <span className="text-sm font-medium">Node.js / JavaScript</span>
+                  <span className="text-sm font-medium">Node.js / JavaScript (Серверная часть)</span>
                   <pre className="bg-zinc-900 text-zinc-100 p-4 rounded-lg text-xs overflow-x-auto">
                     <code>{jsExample}</code>
                   </pre>
