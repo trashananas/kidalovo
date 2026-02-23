@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -11,12 +11,22 @@ import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 
 export default function DevPage() {
-  const [apiKey, setApiKey] = useState('kidalovo_secret_key_2024');
+  const [apiKey, setApiKey] = useState('');
   const [isCopied, setIsCopied] = useState(false);
   const { toast } = useToast();
 
+  const generateTimeBasedKey = () => {
+    const timestamp = Date.now().toString(36);
+    const randomPart = Math.random().toString(36).substring(2, 8);
+    return `kid_${timestamp}_${randomPart}`;
+  };
+
+  useEffect(() => {
+    setApiKey(generateTimeBasedKey());
+  }, []);
+
   const handleGenerateKey = () => {
-    const newKey = 'kid_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    const newKey = generateTimeBasedKey();
     setApiKey(newKey);
     toast({
       title: 'Ключ сгенерирован',
@@ -25,6 +35,7 @@ export default function DevPage() {
   };
 
   const copyToClipboard = (text: string) => {
+    if (!text) return;
     navigator.clipboard.writeText(text);
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2000);
