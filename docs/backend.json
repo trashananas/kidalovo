@@ -5,167 +5,51 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Room",
       "type": "object",
-      "description": "Represents a chat room where users can send and move messages.",
+      "description": "Represents a chat room or board.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Room entity."
-        },
-        "code": {
-          "type": "string",
-          "description": "The 4-10 character code required to join the room."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp indicating when the room was created.",
-          "format": "date-time"
-        },
-        "creatorId": {
-          "type": "string",
-          "description": "The UID of the user who created the room."
-        },
-        "members": {
-          "type": "object",
-          "description": "A map of user UIDs to their roles (e.g., 'owner', 'member')."
-        },
-        "password": {
-          "type": "string",
-          "description": "Optional password for private rooms."
-        }
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "type": { "type": "string", "enum": ["board", "chat"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "creatorId": { "type": "string" },
+        "members": { "type": "object" },
+        "password": { "type": "string" }
       },
-      "required": [
-        "id",
-        "code",
-        "createdAt",
-        "creatorId",
-        "members"
-      ]
+      "required": ["id", "code", "createdAt", "creatorId", "members"]
     },
     "User": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "User",
       "type": "object",
-      "description": "Represents a user who can create and join rooms, and send messages.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the User entity."
-        },
-        "username": {
-          "type": "string",
-          "description": "The username of the user."
-        },
-        "color": {
-          "type": "string",
-          "description": "The unique color assigned to the user for message attribution."
-        }
+        "id": { "type": "string" },
+        "username": { "type": "string" },
+        "color": { "type": "string" },
+        "login": { "type": "string" }
       },
-      "required": [
-        "id",
-        "username",
-        "color"
-      ]
+      "required": ["id", "username", "color"]
     },
     "Message": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Message",
       "type": "object",
-      "description": "Represents a message sent within a room.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Message entity."
-        },
-        "roomId": {
-          "type": "string",
-          "description": "Reference to Room."
-        },
-        "userId": {
-          "type": "string",
-          "description": "Reference to User."
-        },
-        "authorName": {
-          "type": "string",
-          "description": "The nickname of the author (for authenticated users)."
-        },
-        "authorColor": {
-          "type": "string",
-          "description": "The assigned color of the author."
-        },
-        "text": {
-          "type": "string",
-          "description": "The text content of the message."
-        },
-        "file": {
-          "type": "object",
-          "properties": {
-            "name": { "type": "string" },
-            "type": { "type": "string" },
-            "url": { "type": "string" }
-          },
-          "required": ["name", "type", "url"]
-        },
-        "position": {
-          "type": "object",
-          "properties": {
-            "x": { "type": "number" },
-            "y": { "type": "number" }
-          },
-          "required": ["x", "y"]
-        },
-        "size": {
-          "type": "object",
-          "properties": {
-            "width": { "type": "number" },
-            "height": { "type": "number" }
-          },
-          "required": ["width", "height"]
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "isDeleted": {
-          "type": "boolean"
-        }
+        "id": { "type": "string" },
+        "roomId": { "type": "string" },
+        "userId": { "type": "string" },
+        "text": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorColor": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "isDeleted": { "type": "boolean" }
       },
-      "required": [
-        "id",
-        "roomId",
-        "userId",
-        "position",
-        "createdAt"
-      ]
+      "required": ["id", "roomId", "userId", "createdAt"]
     }
   },
   "auth": {
-    "providers": [
-      "password",
-      "anonymous"
-    ]
+    "providers": ["password", "anonymous"]
   },
   "firestore": {
-    "/rooms/{roomId}": {
-      "schema": {
-        "$ref": "#/backend/entities/Room"
-      },
-      "description": "Stores room metadata."
-    },
-    "/users/{userId}": {
-      "schema": {
-        "$ref": "#/backend/entities/User"
-      },
-      "description": "Stores user profile information."
-    },
-    "/rooms/{roomId}/messages/{messageId}": {
-      "schema": {
-        "$ref": "#/backend/entities/Message"
-      },
-      "description": "Stores messages within a room."
-    }
+    "/rooms/{roomId}": { "schema": { "$ref": "#/backend/entities/Room" }, "description": "Room metadata" },
+    "/users/{userId}": { "schema": { "$ref": "#/backend/entities/User" }, "description": "User profiles" },
+    "/rooms/{roomId}/messages/{messageId}": { "schema": { "$ref": "#/backend/entities/Message" }, "description": "Messages" }
   }
 }
