@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -15,31 +16,24 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read, write: if isGlobalAdmin() || (isSignedIn() && request.auth.uid == userId);
+      allow read: if isSignedIn();
+      allow write: if isGlobalAdmin() || (isSignedIn() && request.auth.uid == userId);
     }
 
     match /rooms/{roomId} {
-      allow get: if isSignedIn();
-      allow list: if isGlobalAdmin() || isSignedIn();
-      allow create: if isSignedIn();
-      allow delete: if isGlobalAdmin() || (isSignedIn() && (resource.data.creatorId == request.auth.uid));
-      allow update: if isGlobalAdmin() || isSignedIn();
+      // Разрешаем чтение и запись всем авторизованным (включая анонимов)
+      allow read, write: if isSignedIn();
 
       match /messages/{messageId} {
-        allow read, list: if isSignedIn();
-        allow create: if isGlobalAdmin() || (isSignedIn() && (request.resource.data.userId == request.auth.uid || request.resource.data.userId == 'system'));
-        allow update, delete: if isGlobalAdmin() || (isSignedIn() && (resource.data.userId == request.auth.uid));
+        allow read, write: if isSignedIn();
       }
       
       match /file_chunks/{fileId}/chunks/{chunkId} {
-        allow read, list: if isSignedIn();
-        allow create: if isSignedIn();
+        allow read, write: if isSignedIn();
       }
 
       match /drawings/{drawingId} {
-        allow read, list: if isSignedIn();
-        allow create: if isGlobalAdmin() || (isSignedIn() && request.resource.data.userId == request.auth.uid);
-        allow delete, update: if isGlobalAdmin() || isSignedIn();
+        allow read, write: if isSignedIn();
       }
     }
   }

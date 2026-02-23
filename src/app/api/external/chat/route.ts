@@ -1,15 +1,17 @@
+
 import { NextResponse } from 'next/server';
-import { initializeApp, getApps } from 'firebase/app';
-import { getFirestore, doc, setDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { firebaseConfig } from '@/firebase/config';
+import * as admin from 'firebase-admin';
 
-// Инициализация Firebase для Edge/Server
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-const db = getFirestore(app);
+// Инициализация Admin SDK (использует полные права доступа)
+if (!admin.apps.length) {
+  admin.initializeApp({
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  });
+}
 
+const db = admin.firestore();
 const DEFAULT_SECRET = 'kid_prod_secret_2024_safe_key';
 
-// Хелпер для CORS заголовков
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
@@ -22,14 +24,12 @@ export async function OPTIONS() {
 
 export async function POST(request: Request) {
   const secret = request.headers.get('x-api-key');
-  // Используем ключ из .env или дефолт
   const serverSecret = process.env.EXTERNAL_API_SECRET || DEFAULT_SECRET;
   
   if (!secret || secret !== serverSecret) {
     return NextResponse.json({ 
       error: 'Unauthorized', 
-      details: 'Invalid x-api-key. Ensure it matches EXTERNAL_API_SECRET on the server.',
-      received: secret ? 'HIDDEN' : 'MISSING'
+      details: 'Invalid x-api-key. Ensure it matches EXTERNAL_API_SECRET on the server.'
     }, { 
       status: 401,
       headers: corsHeaders
@@ -46,12 +46,12 @@ export async function POST(request: Request) {
 
     // Действие: Создание чата
     if (action === 'create_chat') {
-      const chatRef = doc(db, 'rooms', chatId);
-      await setDoc(chatRef, {
+      const chatRef = db.collection('rooms').doc(chatId);
+      await chatRef.set({
         id: chatId,
         code: chatId,
         type: 'chat',
-        createdAt: serverTimestamp(),
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
         creatorId: 'external_system',
         members: {
           [userId || 'user_1']: { role: 'member', name: authorName || 'User' },
@@ -63,17 +63,17 @@ export async function POST(request: Request) {
 
     // Действие: Отправка сообщения
     if (action === 'send_message') {
-      const messagesCol = collection(db, 'rooms', chatId, 'messages');
-      await addDoc(messagesCol, {
+      const messagesCol = db.collection('rooms').doc(chatId).collection('messages');
+      await messagesCol.add({
         roomId: chatId,
         userId: userId || 'system',
         text: text || '',
         authorName: authorName || 'System',
         authorColor: '#3b82f6',
-        createdAt: serverTimestamp(),
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
         isDeleted: false,
         position: { x: 0, y: 0 },
-        size: { width: 300, height: 130 }
+        size: { width: 300, height: 170 } // Увеличенная высота для файлов/прогресса
       });
       return NextResponse.json({ success: true }, { headers: corsHeaders });
     }
