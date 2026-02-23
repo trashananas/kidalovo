@@ -7,6 +7,8 @@ import { firebaseConfig } from '@/firebase/config';
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 const db = getFirestore(app);
 
+const DEFAULT_SECRET = 'kid_prod_secret_2024_safe_key';
+
 // Хелпер для CORS заголовков
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,13 +22,14 @@ export async function OPTIONS() {
 
 export async function POST(request: Request) {
   const secret = request.headers.get('x-api-key');
-  // Используем ключ из .env или жестко заданный дефолт для прототипа
-  const serverSecret = process.env.EXTERNAL_API_SECRET || 'kid_prod_secret_2024_safe_key';
+  // Используем ключ из .env или дефолт
+  const serverSecret = process.env.EXTERNAL_API_SECRET || DEFAULT_SECRET;
   
   if (!secret || secret !== serverSecret) {
     return NextResponse.json({ 
       error: 'Unauthorized', 
-      details: 'The provided x-api-key is invalid or missing.' 
+      details: 'Invalid x-api-key. Ensure it matches EXTERNAL_API_SECRET on the server.',
+      received: secret ? 'HIDDEN' : 'MISSING'
     }, { 
       status: 401,
       headers: corsHeaders
@@ -70,7 +73,7 @@ export async function POST(request: Request) {
         createdAt: serverTimestamp(),
         isDeleted: false,
         position: { x: 0, y: 0 },
-        size: { width: 300, height: 100 }
+        size: { width: 300, height: 130 }
       });
       return NextResponse.json({ success: true }, { headers: corsHeaders });
     }

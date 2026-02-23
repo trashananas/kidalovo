@@ -1,19 +1,20 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
-import { ArrowLeft, Copy, Key, Terminal, Code, Globe, MessageSquare, Check, AlertTriangle, Info, Settings2 } from 'lucide-react';
+import { ArrowLeft, Copy, Key, Terminal, Code, Globe, MessageSquare, Check, Info, Settings2, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Label } from '@/components/ui/label';
+
+const DEFAULT_SECRET = 'kid_prod_secret_2024_safe_key';
 
 export default function DevPage() {
-  const [apiKey, setApiKey] = useState('kid_prod_secret_2024_safe_key');
+  const [apiKey, setApiKey] = useState(DEFAULT_SECRET);
   const [isCopied, setIsCopied] = useState(false);
   const [prodDomain, setProdDomain] = useState('https://kidalovo.vercel.app');
   const { toast } = useToast();
@@ -24,8 +25,9 @@ export default function DevPage() {
     const newKey = `kid_${timestamp}_${randomPart}`;
     setApiKey(newKey);
     toast({
-      title: 'Ключ сгенерирован',
-      description: 'Теперь установите его в переменные окружения вашего сервера (EXTERNAL_API_SECRET).',
+      title: 'Ключ обновлен в UI',
+      description: 'Внимание! Чтобы этот ключ заработал, установите его в EXTERNAL_API_SECRET на Vercel.',
+      variant: 'default',
     });
   };
 
@@ -43,7 +45,7 @@ async function sendMessage() {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': '${apiKey}'
+      'x-api-key': '${apiKey}' // Ключ должен совпадать с тем, что на сервере
     },
     body: JSON.stringify({
       action: 'send_message',
@@ -76,7 +78,7 @@ async function sendMessage() {
             <Info className="h-4 w-4 text-blue-600" />
             <AlertTitle>Готов к работе</AlertTitle>
             <AlertDescription className="text-xs">
-              API теперь поддерживает CORS. Вы можете делать запросы прямо из браузера вашего сайта.
+              API поддерживает CORS. Используйте текущий ключ для тестирования.
             </AlertDescription>
           </Alert>
 
@@ -98,14 +100,24 @@ async function sendMessage() {
           </Card>
         </div>
 
+        {apiKey !== DEFAULT_SECRET && (
+          <Alert variant="destructive" className="bg-amber-50 border-amber-200 text-amber-900">
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <AlertTitle>Ключ не синхронизирован</AlertTitle>
+            <AlertDescription className="text-xs">
+              Вы сгенерировали новый ключ. Пока вы не добавите его в настройки Vercel (EXTERNAL_API_SECRET), запросы будут возвращать <strong>Unauthorized</strong>. Используйте дефолтный ключ для быстрого теста.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Key className="h-5 w-5 text-primary" />
-              Ваш API Ключ
+              API Ключ (x-api-key)
             </CardTitle>
             <CardDescription>
-              Ключ для заголовка <code className="bg-muted px-1 rounded">x-api-key</code>.
+              Тот же ключ должен быть прописан в переменной <code>EXTERNAL_API_SECRET</code> на вашем сервере.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -115,6 +127,7 @@ async function sendMessage() {
                 {isCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               </Button>
               <Button onClick={handleGenerateKey}>Сгенерировать новый</Button>
+              <Button variant="outline" onClick={() => setApiKey(DEFAULT_SECRET)}>Сбросить к дефолту</Button>
             </div>
           </CardContent>
         </Card>
@@ -140,13 +153,14 @@ async function sendMessage() {
                     <code className="text-sm font-bold">/api/external/chat</code>
                   </div>
                   
-                  <div className="border rounded-lg p-4 space-y-4 bg-zinc-50/50">
-                    <div>
-                      <h4 className="font-semibold text-sm mb-2 text-primary">Важно:</h4>
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        Если вы получаете "Server Configuration Error", убедитесь, что переменная <strong>EXTERNAL_API_SECRET</strong> прописана на вашем хостинге и совпадает с ключом выше.
-                      </p>
-                    </div>
+                  <div className="border rounded-lg p-4 space-y-2 bg-zinc-50/50">
+                    <h4 className="font-semibold text-sm text-primary">Как убрать Unauthorized:</h4>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      1. Скопируйте ключ выше.<br/>
+                      2. Перейдите в настройки проекта на Vercel (Environment Variables).<br/>
+                      3. Добавьте переменную <strong>EXTERNAL_API_SECRET</strong> со значением ключа.<br/>
+                      4. Передеплойте проект.
+                    </p>
                   </div>
                 </div>
 
