@@ -1,6 +1,6 @@
-
 import { NextResponse } from 'next/server';
 import * as admin from 'firebase-admin';
+import { DEFAULT_EXTERNAL_API_SECRET } from '@/lib/constants';
 
 // Инициализация Admin SDK (использует полные права доступа)
 if (!admin.apps.length) {
@@ -10,7 +10,6 @@ if (!admin.apps.length) {
 }
 
 const db = admin.firestore();
-const DEFAULT_SECRET = 'kid_prod_secret_2024_safe_key';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -24,7 +23,7 @@ export async function OPTIONS() {
 
 export async function POST(request: Request) {
   const secret = request.headers.get('x-api-key');
-  const serverSecret = process.env.EXTERNAL_API_SECRET || DEFAULT_SECRET;
+  const serverSecret = process.env.EXTERNAL_API_SECRET || DEFAULT_EXTERNAL_API_SECRET;
   
   if (!secret || secret !== serverSecret) {
     return NextResponse.json({ 
@@ -73,7 +72,7 @@ export async function POST(request: Request) {
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         isDeleted: false,
         position: { x: 0, y: 0 },
-        size: { width: 300, height: 170 } // Увеличенная высота для файлов/прогресса
+        size: { width: 300, height: 170 }
       });
       return NextResponse.json({ success: true }, { headers: corsHeaders });
     }

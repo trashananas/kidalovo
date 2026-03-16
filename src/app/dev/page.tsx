@@ -10,13 +10,12 @@ import { ArrowLeft, Copy, Key, Terminal, Code, Globe, MessageSquare, Check, Info
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-
-const DEFAULT_SECRET = 'kid_prod_secret_2024_safe_key';
+import { DEFAULT_EXTERNAL_API_SECRET, PROD_DOMAIN } from '@/lib/constants';
 
 export default function DevPage() {
-  const [apiKey, setApiKey] = useState(DEFAULT_SECRET);
+  const [apiKey, setApiKey] = useState(DEFAULT_EXTERNAL_API_SECRET);
   const [isCopied, setIsCopied] = useState(false);
-  const [prodDomain, setProdDomain] = useState('https://kidalovo.vercel.app');
+  const [prodDomain, setProdDomain] = useState(PROD_DOMAIN);
   const { toast } = useToast();
 
   const handleGenerateKey = () => {
@@ -100,7 +99,7 @@ async function sendMessage() {
           </Card>
         </div>
 
-        {apiKey !== DEFAULT_SECRET && (
+        {apiKey !== DEFAULT_EXTERNAL_API_SECRET && (
           <Alert variant="destructive" className="bg-amber-50 border-amber-200 text-amber-900">
             <AlertTriangle className="h-4 w-4 text-amber-600" />
             <AlertTitle>Ключ не синхронизирован</AlertTitle>
@@ -127,7 +126,7 @@ async function sendMessage() {
                 {isCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               </Button>
               <Button onClick={handleGenerateKey}>Сгенерировать новый</Button>
-              <Button variant="outline" onClick={() => setApiKey(DEFAULT_SECRET)}>Сбросить к дефолту</Button>
+              <Button variant="outline" onClick={() => setApiKey(DEFAULT_EXTERNAL_API_SECRET)}>Сбросить к дефолту</Button>
             </div>
           </CardContent>
         </Card>
