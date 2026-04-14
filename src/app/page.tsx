@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
@@ -78,7 +79,14 @@ export default function Home() {
   }, [user, isUserLoading, auth]);
 
   const handleCreateRoom = async () => {
-    if (!firestore || !user) return;
+    if (!firestore || !user) {
+      toast({
+        title: 'Доступ ограничен',
+        description: 'Вы еще не авторизованы. Проверьте настройки Firebase или подождите завершения входа.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setIsCreatingRoom(true);
 
     const finalCode = customCode.trim().toUpperCase() || generateRoomCode();
@@ -180,6 +188,15 @@ export default function Home() {
   const handleJoinRoom = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!firestore || !joinCodeRef.current) return;
+
+    if (!user) {
+      toast({
+        title: 'Ошибка',
+        description: 'Вы еще не авторизованы. Подождите...',
+        variant: 'destructive',
+      });
+      return;
+    }
     
     setIsJoiningRoom(true);
     setJoinError(null);
@@ -293,16 +310,16 @@ export default function Home() {
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Ошибка входа</AlertTitle>
             <AlertDescription className="flex flex-col gap-2">
-              <p>Firebase отклонил API-ключ. Проверьте настройки на хостинге.</p>
+              <p>Firebase отклонил API-ключ или он не настроен. Проверьте настройки на хостинге.</p>
               <Button size="sm" variant="outline" onClick={performSignIn} className="w-fit gap-2">
-                <RefreshCcw className="h-3 w-3" /> Повторить
+                <RefreshCcw className="h-3 w-3" /> Повторить вход
               </Button>
             </AlertDescription>
           </Alert>
         )}
 
         <div className="flex flex-col items-stretch gap-4 w-full">
-          {isUserLoading || isAuthenticating ? (
+          {isUserLoading || (isAuthenticating && !authError) ? (
             <div className="flex flex-col items-center justify-center py-8 gap-4">
               <Loader2 className="h-10 w-10 animate-spin text-primary" />
               <p className="text-sm text-muted-foreground animate-pulse">Устанавливаем связь с доской...</p>
@@ -311,7 +328,12 @@ export default function Home() {
             <>
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button size="lg" disabled={!user}>
+                  <Button size="lg" onClick={(e) => {
+                    if (!user) {
+                      e.preventDefault();
+                      handleCreateRoom();
+                    }
+                  }}>
                     <Plus className="mr-2 h-5 w-5" />
                     Создать комнату
                   </Button>
@@ -435,7 +457,7 @@ export default function Home() {
                     </p>
                   )}
                 </div>
-                <Button type="submit" size="lg" variant="secondary" disabled={isJoiningRoom || !user}>
+                <Button type="submit" size="lg" variant="secondary" disabled={isJoiningRoom}>
                   {isJoiningRoom ? <Loader2 className="animate-spin" /> : 'Войти'}
                 </Button>
               </form>
