@@ -249,7 +249,7 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
       ref={cardRef}
       className={cn(
         'absolute rounded-lg shadow-lg flex flex-col pointer-events-auto transition-transform',
-        isOwner && !isEditing && 'cursor-grab',
+        !isEditing ? 'cursor-default' : 'cursor-default',
         isDragging && 'z-50 scale-105 shadow-2xl cursor-grabbing',
         isAuditLog && 'border-primary border-2 bg-primary/5'
       )}
