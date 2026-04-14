@@ -78,9 +78,17 @@ export default function Home() {
     }
   }, [user, isUserLoading, auth]);
 
+  // Проверка на наличие конфигурации
+  useEffect(() => {
+    if (!auth && !isUserLoading) {
+      setAuthError('Firebase не настроен. Добавьте переменные окружения в .env.local');
+    }
+  }, [auth, isUserLoading]);
+
   const handleCreateRoom = async () => {
-    // Если пользователя нет, пробуем войти "на лету"
     let currentUser = user;
+    
+    // Если сессия еще не установлена, пробуем войти "на лету"
     if (!currentUser && auth) {
       setIsAuthenticating(true);
       try {
@@ -88,8 +96,8 @@ export default function Home() {
         currentUser = cred.user;
       } catch (err) {
         toast({
-          title: 'Ошибка входа',
-          description: 'Не удалось установить анонимную сессию.',
+          title: 'Ошибка доступа',
+          description: 'Не удалось установить связь с сервером. Проверьте интернет или настройки Firebase.',
           variant: 'destructive',
         });
         setIsAuthenticating(false);
@@ -100,8 +108,8 @@ export default function Home() {
 
     if (!firestore || !currentUser) {
       toast({
-        title: 'Доступ ограничен',
-        description: 'Вы еще не авторизованы. Проверьте настройки Firebase.',
+        title: 'Сервис недоступен',
+        description: 'База данных не подключена. Обратитесь к администратору или проверьте настройки проекта.',
         variant: 'destructive',
       });
       return;
@@ -157,7 +165,7 @@ export default function Home() {
         members: {
           [currentUser.uid]: {
             role: 'owner',
-            name: currentUser.displayName || (currentUser.isAnonymous ? 'Аноним' : 'Создатель')
+            name: currentUser.displayName || (currentUser.isAnonymous ? 'Аноним' : 'Пользователь')
           },
         },
       };
@@ -207,7 +215,7 @@ export default function Home() {
 
   const handleJoinRoom = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!firestore || !joinCodeRef.current) return;
+    if (!joinCodeRef.current) return;
 
     let currentUser = user;
     if (!currentUser && auth) {
@@ -223,10 +231,10 @@ export default function Home() {
       setIsAuthenticating(false);
     }
 
-    if (!currentUser) {
+    if (!firestore || !currentUser) {
       toast({
         title: 'Ошибка',
-        description: 'Вы еще не авторизованы. Подождите...',
+        description: 'Связь с базой данных не установлена.',
         variant: 'destructive',
       });
       return;
@@ -330,7 +338,7 @@ export default function Home() {
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Ошибка входа</AlertTitle>
             <AlertDescription className="flex flex-col gap-2">
-              <p>Firebase отклонил API-ключ или он не настроен. Проверьте настройки на хостинге.</p>
+              <p>{authError}</p>
               <Button size="sm" variant="outline" onClick={performSignIn} className="w-fit gap-2">
                 <RefreshCcw className="h-3 w-3" /> Повторить вход
               </Button>
