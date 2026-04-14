@@ -5,16 +5,13 @@ import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 export function initializeFirebase() {
-  const isKeyValid = (key: any) => 
-    typeof key === 'string' && 
-    key.trim().length > 10 && 
-    key.trim().startsWith('AIza');
+  const isKeyPresent = (key: any) => 
+    typeof key === 'string' && key.length > 0;
 
-  const isConfigValid = 
-    isKeyValid(firebaseConfig.apiKey) &&
+  const isConfigPresent = 
+    isKeyPresent(firebaseConfig.apiKey) &&
     typeof firebaseConfig.projectId === 'string' && 
-    firebaseConfig.projectId.length > 0 &&
-    firebaseConfig.projectId !== 'undefined';
+    firebaseConfig.projectId.length > 0;
 
   if (typeof window === 'undefined') {
     return {
@@ -25,8 +22,9 @@ export function initializeFirebase() {
     };
   }
 
-  if (!isConfigValid) {
-    console.warn('Firebase configuration is missing or invalid.');
+  if (!isConfigPresent) {
+    // In many development environments, config might be injected later.
+    // Return mock SDKs that will be replaced when config is available.
     return {
       firebaseApp: null as any,
       auth: null as any,

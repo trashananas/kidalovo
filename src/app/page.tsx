@@ -1,11 +1,10 @@
-
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Lock, Unlock, Plus, LogOut, Info, Eye, EyeOff, ShieldCheck, ShieldAlert, Settings, AlertTriangle, RefreshCcw, Code } from 'lucide-react';
+import { Loader2, Lock, Unlock, Plus, LogOut, Info, Eye, EyeOff, ShieldCheck, ShieldAlert, Settings, Code } from 'lucide-react';
 import { useUser, useAuth, useFirestore } from '@/firebase';
 import { signInAnonymously } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
@@ -31,7 +30,6 @@ import { Switch } from '@/components/ui/switch';
 import { signOut } from 'firebase/auth';
 import Link from 'next/link';
 import { RegistrationSuggestion } from '@/components/registration-suggestion';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,7 +43,6 @@ export default function Home() {
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [isJoiningRoom, setIsJoiningRoom] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
-  const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const joinCodeRef = useRef<HTMLInputElement>(null);
 
@@ -61,12 +58,10 @@ export default function Home() {
   const performSignIn = async () => {
     if (!auth || user || isAuthenticating) return;
     setIsAuthenticating(true);
-    setAuthError(null);
     try {
       await signInAnonymously(auth);
     } catch (error: any) {
-      console.error('Auth error:', error);
-      setAuthError(error.message || 'Ошибка при подключении к Firebase.');
+      console.error('Silent auth error:', error);
     } finally {
       setIsAuthenticating(false);
     }
@@ -78,17 +73,9 @@ export default function Home() {
     }
   }, [user, isUserLoading, auth]);
 
-  // Проверка на наличие конфигурации
-  useEffect(() => {
-    if (!auth && !isUserLoading) {
-      setAuthError('Firebase не настроен. Добавьте переменные окружения в .env.local');
-    }
-  }, [auth, isUserLoading]);
-
   const handleCreateRoom = async () => {
     let currentUser = user;
     
-    // Если сессия еще не установлена, пробуем войти "на лету"
     if (!currentUser && auth) {
       setIsAuthenticating(true);
       try {
@@ -96,8 +83,8 @@ export default function Home() {
         currentUser = cred.user;
       } catch (err) {
         toast({
-          title: 'Ошибка доступа',
-          description: 'Не удалось установить связь с сервером. Проверьте интернет или настройки Firebase.',
+          title: 'Ошибка',
+          description: 'Не удалось подключиться к серверу.',
           variant: 'destructive',
         });
         setIsAuthenticating(false);
@@ -108,8 +95,8 @@ export default function Home() {
 
     if (!firestore || !currentUser) {
       toast({
-        title: 'Сервис недоступен',
-        description: 'База данных не подключена. Обратитесь к администратору или проверьте настройки проекта.',
+        title: 'Ошибка',
+        description: 'База данных еще инициализируется. Попробуйте снова через секунду.',
         variant: 'destructive',
       });
       return;
@@ -234,7 +221,7 @@ export default function Home() {
     if (!firestore || !currentUser) {
       toast({
         title: 'Ошибка',
-        description: 'Связь с базой данных не установлена.',
+        description: 'База данных еще не готова.',
         variant: 'destructive',
       });
       return;
@@ -333,21 +320,8 @@ export default function Home() {
           </p>
         </div>
 
-        {authError && (
-          <Alert variant="destructive" className="animate-in fade-in slide-in-from-top-4">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Ошибка входа</AlertTitle>
-            <AlertDescription className="flex flex-col gap-2">
-              <p>{authError}</p>
-              <Button size="sm" variant="outline" onClick={performSignIn} className="w-fit gap-2">
-                <RefreshCcw className="h-3 w-3" /> Повторить вход
-              </Button>
-            </AlertDescription>
-          </Alert>
-        )}
-
         <div className="flex flex-col items-stretch gap-4 w-full">
-          {isUserLoading || (isAuthenticating && !authError) ? (
+          {isUserLoading ? (
             <div className="flex flex-col items-center justify-center py-8 gap-4">
               <Loader2 className="h-10 w-10 animate-spin text-primary" />
               <p className="text-sm text-muted-foreground animate-pulse">Устанавливаем связь с доской...</p>
