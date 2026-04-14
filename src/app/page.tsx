@@ -10,7 +10,6 @@ import { signInAnonymously } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { doc, getDoc, setDoc, serverTimestamp, collection, addDoc } from 'firebase/firestore';
 import { generateRoomCode, getErrorMessage } from '@/lib/utils';
-import { z } from 'zod';
 import { UserGuide } from '@/components/user-guide';
 import { KidalovoLogo } from '@/components/kidalovo-logo';
 import { Separator } from '@/components/ui/separator';
