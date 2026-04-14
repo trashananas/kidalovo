@@ -79,20 +79,40 @@ export default function Home() {
   }, [user, isUserLoading, auth]);
 
   const handleCreateRoom = async () => {
-    if (!firestore || !user) {
+    // Если пользователя нет, пробуем войти "на лету"
+    let currentUser = user;
+    if (!currentUser && auth) {
+      setIsAuthenticating(true);
+      try {
+        const cred = await signInAnonymously(auth);
+        currentUser = cred.user;
+      } catch (err) {
+        toast({
+          title: 'Ошибка входа',
+          description: 'Не удалось установить анонимную сессию.',
+          variant: 'destructive',
+        });
+        setIsAuthenticating(false);
+        return;
+      }
+      setIsAuthenticating(false);
+    }
+
+    if (!firestore || !currentUser) {
       toast({
         title: 'Доступ ограничен',
-        description: 'Вы еще не авторизованы. Проверьте настройки Firebase или подождите завершения входа.',
+        description: 'Вы еще не авторизованы. Проверьте настройки Firebase.',
         variant: 'destructive',
       });
       return;
     }
+
     setIsCreatingRoom(true);
 
     const finalCode = customCode.trim().toUpperCase() || generateRoomCode();
     
     if (customCode.trim()) {
-      if (user.isAnonymous) {
+      if (currentUser.isAnonymous) {
         toast({
           title: 'Доступ запрещен',
           description: 'Кастомные коды доступны только зарегистрированным пользователям.',
@@ -132,12 +152,12 @@ export default function Home() {
       const roomData: any = {
         code: finalCode,
         createdAt: serverTimestamp(),
-        creatorId: user.uid,
+        creatorId: currentUser.uid,
         onlyAuthorized: onlyAuthorized,
         members: {
-          [user.uid]: {
+          [currentUser.uid]: {
             role: 'owner',
-            name: user.displayName || 'Создатель'
+            name: currentUser.displayName || (currentUser.isAnonymous ? 'Аноним' : 'Создатель')
           },
         },
       };
@@ -189,7 +209,21 @@ export default function Home() {
     e.preventDefault();
     if (!firestore || !joinCodeRef.current) return;
 
-    if (!user) {
+    let currentUser = user;
+    if (!currentUser && auth) {
+      setIsAuthenticating(true);
+      try {
+        const cred = await signInAnonymously(auth);
+        currentUser = cred.user;
+      } catch (err) {
+        toast({ title: 'Ошибка', description: 'Не удалось войти анонимно.', variant: 'destructive' });
+        setIsAuthenticating(false);
+        return;
+      }
+      setIsAuthenticating(false);
+    }
+
+    if (!currentUser) {
       toast({
         title: 'Ошибка',
         description: 'Вы еще не авторизованы. Подождите...',
@@ -220,7 +254,7 @@ export default function Home() {
         setJoinError('Комната не найдена.');
       } else {
         const rData = roomSnap.data();
-        if (rData.onlyAuthorized && user?.isAnonymous) {
+        if (rData.onlyAuthorized && currentUser?.isAnonymous) {
           setJoinError('Эта комната доступна только авторизованным пользователям.');
         } else {
           router.push(`/${validatedFields.data.code}`);
@@ -244,22 +278,8 @@ export default function Home() {
   };
 
   const handleCodeInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rusToEngMap: { [key: string]: string } = {
-        'й': 'q', 'ц': 'w', 'у': 'e', 'к': 'r', 'е': 't', 'н': 'y', 'г': 'u', 'ш': 'i', 'щ': 'o', 'з': 'p',
-        'ф': 'a', 'ы': 's', 'в': 'd', 'а': 'f', 'п': 'g', 'р': 'h', 'о': 'j', 'л': 'k', 'д': 'l',
-        'я': 'z', 'ч': 'x', 'с': 'c', 'м': 'v', 'и': 'b', 'т': 'n', 'ь': 'm',
-    };
-    
     let value = e.target.value;
-    let translatedValue = '';
-    for (let i = 0; i < value.length; i++) {
-        const char = value[i].toLowerCase();
-        translatedValue += rusToEngMap[char] || value[i];
-    }
-    
-    e.target.value = translatedValue
-      .toUpperCase()
-      .replace(/[^A-Z0-9]/g, '');
+    e.target.value = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
   };
 
   return (
@@ -328,12 +348,7 @@ export default function Home() {
             <>
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button size="lg" onClick={(e) => {
-                    if (!user) {
-                      e.preventDefault();
-                      handleCreateRoom();
-                    }
-                  }}>
+                  <Button size="lg" className="w-full">
                     <Plus className="mr-2 h-5 w-5" />
                     Создать комнату
                   </Button>
