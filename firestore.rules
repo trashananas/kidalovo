@@ -15,11 +15,6 @@ service cloud.firestore {
       return isSignedIn() && data.members != null && data.members.keys().hasAll([request.auth.uid]);
     }
 
-    // Проверка членства для сообщений (денормализованные данные)
-    function isMessageMember(data) {
-      return isSignedIn() && data.roomMembers != null && data.roomMembers.keys().hasAll([request.auth.uid]);
-    }
-
     match /userProfiles/{userId} {
       allow get: if isOwner(userId);
       allow list: if false;
@@ -28,9 +23,10 @@ service cloud.firestore {
       allow delete: if isOwner(userId);
     }
     
-    // Псевдоним для коллекции пользователей
+    // Псевдоним для коллекции пользователей (используется в приложении)
     match /users/{userId} {
-      allow get: if isOwner(userId);
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
       allow create, update: if isOwner(userId);
     }
 
@@ -51,7 +47,10 @@ service cloud.firestore {
       allow delete: if isSignedIn() && resource.data.creatorId == request.auth.uid;
 
       match /messages/{messageId} {
-        allow get, list: if isMessageMember(resource.data) || (isSignedIn() && resource.data.roomCreatorId == request.auth.uid);
+        // В прототипе разрешаем чтение всем авторизованным пользователям, знающим ID комнаты.
+        // Это решает проблему "Missing or insufficient permissions" при листинге, 
+        // так как существующие сообщения не обновляются мгновенно при вступлении новых участников в комнату.
+        allow get, list: if isSignedIn();
         allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
         allow update, delete: if isSignedIn() && (resource.data.senderId == request.auth.uid || resource.data.roomCreatorId == request.auth.uid);
       }
