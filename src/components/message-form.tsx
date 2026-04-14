@@ -9,10 +9,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { Card, CardContent } from './ui/card';
 import { Send, Paperclip, X, File as FileIcon, Loader2 } from 'lucide-react';
-import { useUser, useFirestore } from '@/firebase';
+import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp, doc, getDoc, writeBatch, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import type { FileAttachment, UserProfile } from '@/types';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 const CHUNK_SIZE = 750000;
 let isGlobalUploading = false;
@@ -30,6 +32,9 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
   const firestore = useFirestore();
   const { toast } = useToast();
   const [profile, setProfile] = useState<UserProfile | null>(null);
+
+  const roomRef = useMemoFirebase(() => firestore ? doc(firestore, 'rooms', roomId) : null, [firestore, roomId]);
+  const { data: roomData } = useDoc(roomRef);
 
   useEffect(() => {
     if (user && !user.isAnonymous && firestore) {
@@ -106,13 +111,7 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
   };
 
   const onSubmit = async (values: z.infer<typeof messageSchema>) => {
-    if (!firestore || !user || !roomId) return;
-
-    const lowerMsg = values.message.toLowerCase();
-    if (lowerMsg.includes('валикова')) {
-      form.setError('message', { message: 'your message contains a nature error' });
-      return;
-    }
+    if (!firestore || !user || !roomId || !roomData) return;
 
     try {
       let fileData: FileAttachment | null = null;
@@ -142,6 +141,7 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
         roomId,
         text: values.message || '',
         userId: user.uid,
+        senderId: user.uid,
         authorName: profile?.username || (user.isAnonymous ? 'Аноним' : (user.displayName || 'Пользователь')),
         authorColor: profile?.color || '#666666',
         authorLogin: profile?.login || null,
@@ -152,17 +152,26 @@ export function MessageForm({ roomId, panOffset }: { roomId: string; panOffset: 
           y: (Math.random() - 0.5) * 400 - panOffset.y,
         },
         size: { width: 320, height: fileData ? 170 : 140 },
+        roomCreatorId: roomData.creatorId,
+        roomMembers: roomData.members,
         ...(fileData && { file: fileData })
       };
 
-      const docRef = await addDoc(collection(firestore, 'rooms', roomId, 'messages'), messageData);
+      const messagesCol = collection(firestore, 'rooms', roomId, 'messages');
+      addDoc(messagesCol, messageData).then((docRef) => {
+        if (fileToUpload && generatedFileId) {
+          handleBackgroundUpload(fileToUpload, docRef.id, generatedFileId);
+        }
+        form.reset();
+        form.setValue('file', null);
+      }).catch((err) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: messagesCol.path,
+          operation: 'create',
+          requestResourceData: messageData
+        }));
+      });
 
-      if (fileToUpload && generatedFileId) {
-        handleBackgroundUpload(fileToUpload, docRef.id, generatedFileId);
-      }
-
-      form.reset();
-      form.setValue('file', null);
     } catch (error: any) {
       toast({ title: 'Ошибка', description: 'Не удалось отправить.', variant: 'destructive' });
     }

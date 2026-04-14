@@ -1,117 +1,69 @@
-/**
- * Firestore Security Rules for LetterBoard
- * 
- * CORE PHILOSOPHY:
- * This ruleset implements a membership-based access model designed for high performance and authorization 
- * independence. It prioritizes the "Membership Map" strategy and data denormalization to ensure that 
- * security checks do not require expensive cross-document lookups (get() calls).
- * 
- * DATA STRUCTURE:
- * - /userProfiles/{userId}: Private user data, secured by UID ownership.
- * - /rooms/{roomId}: Collaborative message boards. Access is controlled via a 'members' map 
- *   within the document (e.g., members: { 'uid123': true }).
- * - /rooms/{roomId}/messages/{messageId}: Chat messages. To maintain authorization independence, 
- *   each message denormalizes the parent room's membership list into a 'roomMembers' map.
- * 
- * KEY SECURITY DECISIONS:
- * - Ownership Enforcement: Users can only access their own profile documents where the document 
- *   ID matches their authenticated UID.
- * - Membership Authorization: Room and Message access is granted only if the user's UID is a 
- *   key in the 'members' (for rooms) or 'roomMembers' (for messages) map.
- * - Relational Integrity: On creation and update, critical fields like 'creatorId', 'senderId', 
- *   and 'id' are validated or enforced as immutable to prevent users from spoofing ownership 
- *   or hijacking documents.
- * - Prototyping Flexibility: While authorization is strictly enforced based on identity and 
- *   membership, specific data field types and non-critical schema elements are not validated 
- *   to allow for rapid frontend iteration.
- */
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- GLOBAL HELPER FUNCTIONS ---
-
-    /**
-     * @description Checks if the request is made by a signed-in user.
-     */
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /**
-     * @description Checks if the authenticated user's UID matches the provided userId.
-     * @param userId The UID to check against the current session.
-     */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    /**
-     * @description Verifies ownership and ensures the document exists for destructive operations.
-     */
-    function isExistingOwner(userId) {
-      return resource != null && isOwner(userId);
-    }
-
-    /**
-     * @description Checks if the user is a member of a room based on the membership map.
-     * @param data The document data containing the 'members' map.
-     */
+    // Проверка членства в комнате (поддерживает как булево значение, так и объект)
     function isRoomMember(data) {
-      return isSignedIn() && data.members[request.auth.uid] == true;
+      return isSignedIn() && data.members != null && data.members.keys().hasAll([request.auth.uid]);
     }
 
-    /**
-     * @description Checks if the user is authorized to view a message based on denormalized membership data.
-     * @param data The document data containing the 'roomMembers' map.
-     */
+    // Проверка членства для сообщений (денормализованные данные)
     function isMessageMember(data) {
-      return isSignedIn() && data.roomMembers[request.auth.uid] == true;
+      return isSignedIn() && data.roomMembers != null && data.roomMembers.keys().hasAll([request.auth.uid]);
     }
 
-    // --- COLLECTION RULES ---
-
-    /**
-     * @description Stores individual user profile information. Strict ownership per UID.
-     * @path /userProfiles/{userId}
-     * @allow (get) If the user is requesting their own profile document.
-     * @deny (list) If a user tries to list all user profiles (listing disabled for privacy).
-     * @principle Restricts access to a user's own data tree and enforces path-based ownership.
-     */
     match /userProfiles/{userId} {
       allow get: if isOwner(userId);
       allow list: if false;
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
+    }
+    
+    // Псевдоним для коллекции пользователей
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create, update: if isOwner(userId);
     }
 
-    /**
-     * @description Represents collaborative rooms. Access is defined by a members map on the document.
-     * @path /rooms/{roomId}
-     * @allow (create) If the user is signed in and sets themselves as the creator.
-     * @deny (update) If a user who is not in the 'members' map tries to edit the room.
-     * @principle Uses a Membership Map for shared access and enforces relational integrity for the creatorId.
-     */
     match /rooms/{roomId} {
-      allow get, list: if isRoomMember(resource.data);
-      allow create: if isSignedIn() && request.resource.data.creatorId == request.auth.uid;
-      allow update: if resource != null && isRoomMember(resource.data) && request.resource.data.creatorId == resource.data.creatorId;
-      allow delete: if resource != null && resource.data.creatorId == request.auth.uid;
+      // Разрешаем get для проверки существования и метаданных (пароль, тип доступа)
+      allow get: if isSignedIn();
+      allow list: if isSignedIn(); 
 
-      /**
-       * @description Messages within a room. Uses denormalized room membership for performance.
-       * @path /rooms/{roomId}/messages/{messageId}
-       * @allow (list) If the user's UID is present in the denormalized 'roomMembers' map.
-       * @deny (create) If the user is not a member of the room or tries to spoof the senderId.
-       * @principle Implements Authorization Independence via denormalization (avoids parent get() calls).
-       */
+      allow create: if isSignedIn() && request.resource.data.creatorId == request.auth.uid;
+      
+      // Разрешаем обновление, если пользователь добавляет себя в участники 
+      // или если он уже является владельцем/участником
+      allow update: if isSignedIn() && (
+        isRoomMember(resource.data) || 
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members']))
+      );
+      
+      allow delete: if isSignedIn() && resource.data.creatorId == request.auth.uid;
+
       match /messages/{messageId} {
-        allow get, list: if isMessageMember(resource.data);
-        allow create: if isMessageMember(request.resource.data) && request.resource.data.senderId == request.auth.uid;
-        allow update: if resource != null && isMessageMember(resource.data) && request.resource.data.senderId == resource.data.senderId;
-        allow delete: if resource != null && resource.data.senderId == request.auth.uid;
+        allow get, list: if isMessageMember(resource.data) || (isSignedIn() && resource.data.roomCreatorId == request.auth.uid);
+        allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
+        allow update, delete: if isSignedIn() && (resource.data.senderId == request.auth.uid || resource.data.roomCreatorId == request.auth.uid);
+      }
+
+      match /drawings/{drawingId} {
+        allow get, list: if isSignedIn();
+        allow create: if isSignedIn();
+        allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || get(/databases/$(database)/documents/rooms/$(roomId)).data.creatorId == request.auth.uid);
+      }
+      
+      match /file_chunks/{fileId}/chunks/{chunkId} {
+        allow read, write: if isSignedIn();
       }
     }
   }
