@@ -264,8 +264,8 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
       onPointerUp={handleCardPointerUp}
       data-message-card="true"
     >
-      <div className="relative p-4 flex flex-col gap-2 flex-grow overflow-hidden">
-        <div className="flex justify-between items-start">
+      <div className="relative p-4 flex flex-col gap-2 flex-grow overflow-hidden h-full">
+        <div className="flex justify-between items-start shrink-0">
           {isAuditLog ? (
             <div className="flex items-center gap-2 mb-1">
               <ShieldCheck className="h-4 w-4 text-primary" />
@@ -304,7 +304,7 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
         </div>
         
         {message.file && !isCollapsed && !isAuditLog && (
-          <div className="relative group/file mb-2">
+          <div className="relative group/file mb-2 shrink-0">
             {isFileUploading ? (
               <div className="flex flex-col gap-2 p-3 border rounded-md bg-muted/30">
                 <div className="flex items-center gap-2">
@@ -316,7 +316,7 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
             ) : (
               message.file.type.startsWith('image') && message.file.url ? (
                 <div className="relative">
-                  <img src={message.file.url} alt={message.file.name} className="w-full h-auto max-h-96 rounded-md object-contain pointer-events-none" />
+                  <img src={message.file.url} alt={message.file.name} className="w-full h-auto max-h-48 rounded-md object-contain pointer-events-none" />
                   <div className="absolute top-2 right-2 p-1.5 bg-background/80 backdrop-blur-sm rounded-md shadow-sm opacity-0 group-hover/file:opacity-100 transition-opacity hover:bg-primary hover:text-primary-foreground cursor-pointer" onClick={handleDownload} title="Скачать">
                     {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                   </div>
@@ -343,7 +343,7 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
               <GripVertical className="h-5 w-5" />
             </div>
           )}
-          <div className="flex-1 min-w-0 overflow-y-auto pr-1 custom-scrollbar">
+          <div className="flex-1 min-w-0 overflow-y-auto pr-1 custom-scrollbar h-full">
             {isEditing ? (
               <div className="flex flex-col gap-2">
                 <Textarea value={editText} onChange={(e) => setEditText(e.target.value)} className="text-sm" rows={2} autoFocus />
@@ -381,7 +381,7 @@ export function MessageCard({ message, roomId, panOffset, isRoomOwner, roomMembe
         )}
       </div>
       {isOwner && !isCollapsed && (
-        <div className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize hover:bg-primary/20 transition-colors rounded-br-lg" onPointerDown={handleResizePointerDown} data-resize-handle="true" />
+        <div className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize hover:bg-primary/20 transition-colors rounded-br-lg z-10" onPointerDown={handleResizePointerDown} data-resize-handle="true" />
       )}
     </Card>
   );
